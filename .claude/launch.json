@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sun-sport-marine-dev",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": [
+        "-c",
+        "export PATH=/Users/lukasspencer/.nvm/versions/node/v24.21.0/bin:$PATH && npm run dev"
+      ],
+      "port": 3000
+    }
+  ]
+}
