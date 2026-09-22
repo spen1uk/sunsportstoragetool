@@ -13,6 +13,8 @@ import { MoveUnitDialog, type AvailableLocation } from "@/components/units/move-
 import { UnitTimeline } from "@/components/units/unit-timeline";
 import { NoteSection } from "@/components/notes/note-section";
 import { UNIT_TYPE_LABELS, STORAGE_TYPE_LABELS } from "@/lib/utils/status";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
+import { PhotoGallery } from "@/components/photos/photo-gallery";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +46,7 @@ export default async function UnitDetailPage({
     { data: historyRows },
     { data: services },
     { data: notes },
+    { data: photoRows },
   ] = await Promise.all([
     supabase
       .from("units")
@@ -84,9 +87,30 @@ export default async function UnitDetailPage({
       .eq("entity_type", "unit")
       .eq("entity_id", unitId)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("photos")
+      .select("id, storage_path, caption")
+      .eq("entity_type", "unit")
+      .eq("entity_id", unitId)
+      .order("created_at", { ascending: false }),
   ]);
 
   if (!unit) notFound();
+
+  let photos: { id: string; url: string; caption: string | null }[] = [];
+  if (photoRows && photoRows.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from("unit-photos")
+      .createSignedUrls(
+        photoRows.map((p) => p.storage_path),
+        3600,
+      );
+    photos = photoRows.map((p, i) => ({
+      id: p.id,
+      caption: p.caption,
+      url: signed?.[i]?.signedUrl ?? "",
+    }));
+  }
 
   const customer = unit.customers as unknown as {
     id: string;
@@ -139,6 +163,7 @@ export default async function UnitDetailPage({
 
   return (
     <div className="max-w-4xl space-y-6">
+      <RealtimeRefresher tables={["units", "location_assignments", "location_history", "unit_services", "notes", "photos"]} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -236,6 +261,15 @@ export default async function UnitDetailPage({
         </CardHeader>
         <CardContent>
           <UnitTimeline rows={historyMapped} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Photos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PhotoGallery entityType="unit" entityId={unit.id} photos={photos} canDelete={profile?.role === "admin"} />
         </CardContent>
       </Card>
 

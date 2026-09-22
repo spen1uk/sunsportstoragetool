@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { UnitStatusBadge } from "@/components/units/unit-status-badge";
 import { NoteSection } from "@/components/notes/note-section";
+import { PhotoGallery } from "@/components/photos/photo-gallery";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +21,7 @@ export default async function CustomerDetailPage({
   const supabase = await createClient();
   const profile = await getCurrentProfile();
 
-  const [{ data: customer }, { data: units }, { data: notes }] = await Promise.all([
+  const [{ data: customer }, { data: units }, { data: notes }, { data: photoRows }] = await Promise.all([
     supabase.from("customers").select("*").eq("id", customerId).single(),
     supabase
       .from("units")
@@ -32,9 +34,30 @@ export default async function CustomerDetailPage({
       .eq("entity_type", "customer")
       .eq("entity_id", customerId)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("photos")
+      .select("id, storage_path, caption")
+      .eq("entity_type", "customer")
+      .eq("entity_id", customerId)
+      .order("created_at", { ascending: false }),
   ]);
 
   if (!customer) notFound();
+
+  let photos: { id: string; url: string; caption: string | null }[] = [];
+  if (photoRows && photoRows.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from("documents")
+      .createSignedUrls(
+        photoRows.map((p) => p.storage_path),
+        3600,
+      );
+    photos = photoRows.map((p, i) => ({
+      id: p.id,
+      caption: p.caption,
+      url: signed?.[i]?.signedUrl ?? "",
+    }));
+  }
 
   const mappedNotes = (notes ?? []).map((n) => ({
     id: n.id,
@@ -45,6 +68,7 @@ export default async function CustomerDetailPage({
 
   return (
     <div className="max-w-4xl space-y-6">
+      <RealtimeRefresher tables={["units", "notes", "photos"]} />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
@@ -124,6 +148,15 @@ export default async function CustomerDetailPage({
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Documents &amp; Photos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PhotoGallery entityType="customer" entityId={customer.id} photos={photos} canDelete={profile?.role === "admin"} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

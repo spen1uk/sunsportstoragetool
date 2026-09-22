@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CompleteServiceButton } from "@/components/units/complete-service-button";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function ServicePage() {
 
   return (
     <div className="space-y-6">
+      <RealtimeRefresher tables={["unit_services"]} />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Service</h1>
         <p className="text-sm text-muted-foreground">Requested, scheduled, and in-progress service work.</p>

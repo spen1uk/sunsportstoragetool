@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/server";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ export default async function DashboardPage() {
       .from("units")
       .select("id", { count: "exact", head: true })
       .is("deleted_at", null)
-      .eq("status_code", "needs_location"),
+      .in("status_code", ["arrived", "needs_location"]),
     supabase
       .from("units")
       .select("id", { count: "exact", head: true })
@@ -95,6 +96,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <RealtimeRefresher tables={["units", "location_assignments", "unit_services", "pickups", "activity_logs"]} />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground">Live overview of Sun Sport Marine storage operations.</p>

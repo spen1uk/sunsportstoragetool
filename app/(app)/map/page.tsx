@@ -3,6 +3,7 @@ import { Building2, Sun, Wrench } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LOCATION_TYPE_LABELS } from "@/lib/utils/status";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ export default async function FacilityMapPage() {
 
   return (
     <div className="space-y-6">
+      <RealtimeRefresher tables={["location_assignments", "storage_locations"]} />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Facility Map</h1>
         <p className="text-sm text-muted-foreground">Select a building or area to see live occupancy.</p>

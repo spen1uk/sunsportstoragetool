@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BuildingGrid, MapLegend } from "@/components/facility-map/building-grid";
 import type { SpotWithOccupant } from "@/components/facility-map/spot-tile";
 import type { LocationType } from "@/lib/types/database";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
 
 export const dynamic = "force-dynamic";
 
@@ -87,7 +88,7 @@ export default async function BuildingMapPage({
   const { data: unassignedUnitsRaw } = await supabase
     .from("units")
     .select("id, year, make, model, customers(first_name, last_name)")
-    .eq("status_code", "needs_location")
+    .in("status_code", ["arrived", "needs_location"])
     .is("deleted_at", null);
 
   const unassignedUnits = (unassignedUnitsRaw ?? []).map((u) => {
@@ -101,6 +102,7 @@ export default async function BuildingMapPage({
 
   return (
     <div className="space-y-4">
+      <RealtimeRefresher tables={["units", "location_assignments", "storage_locations"]} />
       <Link href="/map" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="h-4 w-4" />
         All buildings

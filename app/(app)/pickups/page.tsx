@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MarkPickedUpButton } from "@/components/units/mark-picked-up-button";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,7 @@ export default async function PickupsPage() {
 
   return (
     <div className="space-y-6">
+      <RealtimeRefresher tables={["pickups", "unit_services", "location_assignments"]} />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Spring Pull / Pickup Queue</h1>
         <p className="text-sm text-muted-foreground">Sorted by requested pickup date — earliest first.</p>

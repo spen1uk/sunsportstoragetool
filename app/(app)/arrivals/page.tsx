@@ -1,14 +1,19 @@
 import Link from "next/link";
 import { format } from "date-fns";
+import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile, canManage } from "@/lib/utils/current-profile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { MoveUnitDialog, type AvailableLocation } from "@/components/units/move-unit-dialog";
 import { UNIT_TYPE_LABELS } from "@/lib/utils/status";
+import { RealtimeRefresher } from "@/components/realtime/realtime-refresher";
 
 export const dynamic = "force-dynamic";
 
 export default async function ArrivalsPage() {
   const supabase = await createClient();
+  const profile = await getCurrentProfile();
 
   const [{ data: scheduled }, { data: unassigned }, { data: allLocations }, { data: activeAssignments }] = await Promise.all([
     supabase
@@ -20,7 +25,7 @@ export default async function ArrivalsPage() {
     supabase
       .from("units")
       .select("id, internal_storage_id, year, make, model, unit_type, length_ft, customers(first_name, last_name)")
-      .eq("status_code", "needs_location")
+      .in("status_code", ["arrived", "needs_location"])
       .is("deleted_at", null)
       .order("created_at", { ascending: true }),
     supabase
@@ -44,9 +49,18 @@ export default async function ArrivalsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Arrivals</h1>
-        <p className="text-sm text-muted-foreground">Boats scheduled to arrive, and boats on-site awaiting a permanent spot.</p>
+      <RealtimeRefresher tables={["units", "location_assignments"]} />
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Arrivals</h1>
+          <p className="text-sm text-muted-foreground">Boats scheduled to arrive, and boats on-site awaiting a permanent spot.</p>
+        </div>
+        {profile && canManage(profile.role) ? (
+          <Button render={<Link href="/arrivals/intake" />}>
+            <Plus className="h-4 w-4" />
+            Create Intake
+          </Button>
+        ) : null}
       </div>
 
       <Card>
