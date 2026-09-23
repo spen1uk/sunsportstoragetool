@@ -93,7 +93,7 @@ export default async function CustomerDetailPage({
           </div>
         </div>
         {profile && canManage(profile.role) ? (
-          <Button variant="outline" render={<Link href={`/customers/${customer.id}/edit`} />}>
+          <Button variant="outline" nativeButton={false} render={<Link href={`/customers/${customer.id}/edit`} />}>
             <Pencil className="h-4 w-4" />
             Edit
           </Button>
@@ -104,7 +104,7 @@ export default async function CustomerDetailPage({
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Stored Units ({units?.length ?? 0})</CardTitle>
           {profile && canManage(profile.role) ? (
-            <Button size="sm" variant="outline" render={<Link href={`/units/new?customer=${customer.id}`} />}>
+            <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/units/new?customer=${customer.id}`} />}>
               Add Unit
             </Button>
           ) : null}

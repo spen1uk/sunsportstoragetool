@@ -3,13 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { logActivity } from "@/lib/actions/activity";
+import { BUCKET_FOR_ENTITY } from "@/lib/utils/storage-buckets";
 import type { NotableEntity } from "@/lib/types/database";
-
-export const BUCKET_FOR_ENTITY: Record<NotableEntity, string> = {
-  unit: "unit-photos",
-  intake: "unit-photos",
-  customer: "documents",
-};
 
 export async function recordPhoto(
   entityType: NotableEntity,

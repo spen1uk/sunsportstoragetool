@@ -43,7 +43,7 @@ export default async function UnitsPage() {
           <p className="text-sm text-muted-foreground">{units?.length ?? 0} units on file.</p>
         </div>
         {profile && canManage(profile.role) ? (
-          <Button render={<Link href="/units/new" />}>
+          <Button nativeButton={false} render={<Link href="/units/new" />}>
             <Plus className="h-4 w-4" />
             New Unit
           </Button>

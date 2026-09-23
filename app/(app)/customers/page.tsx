@@ -37,7 +37,7 @@ export default async function CustomersPage() {
           <p className="text-sm text-muted-foreground">{customers?.length ?? 0} customers on file.</p>
         </div>
         {profile && canManage(profile.role) ? (
-          <Button render={<Link href="/customers/new" />}>
+          <Button nativeButton={false} render={<Link href="/customers/new" />}>
             <Plus className="h-4 w-4" />
             New Customer
           </Button>

@@ -85,7 +85,7 @@ export function SpotDetailSheet({
                 <p className="text-sm text-muted-foreground">{spot.occupant.customer_name}</p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" className="flex-1" render={<Link href={`/units/${spot.occupant.unit_id}`} />}>
+                <Button variant="outline" className="flex-1" nativeButton={false} render={<Link href={`/units/${spot.occupant.unit_id}`} />}>
                   <ExternalLink className="h-4 w-4" />
                   Open Unit
                 </Button>

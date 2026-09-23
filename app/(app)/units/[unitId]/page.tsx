@@ -183,7 +183,7 @@ export default async function UnitDetailPage({
         <div className="flex items-center gap-2">
           <Image src={`/api/qr/${unit.qr_token}`} alt="QR code" width={64} height={64} className="rounded border" unoptimized />
           {canEdit ? (
-            <Button variant="outline" size="sm" render={<Link href={`/units/${unit.id}/edit`} />}>
+            <Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/units/${unit.id}/edit`} />}>
               <Pencil className="h-4 w-4" />
             </Button>
           ) : null}

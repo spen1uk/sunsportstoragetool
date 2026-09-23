@@ -56,7 +56,7 @@ export default async function ArrivalsPage() {
           <p className="text-sm text-muted-foreground">Boats scheduled to arrive, and boats on-site awaiting a permanent spot.</p>
         </div>
         {profile && canManage(profile.role) ? (
-          <Button render={<Link href="/arrivals/intake" />}>
+          <Button nativeButton={false} render={<Link href="/arrivals/intake" />}>
             <Plus className="h-4 w-4" />
             Create Intake
           </Button>

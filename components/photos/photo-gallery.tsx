@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { Camera, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { recordPhoto, deletePhoto, BUCKET_FOR_ENTITY } from "@/lib/actions/photos";
+import { recordPhoto, deletePhoto } from "@/lib/actions/photos";
+import { BUCKET_FOR_ENTITY } from "@/lib/utils/storage-buckets";
 import type { NotableEntity } from "@/lib/types/database";
 
 export type PhotoWithUrl = {
