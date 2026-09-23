@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -36,13 +37,18 @@ export function TopBar({ fullName, role }: { fullName: string; role: AppRole }) 
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuLabel className="flex flex-col">
-            <span className="font-medium">{fullName}</span>
-            <span className="text-xs font-normal capitalize text-muted-foreground">{role}</span>
-          </DropdownMenuLabel>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="flex flex-col">
+              <span className="font-medium">{fullName}</span>
+              <span className="text-xs font-normal capitalize text-muted-foreground">{role}</span>
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <form action={logout}>
-            <DropdownMenuItem render={<button type="submit" className="w-full flex items-center gap-2" />}>
+            <DropdownMenuItem
+              nativeButton
+              render={<button type="submit" className="w-full flex items-center gap-2" />}
+            >
               <LogOut className="h-4 w-4" />
               Sign out
             </DropdownMenuItem>
