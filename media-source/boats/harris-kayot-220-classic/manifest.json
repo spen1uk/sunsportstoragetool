@@ -1,0 +1,29 @@
+{
+  "$comment": "Source manifest for scripts/boat360/build-media.mjs. Crops are percentages of the (EXIF-rotated) source photo. 'placeholder' entries generate clearly-labelled 'photo needed' cards — they are not photographs.",
+  "slug": "harris-kayot-220-classic",
+  "assets": [
+    { "id": "starboard-side", "source": "photos/starboard-side.jpg", "alt": "Harris-Kayot 220 Classic on its trailer, starboard (right) side, bow to the right" },
+    { "id": "port-side", "source": "photos/port-side.jpg", "alt": "Harris-Kayot 220 Classic on its trailer, port (left) side, bow to the left" },
+    { "id": "stern-engine", "source": "photos/stern-engine.jpg", "alt": "Stern of the Harris-Kayot showing the Yamaha 100 four-stroke outboard between the pontoons" },
+    { "id": "interior-overhead", "source": "photos/interior-overhead.jpg", "alt": "Elevated view of the deck looking aft: helm console, lounge seating, captain's chairs, table and blue carpet" },
+
+    { "id": "engine-cowling", "source": "photos/stern-engine.jpg", "crop": { "x": 38, "y": 3, "w": 26, "h": 36 }, "alt": "Detail of the Yamaha 100 four-stroke engine cowling" },
+    { "id": "engine-lower-unit", "source": "photos/stern-engine.jpg", "crop": { "x": 33, "y": 50, "w": 30, "h": 50 }, "alt": "Detail of the outboard lower unit and propeller" },
+    { "id": "helm-console", "source": "photos/interior-overhead.jpg", "crop": { "x": 13, "y": 13, "w": 36, "h": 26 }, "alt": "Detail of the helm console, steering wheel and windscreen" },
+    { "id": "aft-lounge", "source": "photos/interior-overhead.jpg", "crop": { "x": 25, "y": 5, "w": 62, "h": 22 }, "alt": "Detail of the aft L-shaped lounge seating" },
+    { "id": "captains-chairs", "source": "photos/interior-overhead.jpg", "crop": { "x": 62, "y": 24, "w": 38, "h": 58 }, "alt": "Detail of the two captain's chairs on the port side" },
+    { "id": "bow-bench", "source": "photos/interior-overhead.jpg", "crop": { "x": 0, "y": 40, "w": 36, "h": 52 }, "alt": "Detail of the starboard bench seating" },
+    { "id": "deck-table", "source": "photos/interior-overhead.jpg", "crop": { "x": 38, "y": 34, "w": 46, "h": 38 }, "alt": "Detail of the pedestal table and blue deck carpet" },
+    { "id": "bow-starboard", "source": "photos/starboard-side.jpg", "crop": { "x": 62, "y": 38, "w": 38, "h": 34 }, "alt": "Detail of the bow, pontoon noses and trailer winch stand" },
+    { "id": "bow-port", "source": "photos/port-side.jpg", "crop": { "x": 0, "y": 38, "w": 36, "h": 34 }, "alt": "Detail of the bow from the port side" },
+    { "id": "trailer-axles", "source": "photos/starboard-side.jpg", "crop": { "x": 12, "y": 56, "w": 30, "h": 20 }, "alt": "Detail of the tandem-axle trailer wheels" },
+    { "id": "trailer-tongue", "source": "photos/starboard-side.jpg", "crop": { "x": 72, "y": 42, "w": 28, "h": 34 }, "alt": "Detail of the trailer tongue, winch stand and Mid America decal" },
+    { "id": "pontoon-surface", "source": "photos/starboard-side.jpg", "crop": { "x": 6, "y": 50, "w": 78, "h": 18 }, "alt": "Detail of the starboard pontoon tube surface" },
+    { "id": "upholstery-bench", "source": "photos/interior-overhead.jpg", "crop": { "x": 0, "y": 31, "w": 30, "h": 34 }, "alt": "Detail of the starboard bench upholstery surface" },
+
+    { "id": "front-view-needed", "placeholder": { "title": "FRONT VIEW", "note": "Bow-on exterior photo needed" }, "alt": "Placeholder — front view photo not yet supplied" },
+    { "id": "helm-closeup-needed", "placeholder": { "title": "HELM CLOSE-UP", "note": "Gauges / switch panel photo needed" }, "alt": "Placeholder — helm close-up photo not yet supplied" },
+    { "id": "storage-needed", "placeholder": { "title": "STORAGE", "note": "Under-seat storage photos needed" }, "alt": "Placeholder — storage photo not yet supplied" },
+    { "id": "electronics-needed", "placeholder": { "title": "ELECTRONICS", "note": "Stereo / fish finder photos needed" }, "alt": "Placeholder — electronics photo not yet supplied" }
+  ]
+}

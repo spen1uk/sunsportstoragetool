@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login"];
+// /boats = public customer-facing 360° listings (no staff login).
+const PUBLIC_PATHS = ["/login", "/boats"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

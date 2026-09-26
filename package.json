@@ -10,7 +10,9 @@
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked > lib/types/database.ts",
     "seed:users": "node scripts/seed-demo-users.mjs",
-    "seed:sql": "node scripts/run-seed-sql.mjs"
+    "seed:sql": "node scripts/run-seed-sql.mjs",
+    "boat360:media": "node scripts/boat360/build-media.mjs",
+    "boat360:placeholder": "node scripts/boat360/generate-placeholder-spin.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
