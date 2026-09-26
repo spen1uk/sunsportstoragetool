@@ -13,7 +13,7 @@
 // Decoded HTMLImageElements are kept in a Map, so a frame is fetched at most
 // once per tier. Frame changes never touch the network.
 
-import { frameUrl, pickTier, shortestDelta } from "./frames";
+import { frameDelta, frameUrl, pickTier } from "./frames";
 import type { SpinSet, SpinTier } from "./types";
 
 type TierName = SpinTier["name"];
@@ -105,14 +105,18 @@ export class FrameCache {
     const push = (frame: number, tier: SpinTier, phase: number) => {
       const k = this.key(frame, tier.name);
       if (this.images.has(k) || this.inflight.has(k) || this.failed.has(k)) return;
-      const distance = Math.abs(shortestDelta(this.current, frame, n));
+      const distance = Math.abs(frameDelta(this.current, frame, n, this.spin.loop !== false));
       tasks.push({ frame, tier, score: phase * 1000 + distance });
     };
 
     push(this.current, low, 0);
     if (this.displayTier !== low) push(this.current, this.displayTier, 1);
     if (this.zoomTier && this.zoomTier.width > this.displayTier.width) push(this.current, this.zoomTier, 1);
-    for (let d = -3; d <= 3; d++) push(((this.current - 1 + d + n) % n) + 1, low, 2);
+    for (let d = -3; d <= 3; d++) {
+      const f = this.current + d;
+      if (this.spin.loop !== false) push(((f - 1 + n) % n) + 1, low, 2);
+      else if (f >= 1 && f <= n) push(f, low, 2);
+    }
     if (this.backgroundEnabled) {
       for (let f = 1; f <= n; f++) push(f, low, 3);
       if (!this.saveData && this.displayTier !== low) {

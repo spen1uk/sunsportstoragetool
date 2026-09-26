@@ -39,8 +39,8 @@ import {
   describeFrame,
   hotspotPosition,
   isHotspotVisible,
-  shortestDelta,
-  wrapFrame,
+  frameDelta,
+  normalizeFrame,
 } from "@/lib/boat360/frames";
 import type { BoatViewerConfig, Gallery, Hotspot, VideoRef, ViewButton } from "@/lib/boat360/types";
 import { type Box, IDENTITY, useStageGestures } from "./use-stage-gestures";
@@ -94,6 +94,12 @@ export interface Boat360ViewerProps {
 export function Boat360Viewer({ boat, initialView, className, showThumbnails = true }: Boat360ViewerProps) {
   const spin = boat.spin;
   const frameCount = spin?.frameCount ?? 1;
+  const loop = spin?.loop !== false;
+  // Hide angle shortcuts the sequence doesn't cover.
+  const views = useMemo(
+    () => boat.views.filter((v) => v.action.type !== "angle" || spin?.angles[v.action.angle] != null),
+    [boat.views, spin],
+  );
 
   const galleriesById = useMemo(() => new Map(boat.galleries.map((g) => [g.id, g])), [boat.galleries]);
   const hotspotsById = useMemo(() => new Map(boat.hotspots.map((h) => [h.id, h])), [boat.hotspots]);
@@ -172,9 +178,12 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
   const setPos = useCallback(
     (pos: number) => {
       posRef.current = pos;
-      showFrame(wrapFrame(pos, frameCount));
+      // A partial arc stops at its ends instead of wrapping round.
+      const clamped = loop ? pos : Math.min(frameCount, Math.max(1, pos));
+      posRef.current = clamped;
+      showFrame(normalizeFrame(clamped, frameCount, loop));
     },
-    [frameCount, showFrame],
+    [frameCount, loop, showFrame],
   );
 
   // --- Frame cache lifecycle ---------------------------------------------------
@@ -256,7 +265,8 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
         const before = posRef.current;
         setPos(before + v * dt);
         rotatedFramesRef.current += Math.abs(v * dt);
-        if (Math.abs(v) < 0.004) {
+        const hitEnd = !loop && (posRef.current <= 1 || posRef.current >= frameCount);
+        if (Math.abs(v) < 0.004 || hitEnd) {
           animRef.current = null;
           setPos(Math.round(posRef.current));
           finishRotation();
@@ -266,14 +276,14 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
       };
       animRef.current = requestAnimationFrame(step);
     },
-    [finishRotation, setPos],
+    [finishRotation, frameCount, loop, setPos],
   );
 
   const animateToFrame = useCallback(
     (target: number) => {
       stopAnimation();
       const from = posRef.current;
-      const delta = shortestDelta(frameRef.current, target, frameCount);
+      const delta = frameDelta(frameRef.current, target, frameCount, loop);
       if (delta === 0 || prefersReducedMotion()) {
         setPos(from + delta);
         return;
@@ -292,7 +302,7 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
       };
       animRef.current = requestAnimationFrame(step);
     },
-    [frameCount, setPos, stopAnimation],
+    [frameCount, loop, setPos, stopAnimation],
   );
 
   const galleryStep = useCallback(
@@ -430,8 +440,10 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
     setMode({ kind: "spin" });
     setSpinViewId(view.id);
     if (a.type === "angle") {
-      animateToFrame(spin.angles[a.angle]);
-      setAnnouncement(`${view.label}: ${describeFrame(spin.angles[a.angle], spin)}`);
+      const target = spin.angles[a.angle];
+      if (target == null) return;
+      animateToFrame(target);
+      setAnnouncement(`${view.label}: ${describeFrame(target, spin)}`);
     } else setAnnouncement("360° view. Drag or use the arrow keys to rotate.");
   });
   const onSelectView = useCallback((view: ViewButton) => selectViewRef.current(view), [selectViewRef]);
@@ -766,8 +778,18 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
         </div>
 
         {/* Arrows */}
-        <ArrowButton side="left" label={mode.kind === "spin" ? "Rotate left (previous frame)" : "Previous photo"} onClick={() => step(-1)} />
-        <ArrowButton side="right" label={mode.kind === "spin" ? "Rotate right (next frame)" : "Next photo"} onClick={() => step(1)} />
+        <ArrowButton
+          side="left"
+          label={mode.kind === "spin" ? "Rotate left (previous frame)" : "Previous photo"}
+          onClick={() => step(-1)}
+          disabled={mode.kind === "spin" && !loop && frame <= 1}
+        />
+        <ArrowButton
+          side="right"
+          label={mode.kind === "spin" ? "Rotate right (next frame)" : "Next photo"}
+          onClick={() => step(1)}
+          disabled={mode.kind === "spin" && !loop && frame >= frameCount}
+        />
 
         {/* Bottom overlays */}
         <div className="pointer-events-none absolute inset-x-0 bottom-3 flex flex-col items-center gap-2 px-14 sm:bottom-5">
@@ -794,6 +816,11 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
           )}
         </div>
 
+        {mode.kind === "spin" && spin?.caption && !spin.placeholder && (
+          <span className="pointer-events-none absolute bottom-3 left-3 hidden max-w-[40%] rounded-md bg-brand-navy/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow backdrop-blur-sm sm:bottom-5 sm:left-5 sm:block">
+            {spin.caption}
+          </span>
+        )}
         {mode.kind === "spin" && spin?.placeholder && (
           <span
             title={spin.placeholder.notice}
@@ -835,7 +862,7 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
       )}
 
       {/* ------------------------------------------------------------ CONTROLS */}
-      <ViewSelector views={boat.views} activeId={activeViewId} onSelect={onSelectView} variant={isFs ? "dark" : "light"} />
+      <ViewSelector views={views} activeId={activeViewId} onSelect={onSelectView} variant={isFs ? "dark" : "light"} />
 
       {!isFs && detailPanel === "engine" && boat.engine && <EngineSpecPanel engine={boat.engine} />}
       {!isFs && detailPanel === "trailer" && boat.trailer && <TrailerSpecPanel trailer={boat.trailer} />}
@@ -879,16 +906,27 @@ function ToolButton({
   );
 }
 
-function ArrowButton({ side, label, onClick }: { side: "left" | "right"; label: string; onClick: () => void }) {
+function ArrowButton({
+  side,
+  label,
+  onClick,
+  disabled,
+}: {
+  side: "left" | "right";
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   const Icon = side === "left" ? ChevronLeft : ChevronRight;
   return (
     <button
       type="button"
       data-no-drag
       onClick={onClick}
+      disabled={disabled}
       aria-label={label}
       className={cn(
-        "absolute top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-brand-navy/60 text-white shadow-lg backdrop-blur-sm transition hover:bg-brand-navy focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none sm:size-14",
+        "absolute top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-brand-navy/60 text-white shadow-lg backdrop-blur-sm transition hover:bg-brand-navy disabled:pointer-events-none disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none sm:size-14",
         side === "left" ? "left-2 sm:left-5" : "right-2 sm:right-5",
       )}
     >

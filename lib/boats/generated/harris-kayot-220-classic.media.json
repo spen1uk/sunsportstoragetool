@@ -2332,5 +2332,29 @@
       "poster": "/boat-media/harris-kayot-220-classic/video/walkaround-poster.webp"
     }
   },
-  "spin": null
+  "spin": {
+    "placeholder": false,
+    "frameCount": 48,
+    "width": 1920,
+    "height": 1080,
+    "padLength": 3,
+    "tiers": [
+      {
+        "name": "sm",
+        "width": 640,
+        "urlPattern": "/boat-media/harris-kayot-220-classic/360/sm/frame-{frame}.webp"
+      },
+      {
+        "name": "md",
+        "width": 1280,
+        "urlPattern": "/boat-media/harris-kayot-220-classic/360/md/frame-{frame}.webp"
+      },
+      {
+        "name": "lg",
+        "width": 1920,
+        "urlPattern": "/boat-media/harris-kayot-220-classic/360/lg/frame-{frame}.webp"
+      }
+    ],
+    "warnings": []
+  }
 }

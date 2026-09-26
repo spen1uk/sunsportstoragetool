@@ -13,7 +13,7 @@ export function validateBoatConfig(boat: BoatViewerConfig): string[] {
 
   if (boat.spin) {
     if (boat.spin.frameCount < 24) problems.push(`Spin has ${boat.spin.frameCount} frames; 24 minimum recommended.`);
-    for (const [name, f] of Object.entries(boat.spin.angles)) if (!inRange(f)) problems.push(`Angle "${name}" → frame ${f} is out of range.`);
+    for (const [name, f] of Object.entries(boat.spin.angles)) if (f != null && !inRange(f)) problems.push(`Angle "${name}" → frame ${f} is out of range.`);
     if (!inRange(boat.spin.initialFrame)) problems.push(`initialFrame ${boat.spin.initialFrame} is out of range.`);
   }
 
@@ -40,7 +40,9 @@ export function validateBoatConfig(boat: BoatViewerConfig): string[] {
     if (v.action.type === "video" && !boat.videos?.some((x) => x.id === (v.action as { videoId: string }).videoId)) {
       problems.push(`View "${v.id}" plays missing video.`);
     }
-    if (v.action.type === "angle" && !boat.spin) problems.push(`View "${v.id}" needs a spin set.`);
+    if (v.action.type === "angle" && boat.spin?.angles[v.action.angle] == null) {
+      problems.push(`View "${v.id}" needs a spin with a "${v.action.angle}" angle.`);
+    }
   }
   return problems;
 }

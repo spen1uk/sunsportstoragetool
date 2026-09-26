@@ -40,6 +40,8 @@ export interface SpinTier {
   urlPattern: string;
 }
 
+export type SpinAngle = "front" | "starboard" | "rear" | "port";
+
 export interface SpinSet {
   frameCount: number;
   /** Intrinsic frame size (for aspect ratio). */
@@ -49,8 +51,18 @@ export interface SpinSet {
   tiers: SpinTier[];
   /** Frame shown first (1-based). */
   initialFrame: number;
-  /** Frames used by FRONT / RIGHT SIDE / REAR / LEFT SIDE shortcuts. */
-  angles: { front: number; starboard: number; rear: number; port: number };
+  /**
+   * Frames used by FRONT / RIGHT SIDE / REAR / LEFT SIDE shortcuts. Omit an
+   * angle the sequence doesn't cover (e.g. a walkaround with no bow-on shot).
+   */
+  angles: Partial<Record<SpinAngle, number>>;
+  /**
+   * Whether the sequence wraps (last frame → first). Default true. Set false
+   * for a partial arc, e.g. frames taken from a walkaround video.
+   */
+  loop?: boolean;
+  /** Short caption shown on the viewer, e.g. what the sequence covers. */
+  caption?: string;
   /**
    * Present when the sequence is not real photography. The viewer shows a
    * persistent notice so placeholders are never mistaken for the boat.
@@ -202,7 +214,7 @@ export type ViewIcon =
 
 export type ViewAction =
   | { type: "spin" }
-  | { type: "angle"; angle: keyof SpinSet["angles"] }
+  | { type: "angle"; angle: SpinAngle }
   | { type: "gallery"; galleryId: string; imageId?: string }
   | { type: "video"; videoId: string };
 
@@ -241,6 +253,10 @@ export interface TrailerSpec {
   tires: string | null;
   condition: string | null;
   included: "included" | "available-separately" | "not-available" | null;
+  /** Price when sold separately, e.g. "$4,000". */
+  price?: string | null;
+  /** Page with more about the trailer / trailer inventory. */
+  link?: string;
 }
 
 export interface BoatLinks {

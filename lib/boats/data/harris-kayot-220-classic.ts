@@ -2,26 +2,29 @@
 //
 // This file is DATA ONLY — the viewer engine knows nothing about this boat.
 // Photos come from the generated media index (originals in the Sun Sport
-// Google Drive folder, see media-source/…/manifest.json). The 360° spin is
-// still a generated PLACEHOLDER sequence (see spin.placeholder): the photo
-// set has no evenly-spaced walk-around, so a real 36-frame sequence still
-// needs to be shot. Hotspot positions on the placeholder spin come from the
-// generator's anchor tracks; on photos they were placed by hand.
+// Google Drive folder, see media-source/…/manifest.json). The spin is 48
+// real frames taken from the walkaround video (scripts/boat360/video-to-spin.mjs):
+// it covers the port side, stern and starboard side but not the bow, so it
+// is a partial arc (loop: false) with no FRONT angle. Hotspot keyframes on
+// the spin and pins on photos were placed by hand.
 //
-// Facts are only stated when they're visible in the photos (capacity plate,
-// fuel fill, electronics, trailer). Everything else is `null` so the UI shows
-// "To be confirmed" rather than a guess.
+// Facts come from Sun Sport or are visible in the photos (capacity plate,
+// fuel fill, electronics). Unknowns stay `null` → "To be confirmed".
 
 import type { BoatViewerConfig, Hotspot, MediaAsset, SpinSet, VideoRef } from "@/lib/boat360/types";
 import media from "../generated/harris-kayot-220-classic.media.json";
-import placeholderSpin from "../generated/harris-kayot-220-classic.placeholder-spin.json";
 
-type Track = { visibleFrames: number[]; positions: Record<string, { x: number; y: number }> };
-const tracks = placeholderSpin.anchorTracks as Record<string, Track>;
+type XY = [number, number];
 
-/** Spin placement for a hotspot, from the placeholder generator's anchor track. */
-function onSpin(track: keyof typeof placeholderSpin.anchorTracks): Pick<Hotspot, "visibleFrames" | "positions"> {
-  return { visibleFrames: tracks[track].visibleFrames, positions: tracks[track].positions };
+/**
+ * Spin placement for a hotspot: the frame ranges where it's visible and
+ * hand-placed keyframes (percent x/y). Frames between keys are interpolated,
+ * so each visible range needs a key at both ends.
+ */
+function onSpin(ranges: [number, number][], keys: Record<number, XY>): Pick<Hotspot, "visibleFrames" | "positions"> {
+  const visibleFrames = ranges.flatMap(([a, b]) => Array.from({ length: b - a + 1 }, (_, i) => a + i));
+  const positions = Object.fromEntries(Object.entries(keys).map(([f, [x, y]]) => [f, { x, y }]));
+  return { visibleFrames, positions };
 }
 
 const generatedVideos =
@@ -36,20 +39,19 @@ const walkaround: VideoRef = {
   poster: generatedVideos.walkaround?.poster,
   placeholder: !generatedVideos.walkaround,
 };
-const coldStart: VideoRef = { id: "cold-start", title: "Engine cold start", placeholder: true };
-
 const spin: SpinSet = {
-  frameCount: placeholderSpin.frameCount,
-  width: placeholderSpin.width,
-  height: placeholderSpin.height,
-  padLength: placeholderSpin.padLength,
-  tiers: placeholderSpin.tiers as SpinSet["tiers"],
-  initialFrame: 10,
-  angles: { front: 1, starboard: 10, rear: 19, port: 28 },
-  placeholder: {
-    notice: "Placeholder 360° renders — the real 36-photo walk-around for this boat hasn't been shot yet. Real photos are in the gallery below.",
-  },
-  sensitivity: 1,
+  frameCount: media.spin.frameCount,
+  width: media.spin.width,
+  height: media.spin.height,
+  padLength: media.spin.padLength,
+  tiers: media.spin.tiers as SpinSet["tiers"],
+  initialFrame: 1,
+  // Frame 1 = wide port side; the walk goes round the stern to the starboard bow.
+  angles: { port: 1, rear: 25, starboard: 42 },
+  loop: false,
+  caption: "Real walkaround footage · port side → stern → starboard side",
+  // The arc is ~220° over 48 frames, so ~1.5 stage widths cover it.
+  sensitivity: 0.7,
   inertia: true,
 };
 
@@ -59,11 +61,11 @@ const hotspots: Hotspot[] = [
     title: "Yamaha 100 HP Four-Stroke",
     category: "engine",
     description: "Yamaha 100 horsepower four-stroke outboard with a binnacle-mount Yamaha throttle/shift control at the helm.",
-    bullets: ["100 HP", "Four-stroke", "Outboard", "Yamaha", "Three-blade aluminum propeller (per photos)"],
+    bullets: ["100 HP", "Four-stroke", "Outboard", "Yamaha", "550 hours", "Three-blade aluminum propeller (per photos)"],
     galleryId: "engine",
     detail: "engine",
-    videos: [coldStart, walkaround],
-    ...onSpin("engine"),
+    videos: [walkaround],
+    ...onSpin([[16, 34]], { 16: [86, 17], 17: [80, 17], 21: [62, 20], 25: [40, 15], 29: [30, 18], 33: [15, 22], 34: [10, 24] }),
   },
   {
     id: "helm",
@@ -78,7 +80,7 @@ const hotspots: Hotspot[] = [
       "Humminbird fish finder and Sony stereo",
     ],
     galleryId: "helm",
-    ...onSpin("helm"),
+    ...onSpin([[1, 5], [40, 44]], { 1: [54, 28], 3: [58, 25], 5: [66, 14], 40: [34, 15], 41: [30, 15], 44: [15, 15] }),
   },
   {
     id: "fish-finder",
@@ -103,7 +105,7 @@ const hotspots: Hotspot[] = [
     description: "Navy bimini top on an aluminum frame, shading the aft seating area.",
     galleryId: "exterior",
     galleryImageId: "starboard",
-    ...onSpin("bimini"),
+    ...onSpin([[1, 3]], { 1: [82, 5], 3: [76, 6] }),
   },
   {
     id: "seating",
@@ -112,7 +114,7 @@ const hotspots: Hotspot[] = [
     description:
       "Beige and navy upholstery throughout: aft L-lounge, side benches, a helm seat and two captain's chairs, with pedestal tables.",
     galleryId: "interior",
-    ...onSpin("seating"),
+    ...onSpin([[1, 10]], { 1: [26, 32], 3: [28, 27], 5: [32, 16], 7: [30, 16], 9: [30, 21], 10: [30, 21] }),
   },
   {
     id: "storage",
@@ -127,16 +129,18 @@ const hotspots: Hotspot[] = [
     category: "bow",
     description: "Bow deck with entry gate, red/green navigation lights and docking lights in the bow caps.",
     galleryId: "bow",
-    ...onSpin("bow"),
+    ...onSpin([[1, 3], [44, 48]], { 1: [7, 45], 3: [5, 46], 44: [88, 42], 46: [78, 40], 48: [56, 40] }),
   },
   {
     id: "trailer",
-    title: "Mid America Tandem-Axle Trailer",
+    title: "2026 Mid America Bunk Trailer",
     category: "trailer",
-    description: "Mid America Trailers tandem-axle pontoon trailer with carpeted bunks, manual winch and swing-away jack.",
+    description:
+      "2026 Mid America Trailers tandem-axle bunk trailer with carpeted bunks, manual winch and swing-away jack. No brakes. Available for an additional $4,000.",
+    bullets: ["2026 model year", "Tandem axle, carpeted bunks", "No brakes", "Additional $4,000"],
     galleryId: "trailer",
     detail: "trailer",
-    ...onSpin("trailer"),
+    ...onSpin([[1, 7], [39, 45]], { 1: [70, 75], 3: [78, 77], 5: [88, 82], 7: [93, 90], 39: [28, 93], 41: [20, 92], 44: [11, 89], 45: [6, 88] }),
   },
   {
     id: "pontoon-finish",
@@ -148,7 +152,7 @@ const hotspots: Hotspot[] = [
       "Surface oxidation and staining are visible on the aluminum pontoon tubes in the photos. Sun Sport will confirm the condition during inspection.",
     galleryId: "condition",
     galleryImageId: "pontoons",
-    ...onSpin("pontoons"),
+    ...onSpin([[4, 13], [36, 43]], { 4: [40, 62], 5: [40, 62], 9: [50, 67], 13: [50, 67], 36: [50, 65], 37: [50, 65], 41: [50, 66], 43: [50, 66] }),
   },
   {
     id: "deck-underside",
@@ -178,17 +182,19 @@ const config: BoatViewerConfig = {
   make: "Harris-Kayot",
   model: "220 Classic",
   highlights: [
+    { label: "Type", value: "Pontoon" },
     { label: "Engine", value: "Yamaha 100 HP Four-Stroke" },
     { label: "Length", value: "22'" },
     { label: "Capacity", value: "14 persons / 1,925 lbs" },
     { label: "Max HP", value: "130" },
-    { label: "Trailer", value: "Mid America tandem axle" },
+    { label: "Engine hours", value: "550" },
+    { label: "Trailer", value: "2026 Mid America bunk (+$4,000)" },
   ],
   engine: {
     manufacturer: "Yamaha",
-    model: null,
+    model: "100 HP Four-Stroke Outboard",
     horsepower: 100,
-    hours: null,
+    hours: 550,
     fuelType: "Gasoline",
     engineType: "Four-stroke outboard",
     serialNumber: null,
@@ -197,18 +203,20 @@ const config: BoatViewerConfig = {
     notes: "Fuel tank sits in an under-seat compartment at the stern. Boat is rated for up to 130 HP (capacity plate).",
   },
   trailer: {
-    year: null,
+    year: 2026,
     manufacturer: "Mid America Trailers",
     axles: "Tandem",
-    support: "Carpeted bunks",
-    brakes: null,
+    support: "Bunk (carpeted)",
+    brakes: "None",
     tires: "Kenda Loadstar",
     condition: null,
-    included: null,
+    included: "available-separately",
+    price: "$4,000",
+    link: "https://www.sunsportmarineinc.com/pontoon-trailers",
   },
   spin,
   assets: media.assets as unknown as Record<string, MediaAsset>,
-  videos: [walkaround, coldStart],
+  videos: [walkaround],
   galleries: [
     {
       id: "exterior",
@@ -402,7 +410,8 @@ const config: BoatViewerConfig = {
   ],
   views: [
     { id: "spin", label: "360° View", icon: "spin", action: { type: "spin" } },
-    { id: "front", label: "Front", icon: "front", action: { type: "angle", angle: "front" } },
+    // No bow-on frames in the walkaround, so FRONT shows the front ¾ photo.
+    { id: "front", label: "Front", icon: "front", action: { type: "gallery", galleryId: "exterior", imageId: "front-quarter" } },
     { id: "rear", label: "Rear", icon: "rear", action: { type: "angle", angle: "rear" } },
     { id: "left", label: "Left Side", icon: "left", action: { type: "angle", angle: "port" } },
     { id: "right", label: "Right Side", icon: "right", action: { type: "angle", angle: "starboard" } },
@@ -418,9 +427,8 @@ const config: BoatViewerConfig = {
   hotspots,
   links: {
     details: "#boat-details",
-    financing: "#financing",
-    tradeIn: "#trade-in",
-    contact: "#contact",
+    financing: "https://www.sunsportmarineinc.com/financing",
+    contact: "https://www.sunsportmarineinc.com/contact",
   },
 };
 

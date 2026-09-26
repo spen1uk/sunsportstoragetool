@@ -1,4 +1,4 @@
-import { Cog, Truck } from "lucide-react";
+import { ArrowRight, Cog, Truck } from "lucide-react";
 import type { EngineSpec, SpecValue, TrailerSpec } from "@/lib/boat360/types";
 
 const TBC = "To be confirmed";
@@ -59,9 +59,22 @@ export function TrailerSpecPanel({ trailer }: { trailer: TrailerSpec }) {
           { label: "Brakes", value: trailer.brakes },
           { label: "Tires", value: trailer.tires },
           { label: "Condition", value: trailer.condition },
-          { label: "Availability", value: trailer.included ? INCLUDED[trailer.included] : null },
+          {
+            label: "Availability",
+            value: trailer.included
+              ? `${INCLUDED[trailer.included]}${trailer.included === "available-separately" && trailer.price ? ` · ${trailer.price}` : ""}`
+              : null,
+          },
         ]}
       />
+      {trailer.link && (
+        <a
+          href={trailer.link}
+          className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-blue hover:underline focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:outline-none"
+        >
+          More pontoon trailers <ArrowRight className="size-4" aria-hidden />
+        </a>
+      )}
     </section>
   );
 }

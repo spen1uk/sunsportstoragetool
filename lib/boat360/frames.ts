@@ -8,6 +8,16 @@ export function wrapFrame(frame: number, count: number): number {
   return ((((Math.round(frame) - 1) % count) + count) % count) + 1;
 }
 
+/** Keep a frame on the sequence: wrap on a looping spin, clamp on a partial arc. */
+export function normalizeFrame(frame: number, count: number, loop = true): number {
+  return loop ? wrapFrame(frame, count) : Math.min(count, Math.max(1, Math.round(frame)));
+}
+
+/** Signed step count from `from` to `to`: shortest way round on a loop, direct otherwise. */
+export function frameDelta(from: number, to: number, count: number, loop = true): number {
+  return loop ? shortestDelta(from, to, count) : to - from;
+}
+
 /** Signed shortest step count from `from` to `to` on a loop of `count`. */
 export function shortestDelta(from: number, to: number, count: number): number {
   let d = (to - from) % count;
@@ -26,19 +36,22 @@ export function frameAngle(frame: number, count: number): number {
 }
 
 export function describeFrame(frame: number, spin: SpinSet): string {
-  const deg = frameAngle(frame, spin.frameCount);
-  const names: [number, string][] = [
-    [spin.angles.front, "front"],
-    [spin.angles.starboard, "starboard (right) side"],
-    [spin.angles.rear, "rear"],
-    [spin.angles.port, "port (left) side"],
-  ];
+  const loop = spin.loop !== false;
+  const labels: Record<string, string> = {
+    front: "front",
+    starboard: "starboard (right) side",
+    rear: "rear",
+    port: "port (left) side",
+  };
+  const names = Object.entries(spin.angles)
+    .filter((e): e is [string, number] => typeof e[1] === "number")
+    .map(([k, f]) => [f, labels[k]] as [number, string]);
+  const position = loop ? `, ${frameAngle(frame, spin.frameCount)}°` : `, frame ${frame} of ${spin.frameCount}`;
+  if (names.length === 0) return position.slice(2);
   let best = names[0];
-  for (const n of names) {
-    if (Math.abs(shortestDelta(frame, n[0], spin.frameCount)) < Math.abs(shortestDelta(frame, best[0], spin.frameCount))) best = n;
-  }
-  const exact = best[0] === frame;
-  return `${exact ? "" : "Near "}${best[1]}, ${deg}°`;
+  const dist = (a: number) => Math.abs(frameDelta(frame, a, spin.frameCount, loop));
+  for (const n of names) if (dist(n[0]) < dist(best[0])) best = n;
+  return `${best[0] === frame ? "" : "Near "}${best[1]}${position}`;
 }
 
 export function isHotspotVisible(h: Hotspot, frame: number): boolean {

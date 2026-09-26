@@ -150,11 +150,14 @@ async function buildVideos(entries) {
 async function main() {
   const manifest = JSON.parse(await fs.readFile(path.join(sourceRoot, "manifest.json"), "utf8"));
   const file = path.join(GENERATED_DATA_ROOT, `${slug}.media.json`);
-  // --videos-only: keep the existing photo derivatives, just (re)encode videos.
-  const videosOnly = argv.includes("--videos-only");
-  const assets = videosOnly ? JSON.parse(await fs.readFile(file, "utf8")).assets : {};
+  // --only photos,videos,spin rebuilds just those parts and keeps the rest
+  // of the existing index (photos take minutes; videos/spin are quicker).
+  const onlyArg = argv.includes("--only") ? argv[argv.indexOf("--only") + 1] : "photos,videos,spin";
+  const only = new Set(onlyArg.split(","));
+  const previous = only.size < 3 ? JSON.parse(await fs.readFile(file, "utf8")) : {};
+  const assets = only.has("photos") ? {} : previous.assets;
 
-  for (const entry of videosOnly ? [] : manifest.assets) {
+  for (const entry of only.has("photos") ? manifest.assets : []) {
     const dir = path.join(outRoot, "photos", entry.id);
     const input = entry.placeholder
       ? await sharp(placeholderCard(entry.placeholder)).png().toBuffer()
@@ -170,8 +173,8 @@ async function main() {
     console.log(`  ✓ ${entry.id} (${result.width}×${result.height}, ${result.tiers.map((t) => t.name).join("/")})`);
   }
 
-  const videos = await buildVideos(manifest.videos ?? []);
-  const spin = await buildSpin();
+  const videos = only.has("videos") ? await buildVideos(manifest.videos ?? []) : previous.videos;
+  const spin = only.has("spin") ? await buildSpin() : previous.spin;
   await ensureDir(GENERATED_DATA_ROOT);
   await fs.writeFile(
     file,

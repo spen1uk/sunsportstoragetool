@@ -111,14 +111,27 @@ Coordinates are percentages of the image. The stage "contain"-fits the image int
 - **Consistency of real shoots**: rotation only looks smooth if frames are evenly spaced, level, and consistently framed and exposed. `validateSequence` warns about size mismatches, gaps, duplicates and exposure outliers. A turntable, or marked positions and a tripod at fixed height, are strongly recommended.
 - **Global font**: `app/globals.css` maps `--font-sans` to itself, so the existing app falls back to a serif font. The boat pages set Geist explicitly. The one-line global fix (`--font-sans: var(--font-geist-sans)`) was left alone because it changes the whole staff app.
 
-## Placeholders (honesty)
+## What's real on the Harris-Kayot listing
 
-- The **360 sequence is placeholder renders** of a generic pontoon model. Each frame is watermarked "PLACEHOLDER / NOT A PHOTOGRAPH", and the viewer shows a placeholder notice. No frame is derived from, or pretends to be, the boat's photographs.
-- The **gallery is all real photography**: 68 photos from the Sun Sport Drive folder "2000 Harris Kayot 220 Classic" (exterior, interior, helm, electronics, storage, engine, bow, trailer, condition). The walkaround video is the folder's IMG_5189.MOV, re-encoded.
-- Specs added from the photos: capacity plate (14 persons / 1,925 lbs, 3,160 lbs total, 130 HP max, model code 22 CLASSIC 25 OB), gas fill, Humminbird PiranhaMAX 4, Sony Bluetooth stereo, Kicker speakers, Mid America tandem trailer on carpeted bunks with Kenda Loadstar tires.
-- The **engine cold-start video** is still a "coming soon" placeholder.
-- **Condition hotspots** describe only what is visible in the photos, and are marked "pending inspection" (`needsReview`).
-- **Unknown specs** (engine hours, model, trailer brakes/tires, …) are `null` and render as "To be confirmed".
+- **The spin is real footage.** It is 48 frames taken evenly from the walkaround video (IMG_5189.MOV) using `scripts/boat360/video-to-spin.mjs --reverse --end 21.0`. It runs from the wide port-side shot, around the stern, to the starboard bow.
+- **The spin doesn't loop.** The walk never passes in front of the bow, so the sequence is a partial arc of about 220° (`loop: false`). It stops at both ends, and the arrow buttons disable there. There is no FRONT frame, so the FRONT button opens the front ¾ photo instead.
+- **Hotspots were placed by hand** on keyframes of the spin, and interpolated between them.
+- **The gallery is all real photography.** It has 68 photos from the Sun Sport Drive folder "2000 Harris Kayot 220 Classic". The walkaround video is the same MOV, re-encoded to WebM and MP4.
+- **Facts from Sun Sport:**
+  - 550 engine hours
+  - Yamaha 100 HP four-stroke outboard
+  - 2026 Mid America bunk trailer, no brakes, available separately for $4,000
+  - financing and contact links, plus a pontoon-trailers link
+- **Facts read from the photos:**
+  - capacity plate: 14 persons / 1,925 lbs, 3,160 lbs total, 130 HP max
+  - gas fill
+  - Humminbird PiranhaMAX 4, Sony Bluetooth stereo, Kicker speakers
+  - Kenda Loadstar tires
+- **Still unconfirmed:**
+  - engine inspection status
+  - trailer condition
+  - condition notes, which are observations from the photos marked "pending inspection"
+- **Placeholder renders** (`scripts/boat360/generate-placeholder-spin.mjs`) are kept only for boats that have no footage yet.
 
 ## Media workflow for a boat
 
@@ -126,6 +139,17 @@ Coordinates are percentages of the image. The stage "contain"-fits the image int
 2. List the files you want in `media-source/boats/<slug>/manifest.json` (Drive file id, local source name, alt text).
 3. `node scripts/boat360/fetch-drive.mjs --slug <slug>` downloads the originals (in a Claude cloud session run it with `NODE_USE_ENV_PROXY=1`; the environment must allow `drive.usercontent.google.com`).
 4. `FFMPEG=/path/to/ffmpeg npm run boat360:media -- --slug <slug>` builds the derivatives (`--videos-only` re-encodes just the videos).
+
+## Making a spin from a walkaround video
+
+`FFMPEG=… node scripts/boat360/video-to-spin.mjs --slug <slug> --video video/<file>.MOV --frames 48 [--reverse] [--start s --end s]`
+then `npm run boat360:media -- --slug <slug> --only spin`.
+
+For a full loop:
+- walk all the way round the boat, including in front of the bow;
+- keep a steady distance and pace;
+- keep the whole boat in frame;
+- then set `loop: true` and add a `front` angle.
 
 ## Adding a real 360 sequence
 
