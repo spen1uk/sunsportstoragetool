@@ -70,6 +70,7 @@ export function TrailerSpecPanel({ trailer }: { trailer: TrailerSpec }) {
       {trailer.link && (
         <a
           href={trailer.link}
+          target="_top"
           className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-blue hover:underline focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:outline-none"
         >
           More pontoon trailers <ArrowRight className="size-4" aria-hidden />

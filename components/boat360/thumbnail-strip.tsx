@@ -21,10 +21,13 @@ export const ThumbnailStrip = memo(function ThumbnailStrip({
   entries,
   activeAssetId,
   onSelect,
+  layout = "grid",
 }: {
   entries: ThumbEntry[];
   activeAssetId: string | null;
   onSelect: (entry: ThumbEntry) => void;
+  /** "grid" wraps on wider screens; "strip" is always one scrolling row (compact embeds). */
+  layout?: "grid" | "strip";
 }) {
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -39,12 +42,15 @@ export const ThumbnailStrip = memo(function ThumbnailStrip({
       <ul
         ref={listRef}
         aria-label="Photo gallery"
-        className="flex snap-x gap-2 overflow-x-auto pb-2 [scrollbar-width:thin] sm:grid sm:grid-cols-4 sm:overflow-visible md:grid-cols-6 lg:grid-cols-8"
+        className={cn(
+          "flex snap-x gap-2 overflow-x-auto pb-2 [scrollbar-width:thin]",
+          layout === "grid" && "sm:grid sm:grid-cols-4 sm:overflow-visible md:grid-cols-6 lg:grid-cols-8",
+        )}
       >
         {entries.map((entry) => {
           const active = entry.asset.id === activeAssetId;
           return (
-            <li key={entry.key} className="w-32 shrink-0 snap-start sm:w-auto" data-asset={entry.asset.id}>
+            <li key={entry.key} className={cn("w-32 shrink-0 snap-start", layout === "grid" ? "sm:w-auto" : "sm:w-40")} data-asset={entry.asset.id}>
               <button
                 type="button"
                 onClick={() => onSelect(entry)}

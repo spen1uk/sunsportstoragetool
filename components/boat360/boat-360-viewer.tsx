@@ -89,9 +89,17 @@ export interface Boat360ViewerProps {
   className?: string;
   /** Show the photo gallery under the viewer. Default true. */
   showThumbnails?: boolean;
+  /** Thumbnail layout: wrapping grid (default) or one scrolling row. */
+  thumbnailLayout?: "grid" | "strip";
 }
 
-export function Boat360Viewer({ boat, initialView, className, showThumbnails = true }: Boat360ViewerProps) {
+export function Boat360Viewer({
+  boat,
+  initialView,
+  className,
+  showThumbnails = true,
+  thumbnailLayout = "grid",
+}: Boat360ViewerProps) {
   const spin = boat.spin;
   const frameCount = spin?.frameCount ?? 1;
   const loop = spin?.loop !== false;
@@ -550,6 +558,12 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
     };
   }, []);
 
+  // Let an embedding page (see EmbedHeightReporter) expand the iframe when
+  // the viewer falls back to its fixed-overlay "fullscreen" (iPhone).
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("boat360:pseudo-fullscreen", { detail: { on: fullscreen === "pseudo" } }));
+  }, [fullscreen]);
+
   useEffect(() => {
     if (fullscreen !== "pseudo") return;
     const prev = document.body.style.overflow;
@@ -868,7 +882,7 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
       {!isFs && detailPanel === "trailer" && boat.trailer && <TrailerSpecPanel trailer={boat.trailer} />}
 
       {!isFs && showThumbnails && (
-        <ThumbnailStrip entries={thumbEntries} activeAssetId={mode.kind === "gallery" ? (galleryAsset?.id ?? null) : null} onSelect={onSelectThumb} />
+        <ThumbnailStrip entries={thumbEntries} activeAssetId={mode.kind === "gallery" ? (galleryAsset?.id ?? null) : null} onSelect={onSelectThumb} layout={thumbnailLayout} />
       )}
 
       <div aria-live="polite" className="sr-only">
