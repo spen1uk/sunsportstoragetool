@@ -418,6 +418,14 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
       openGallery(a.galleryId, a.imageId);
       return;
     }
+    if (a.type === "video") {
+      const v = boat.videos?.find((x) => x.id === a.videoId);
+      if (v) {
+        setVideo(v);
+        track("video_played", boat.boatId, { video_id: v.id, source: "view_button" });
+      }
+      return;
+    }
     if (!spin) return;
     setMode({ kind: "spin" });
     setSpinViewId(view.id);
@@ -661,7 +669,9 @@ export function Boat360Viewer({ boat, initialView, className, showThumbnails = t
                 backgroundImage: galleryAsset.blurDataURL ? `url(${galleryAsset.blurDataURL})` : undefined,
               }}
             >
-              <source type="image/avif" srcSet={assetSrcSet(galleryAsset, "avif")} sizes={`${Math.round(galleryBox.width * zoom.scale)}px`} />
+              {galleryAsset.tiers.some((t) => t.avif) && (
+                <source type="image/avif" srcSet={assetSrcSet(galleryAsset, "avif")} sizes={`${Math.round(galleryBox.width * zoom.scale)}px`} />
+              )}
               <source type="image/webp" srcSet={assetSrcSet(galleryAsset, "webp")} sizes={`${Math.round(galleryBox.width * zoom.scale)}px`} />
               <img
                 src={(galleryAsset.tiers.find((t) => t.name === "md") ?? galleryAsset.tiers[galleryAsset.tiers.length - 1]).webp}

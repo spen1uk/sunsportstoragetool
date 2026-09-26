@@ -16,7 +16,8 @@ Changes to existing code were kept to the two lines needed to make the listing p
 
 ```
             ┌──────────── BOAT DATA (per boat) ────────────┐
-media-source/boats/<slug>/   ──build-media.mjs──►  public/boat-media/<slug>/…  (WebP/AVIF tiers)
+Google Drive ──fetch-drive.mjs──► media-source/boats/<slug>/ (git-ignored originals)
+  manifest.json ──build-media.mjs──►  public/boat-media/<slug>/…  (WebP tiers, MP4/WebM video)
   manifest.json, photos/, 360/                   lib/boats/generated/<slug>.media.json
 lib/boats/data/<slug>.ts  (specs, hotspots, galleries, view buttons)
 lib/boats/registry.ts     getBoat(slug) → BoatViewerConfig   (Phase 2: Supabase)
@@ -75,15 +76,16 @@ Photos can carry their own hotspot pins (`GalleryImage.hotspots`), so the engine
 | `lib/boat360/*` | Engine logic (no React) |
 | `lib/boats/data/*.ts`, `lib/boats/registry.ts` | Boat data + lookup |
 | `lib/boats/generated/*.json` | Generated media / placeholder indexes (don't hand-edit) |
-| `scripts/boat360/build-media.mjs` | Optimize photos, crops, placeholders, real 360 frames + validation |
+| `scripts/boat360/fetch-drive.mjs` | Download a boat's originals from Google Drive (ids in the manifest) |
+| `scripts/boat360/build-media.mjs` | Optimize photos, crops, placeholders, videos, real 360 frames + validation |
 | `scripts/boat360/generate-placeholder-spin.mjs` | Placeholder 360 renders + hotspot tracks |
-| `media-source/boats/<slug>/` | Originals + manifest (not served) |
+| `media-source/boats/<slug>/manifest.json` | Which Drive photos/videos a boat uses, with alt text (originals themselves are git-ignored) |
 | `public/boat-media/<slug>/` | Optimized, served derivatives |
 
 ## 6. Image optimization & loading
 
 Build time (`npm run boat360:media -- --slug <slug>`):
-- Photos go to `thumb` 400w (WebP), then `sm` 768 / `md` 1440 / `lg` 2400 (AVIF + WebP). Nothing is upscaled, EXIF orientation is applied, and metadata (including GPS) is stripped. A 16px blur placeholder is inlined.
+- Photos go to `thumb` 400w, `sm` 768, `md` 1440 and `lg` 2048 (WebP only — AVIF roughly doubled the committed size for little gain; the viewer still uses AVIF when a tier provides it). Nothing is upscaled, EXIF orientation is applied, and metadata (including GPS) is stripped. A 16px blur placeholder is inlined.
 - 360 frames go to `sm` 640 / `md` 1280 / `lg` 1920 WebP. Frames use WebP only, because canvas decoding of AVIF sequences is still uneven on older iOS.
 
 Run time (`FrameCache`), with priorities recomputed every time a download slot frees up:
@@ -112,10 +114,18 @@ Coordinates are percentages of the image. The stage "contain"-fits the image int
 ## Placeholders (honesty)
 
 - The **360 sequence is placeholder renders** of a generic pontoon model. Each frame is watermarked "PLACEHOLDER / NOT A PHOTOGRAPH", and the viewer shows a placeholder notice. No frame is derived from, or pretends to be, the boat's photographs.
-- The **real photos** are the four supplied shots: starboard side, port side, stern/engine, and overhead interior. "Detail" images are straight crops of those photos.
-- **Missing photos** (front view, helm gauges, storage, electronics) are generated "PHOTO NEEDED" cards, labelled as placeholders in the UI.
+- The **gallery is all real photography**: 68 photos from the Sun Sport Drive folder "2000 Harris Kayot 220 Classic" (exterior, interior, helm, electronics, storage, engine, bow, trailer, condition). The walkaround video is the folder's IMG_5189.MOV, re-encoded.
+- Specs added from the photos: capacity plate (14 persons / 1,925 lbs, 3,160 lbs total, 130 HP max, model code 22 CLASSIC 25 OB), gas fill, Humminbird PiranhaMAX 4, Sony Bluetooth stereo, Kicker speakers, Mid America tandem trailer on carpeted bunks with Kenda Loadstar tires.
+- The **engine cold-start video** is still a "coming soon" placeholder.
 - **Condition hotspots** describe only what is visible in the photos, and are marked "pending inspection" (`needsReview`).
 - **Unknown specs** (engine hours, model, trailer brakes/tires, …) are `null` and render as "To be confirmed".
+
+## Media workflow for a boat
+
+1. Put the boat's photos/videos in a Google Drive folder shared "Anyone with the link" (Viewer).
+2. List the files you want in `media-source/boats/<slug>/manifest.json` (Drive file id, local source name, alt text).
+3. `node scripts/boat360/fetch-drive.mjs --slug <slug>` downloads the originals (in a Claude cloud session run it with `NODE_USE_ENV_PROXY=1`; the environment must allow `drive.usercontent.google.com`).
+4. `FFMPEG=/path/to/ffmpeg npm run boat360:media -- --slug <slug>` builds the derivatives (`--videos-only` re-encodes just the videos).
 
 ## Adding a real 360 sequence
 

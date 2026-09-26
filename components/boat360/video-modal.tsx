@@ -38,7 +38,7 @@ export function VideoModal({ video, onClose }: { video: VideoRef; onClose: () =>
           </button>
         </div>
         <div className="aspect-video overflow-hidden rounded-xl bg-black">
-          {video.placeholder || !video.src ? (
+          {video.placeholder || !(video.src || video.sources?.length) ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-slate-300">
               <Video className="size-10" />
               <p className="text-base font-semibold text-white">Video coming soon</p>
@@ -53,7 +53,10 @@ export function VideoModal({ video, onClose }: { video: VideoRef; onClose: () =>
               allowFullScreen
             />
           ) : (
-            <video src={video.src} poster={video.poster} controls autoPlay playsInline className="size-full" />
+            <video poster={video.poster} controls autoPlay playsInline preload="metadata" className="size-full">
+              {video.sources?.map((s) => <source key={s.src} src={s.src} type={s.type} />)}
+              {!video.sources?.length && video.src && <source src={video.src} />}
+            </video>
           )}
         </div>
       </div>

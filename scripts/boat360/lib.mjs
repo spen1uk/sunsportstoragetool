@@ -13,13 +13,15 @@ export const GENERATED_DATA_ROOT = path.join(ROOT, "lib", "boats", "generated");
 
 /**
  * Responsive tiers for still photos. `lg` is the zoom tier and is only
- * fetched when a customer actually zooms in.
+ * fetched when a customer actually zooms in. WebP only: it decodes
+ * everywhere we target and keeps the committed derivatives small (AVIF
+ * roughly doubled repo size for a marginal saving per image).
  */
 export const PHOTO_TIERS = [
   { name: "thumb", width: 400, formats: ["webp"], quality: 70 },
-  { name: "sm", width: 768, formats: ["avif", "webp"], quality: 74 },
-  { name: "md", width: 1440, formats: ["avif", "webp"], quality: 76 },
-  { name: "lg", width: 2400, formats: ["avif", "webp"], quality: 80 },
+  { name: "sm", width: 768, formats: ["webp"], quality: 72 },
+  { name: "md", width: 1440, formats: ["webp"], quality: 74 },
+  { name: "lg", width: 2048, formats: ["webp"], quality: 74 },
 ];
 
 /**

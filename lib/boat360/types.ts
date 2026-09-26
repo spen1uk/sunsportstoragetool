@@ -101,6 +101,8 @@ export interface VideoRef {
   title: string;
   /** mp4/webm URL, or an embeddable (YouTube/Vimeo) URL when `kind` is "embed". */
   src?: string;
+  /** Alternative encodings (e.g. WebM + MP4); browsers play the first they support. */
+  sources?: { src: string; type: string }[];
   kind?: "file" | "embed";
   poster?: string;
   /** Planned video that has not been recorded yet. */
@@ -183,12 +185,26 @@ export interface Gallery {
   detail?: DetailPanel;
 }
 
-export type ViewIcon = "spin" | "front" | "rear" | "left" | "right" | "top" | "interior" | "helm" | "engine" | "trailer";
+export type ViewIcon =
+  | "spin"
+  | "front"
+  | "rear"
+  | "left"
+  | "right"
+  | "top"
+  | "interior"
+  | "helm"
+  | "engine"
+  | "trailer"
+  | "electronics"
+  | "storage"
+  | "video";
 
 export type ViewAction =
   | { type: "spin" }
   | { type: "angle"; angle: keyof SpinSet["angles"] }
-  | { type: "gallery"; galleryId: string; imageId?: string };
+  | { type: "gallery"; galleryId: string; imageId?: string }
+  | { type: "video"; videoId: string };
 
 export interface ViewButton {
   id: string;
@@ -250,5 +266,7 @@ export interface BoatViewerConfig {
   galleries: Gallery[];
   views: ViewButton[];
   hotspots: Hotspot[];
+  /** Boat-level videos (walkaround, cold start…) opened from view buttons. */
+  videos?: VideoRef[];
   links?: BoatLinks;
 }

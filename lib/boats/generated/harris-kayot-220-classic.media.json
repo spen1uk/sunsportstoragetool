@@ -4,10 +4,10 @@
   "assets": {
     "starboard-side": {
       "id": "starboard-side",
-      "alt": "Harris-Kayot 220 Classic on its trailer, starboard (right) side, bow to the right",
+      "alt": "Harris-Kayot 220 Classic on its tandem-axle trailer, starboard (right) side",
       "placeholder": false,
-      "width": 2576,
-      "height": 1932,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
@@ -19,32 +19,29 @@
           "name": "sm",
           "width": 768,
           "height": 576,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/starboard-side/sm.avif",
           "webp": "/boat-media/harris-kayot-220-classic/photos/starboard-side/sm.webp"
         },
         {
           "name": "md",
           "width": 1440,
           "height": 1080,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/starboard-side/md.avif",
           "webp": "/boat-media/harris-kayot-220-classic/photos/starboard-side/md.webp"
         },
         {
           "name": "lg",
-          "width": 2400,
-          "height": 1800,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/starboard-side/lg.avif",
+          "width": 2048,
+          "height": 1536,
           "webp": "/boat-media/harris-kayot-220-classic/photos/starboard-side/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAADwAQCdASoQAAwAA4BaJYgCdAEOjpYmikAA+vJ2dkvKqb1nnHCX/byM2n9UJPNEdgBu4rEvy4RP2aeXT4/TWOXoRzcmkW64H1zDxoAA"
+      "blurDataURL": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAAAQAgCdASoQAAwAA4BaJYgCdGuAAkN6xR0IANzQMccPlNXtiq4AfwfQMVm/nKWdxIeOcPyMgT2s/jGDNFVVMKg/l/XD+cm7uvGm8R8bPkXgrEXEEgMtdkJfBX205U+4AAA="
     },
     "port-side": {
       "id": "port-side",
-      "alt": "Harris-Kayot 220 Classic on its trailer, port (left) side, bow to the left",
+      "alt": "Harris-Kayot 220 Classic on its trailer, port (left) side",
       "placeholder": false,
-      "width": 2576,
-      "height": 1932,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
@@ -56,32 +53,29 @@
           "name": "sm",
           "width": 768,
           "height": 576,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/port-side/sm.avif",
           "webp": "/boat-media/harris-kayot-220-classic/photos/port-side/sm.webp"
         },
         {
           "name": "md",
           "width": 1440,
           "height": 1080,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/port-side/md.avif",
           "webp": "/boat-media/harris-kayot-220-classic/photos/port-side/md.webp"
         },
         {
           "name": "lg",
-          "width": 2400,
-          "height": 1800,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/port-side/lg.avif",
+          "width": 2048,
+          "height": 1536,
           "webp": "/boat-media/harris-kayot-220-classic/photos/port-side/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAACwAQCdASoQAAwAA4BaJQBOgCHYZzIAAN+NnkLt2UYQzDOFHI3fvjUI7aCuIScSxNX9Wrr3f4eil+9/th/HUpONd3pZmdk64hZjTeLxS1xF31zyYAA="
+      "blurDataURL": "data:image/webp;base64,UklGRmYAAABXRUJQVlA4IFoAAADwAQCdASoQAAwAA4BaJQBOgB6Wz+Ow1YAA/l/i0NtHQ9vs50/Zy+Gf/58zpNLiUQBtL9x/vU1RCPRt7NdlQFf2q7URblOANRN+2VJ3dKropVyIS6URd9c8mAA="
     },
     "stern-engine": {
       "id": "stern-engine",
-      "alt": "Stern of the Harris-Kayot showing the Yamaha 100 four-stroke outboard between the pontoons",
+      "alt": "Stern view with the Yamaha 100 four-stroke outboard between the pontoons",
       "placeholder": false,
-      "width": 2576,
-      "height": 1932,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
@@ -93,578 +87,2249 @@
           "name": "sm",
           "width": 768,
           "height": 576,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/stern-engine/sm.avif",
           "webp": "/boat-media/harris-kayot-220-classic/photos/stern-engine/sm.webp"
         },
         {
           "name": "md",
           "width": 1440,
           "height": 1080,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/stern-engine/md.avif",
           "webp": "/boat-media/harris-kayot-220-classic/photos/stern-engine/md.webp"
         },
         {
           "name": "lg",
-          "width": 2400,
-          "height": 1800,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/stern-engine/lg.avif",
+          "width": 2048,
+          "height": 1536,
           "webp": "/boat-media/harris-kayot-220-classic/photos/stern-engine/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRnwAAABXRUJQVlA4IHAAAADwAQCdASoQAAwAA4BaJZwAD4tNAPM1A1AA/pGple5+5nJGUFbhqn84SEEXXpk1iPCfucdDZ1rliElcNmfSZQunFxODP2eeWSmdra4hdJB4EFZYx12SNoVKLGGqA2AFxi1AZvy2elYRf/+/PCAAFvQA"
+      "blurDataURL": "data:image/webp;base64,UklGRoAAAABXRUJQVlA4IHQAAAAwAgCdASoQAAwAA4BaJZwAD4itWBFMu1buAAD+sjK1XegXLcmC8/05zJiy8QLe42dSiGf1htEujz2qc06/0RUSqpRugjewuvP/EgMzH81Pw3Wx3SHm7HISNHHK0loRYHDY2HfAV2tuL86TUz4CtbAN4agAAA=="
     },
-    "interior-overhead": {
-      "id": "interior-overhead",
-      "alt": "Elevated view of the deck looking aft: helm console, lounge seating, captain's chairs, table and blue carpet",
+    "front-quarter": {
+      "id": "front-quarter",
+      "alt": "Front three-quarter view from the port bow",
       "placeholder": false,
-      "width": 1932,
-      "height": 2576,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/front-quarter/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/front-quarter/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/front-quarter/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/front-quarter/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAAAwAgCdASoQAAwAA4BaJQBOgMWHylyYRIC4AAD+4IoaIzmYvq0191pUjdXvRJdUXQma5tvVSSe+0xrI+t7ZCzwbL9r2A1Y3z3HzxdVPs5b3q5R3WLEBz15ZNQzz4DNKcvVzG1EHhCZSI8AA"
+    },
+    "port-bow-quarter": {
+      "id": "port-bow-quarter",
+      "alt": "Port bow quarter showing the bow cap and trailer guide-ons",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/port-bow-quarter/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/port-bow-quarter/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/port-bow-quarter/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/port-bow-quarter/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAABQAgCdASoQAAwAA4BaJQBOj+AQWpWSafat+AAA/gk5uCrBhwGdnd0aZ0jhkk9+BEz0Ewu5u+b59m3uRwwVdOnLAQ0eHT0PLSwMvO+D72JePD6sZ7rf+nDHdQDk8X/MUf8yO8Vq5oHwmOslEgAAAA=="
+    },
+    "stern-quarter": {
+      "id": "stern-quarter",
+      "alt": "Starboard stern quarter with the Yamaha outboard",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/stern-quarter/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/stern-quarter/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/stern-quarter/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/stern-quarter/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAABQAgCdASoQAAwAA4BaJQBOj+AQTxgoHqsuh2AA/pUMmMwKx1DRM6z3XD4OP0whV1zAA01r73qWfimWSWyclYtiytogIm9rJHsUgtGq4pb/Vupt0a2jYOtZ0KbgCJk/Ac0HREbLb7YTEjwg1PAAAA=="
+    },
+    "street-starboard": {
+      "id": "street-starboard",
+      "alt": "Starboard side on the street, bimini raised",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-starboard/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-starboard/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-starboard/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-starboard/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRmoAAABXRUJQVlA4IF4AAADwAQCdASoQAAwAA4BaJbACdAEW04Q1gAAA/bZVLOWV9wVWwRAKadBjnT3ZPJ3ZbxKF5L7XkIeTGgaXYV0PqQE/QhOO2piHgFLgePBf89U3tV+UOaFjM47RBxMmoAAA"
+    },
+    "street-port": {
+      "id": "street-port",
+      "alt": "Port side on the street, bimini raised",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-port/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-port/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-port/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-port/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAADQAQCdASoQAAwAA4BaJQBOgCE8V/TXgAD6jPPmum4OHJxwS9RQ7e2cEYmEY4ay/N0p7mresC6778rlm31utMS5aoeWYlteMniNjaxgKoiz77ea9OCopgAA"
+    },
+    "street-stern": {
+      "id": "street-stern",
+      "alt": "Stern view on the street",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-stern/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-stern/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-stern/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/street-stern/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAADwAQCdASoQAAwAA4BaJQBOgMWvuqUugQAA/rVl9+w7Px1cU/lnVJN1LtX0B9LSC6NhgO8NzxWhncRCrOGOpJMRQvF0Exl1HodwOLmi/j3p5UkfDcHERo+evhhjroD+dNL+2Sv/ShrIvK3vZKAAAA=="
+    },
+    "overhead-deck": {
+      "id": "overhead-deck",
+      "alt": "Elevated view of the deck looking aft: helm, lounge seating, captain's chairs and table",
+      "placeholder": false,
+      "width": 4284,
+      "height": 5712,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
           "height": 533,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/interior-overhead/thumb.webp"
+          "webp": "/boat-media/harris-kayot-220-classic/photos/overhead-deck/thumb.webp"
         },
         {
           "name": "sm",
           "width": 768,
           "height": 1024,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/interior-overhead/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/interior-overhead/sm.webp"
+          "webp": "/boat-media/harris-kayot-220-classic/photos/overhead-deck/sm.webp"
         },
         {
           "name": "md",
           "width": 1440,
           "height": 1920,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/interior-overhead/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/interior-overhead/md.webp"
+          "webp": "/boat-media/harris-kayot-220-classic/photos/overhead-deck/md.webp"
         },
         {
           "name": "lg",
-          "width": 1932,
-          "height": 2576,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/interior-overhead/lg.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/interior-overhead/lg.webp"
+          "width": 2048,
+          "height": 2731,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/overhead-deck/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRrQAAABXRUJQVlA4IKgAAAAQBACdASoQABUAPu1iqU2ppaOiMAgBMB2JQBhQMYsc6Wr/rLJPP99H8AD+jhArAz7Ih5itUFhwWV383F8RHXL01Env1s+vfXMQxu8jopLCCm63+QrXlekKMD6BM0Ti0lfMxC4IdedNEjl64B2nWNKHCfKV7Jw938dbvSVdLKU4nPPYFOnX5MYehfkKN0jkrDwEKxF1f8YXjFp66ng1E3TVnAyB9YfgAAA="
+      "blurDataURL": "data:image/webp;base64,UklGRrwAAABXRUJQVlA4ILAAAADwAwCdASoQABUAPu1iqU2ppaOiMAgBMB2JZgDCgYwwWkGuPyt/jIO4AP7EZWcIxv2nz7lk2CpZJ2Vp4y17VT7mvO6B+8novH8Ua/m6bfTHzlyG/Ngb8DEBRirMH5qeX1xa+b5aC0VePds/Jj9hiQ8MI10hu4/qYOS0dmKcMSq/xpi+KMPph4R8zm+/adudBjPWJbdcK1u2af/lsfS7dCfr1EaJ7k+wf33hJ04Xz3wAAA=="
     },
-    "engine-cowling": {
-      "id": "engine-cowling",
-      "alt": "Detail of the Yamaha 100 four-stroke engine cowling",
+    "deck-from-stern": {
+      "id": "deck-from-stern",
+      "alt": "Deck view past the table toward the helm",
       "placeholder": false,
-      "derivedFrom": "stern-engine",
-      "width": 670,
-      "height": 696,
+      "width": 4284,
+      "height": 5097,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
-          "height": 416,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-cowling/thumb.webp"
-        },
-        {
-          "name": "sm",
-          "width": 670,
-          "height": 696,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/engine-cowling/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-cowling/sm.webp"
-        }
-      ],
-      "blurDataURL": "data:image/webp;base64,UklGRn4AAABXRUJQVlA4IHIAAADQAwCdASoQABEAPu1iqU2ppaOiMAgBMB2JZQAASp7GnhSjNK8Y1gAA/sRqBah7c1jaz/h7oSSTxYu4KuI4poG3HAvSpenOWvOG6VOsqkoH1SdFUj7oTt7ZC/FrmIsb8/8PY53phK3OTlj2bw1gUvEAAAA="
-    },
-    "engine-lower-unit": {
-      "id": "engine-lower-unit",
-      "alt": "Detail of the outboard lower unit and propeller",
-      "placeholder": false,
-      "derivedFrom": "stern-engine",
-      "width": 773,
-      "height": 966,
-      "tiers": [
-        {
-          "name": "thumb",
-          "width": 400,
-          "height": 500,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-lower-unit/thumb.webp"
+          "height": 476,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-from-stern/thumb.webp"
         },
         {
           "name": "sm",
           "width": 768,
-          "height": 960,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/engine-lower-unit/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-lower-unit/sm.webp"
+          "height": 914,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-from-stern/sm.webp"
         },
         {
           "name": "md",
-          "width": 773,
-          "height": 966,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/engine-lower-unit/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-lower-unit/md.webp"
+          "width": 1440,
+          "height": 1713,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-from-stern/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 2437,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-from-stern/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRqIAAABXRUJQVlA4IJYAAAAQBACdASoQABQAPu1iqU2ppaOiMAgBMB2JZwAD5LEn2xdk5/juq/kFgAD+QMaecoKvUJpFYzK7d5WYLWYi88wjPeIY2V618Brc7ugxDqmhpArot3jbF2l53AJxBNRpWnDxpq9lBTDO7CHaEBXlz+bL7WVSlf/AdXo6PoVAh6cEsObQ+hozKchIUn2ZWeEknbYBFHN5oAA="
+      "blurDataURL": "data:image/webp;base64,UklGRpgAAABXRUJQVlA4IIwAAACwAwCdASoQABMAPu1iqU2ppaOiMAgBMB2JQBOkCYg2ELWr+rTQoAD+4aSt4Tddu3wubaAsmpd70A9fkG/NcLBr2ShxTrtJ96qdr7ZfWWxZrVfoi/+kuuf3fOZoK+7MDu0S5YLO4MKUupyOfwQKV5Z1cYZGAw+kq712IZ3b4iFQ6W6MDiRypuqjsbRAAA=="
     },
-    "helm-console": {
-      "id": "helm-console",
-      "alt": "Detail of the helm console, steering wheel and windscreen",
+    "helm-lounge": {
+      "id": "helm-lounge",
+      "alt": "Helm console and aft L-lounge",
       "placeholder": false,
-      "derivedFrom": "interior-overhead",
-      "width": 696,
-      "height": 670,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
-          "height": 385,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-lounge/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-lounge/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-lounge/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-lounge/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRngAAABXRUJQVlA4IGwAAAAwAgCdASoQAAwAA4BaJbACdAYtfla6Qr1moAD+lP2dWf6XMMfiDzeshqZGf//4arHL9x4KsdPmC/z1Uz5lIBVYRI7JEpZre4Ev1hoBcxIHSRus6wb+t7ZrpTy1wFxcBragwBMHdPTG1OVwAAA="
+    },
+    "lounge-table": {
+      "id": "lounge-table",
+      "alt": "Helm, table and aft lounge seating",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-table/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-table/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-table/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-table/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAABQAgCdASoQAAwAA4BaJYgC7AYsj2yIzRwveQAA/sllP1Fai1/Dnt9LB5vX3Y66nlZvWZc7HcOHsQEX9x+P8r4JK+eFO4CS1+/BsI8DPyP7SEKCyuaFDtc48xC+x8RnhqkElFu2LST5kMIw5wtgAA=="
+    },
+    "table-lounge": {
+      "id": "table-lounge",
+      "alt": "Pedestal table and lounge seating",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/table-lounge/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/table-lounge/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/table-lounge/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/table-lounge/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnwAAABXRUJQVlA4IHAAAAAQAgCdASoQAAwAA4BaJZgCdAEPT0TAD4xgAP7HghHehShbvYxpLmxXYTOIgrq30GV7poQfwsb3XdcuPKZBQn9nTCn0ocASA+Fnvz9Eme9V+nzfeSYfs4irq4lfeMeaGXbjPz0Mh0RmZLrjZgViUAAA"
+    },
+    "captains-chairs-table": {
+      "id": "captains-chairs-table",
+      "alt": "Captain's chairs and pedestal table",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chairs-table/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chairs-table/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chairs-table/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chairs-table/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRogAAABXRUJQVlA4IHwAAACQAgCdASoQAAwAA4BaJbACdAYp5yoY3N24TmveAAD+5+MlazbRz5eyn/WlucCrWlgFE3xyFklE3I5r19b4pIM+u3pw+Ify1qmviOmHl6itxnDAkGMnbXcvnPUIZNp+T+1fBjaRNvYN7wSKXmzSmW7hmdAbGIOm3wCFhIAA"
+    },
+    "bow-seating": {
+      "id": "bow-seating",
+      "alt": "Bow seating area with lounge and captain's chair",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-seating/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-seating/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-seating/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-seating/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRngAAABXRUJQVlA4IGwAAAAwAgCdASoQAAwAA4BaJZgCdAYv/nkqBhmQAAD+s7Er94OJU0N3VkSt+6TDBjkH+uUCKCodEUqgPDRkHQO/yYjtHrovYVfKT2IPcY0Ro/uYm9qmFMdq4BtncykJNEM+zUVvkkEdiU+kVh/wAAA="
+    },
+    "l-lounge": {
+      "id": "l-lounge",
+      "alt": "L-shaped lounge seat",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/l-lounge/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/l-lounge/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/l-lounge/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/l-lounge/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAACQAgCdASoQAAwAA4BaJbAC7AYuvv7yIbgc5cRVQAD+6t+Gq80liO58MdrzB35+ONu/HH3ncrgUS6MzlNg0l0sDolh2LQa9p04J56OY1c0drjRo5OP7eWWFTpBeQk8AVNepGlIwPXC5IAAA"
+    },
+    "captains-chair-1": {
+      "id": "captains-chair-1",
+      "alt": "Captain's chair",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chair-1/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chair-1/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chair-1/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chair-1/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAABQAgCdASoQAAwAA4BaJbAC7AYsPVuCk6LxWgAA/tQ8P16sriyvDhVWJ+VvRrCePdsWmXNHtAyaGL+r7ySdZAE36C8uk/3FmTDuoR/RDCn+MePGa26c+QZ30SrwAZIASZyjnS9OlD72lKwwg1AAAA=="
+    },
+    "captains-chair-2": {
+      "id": "captains-chair-2",
+      "alt": "Second captain's chair",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chair-2/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chair-2/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chair-2/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chair-2/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAAAwAgCdASoQAAwAA4BaJbACdAC4ri3mKxr4AAD+mBoZzK8rIQKypzipbdQfyqkzL8YEIMMa+H1fI+KbIE9f3yyAdfGmhvlmzbxyfx06MMqoR1DfSUfVlTGpTMYIvwZ/s7piZaj6AMFzJcAA"
+    },
+    "captains-chairs-pair": {
+      "id": "captains-chairs-pair",
+      "alt": "Pair of captain's chairs and side lounge",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chairs-pair/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chairs-pair/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chairs-pair/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chairs-pair/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRoAAAABXRUJQVlA4IHQAAACQAgCdASoQAAwAA4BaJbACdH8AgojL4Dk8qD4oWAD+7YQEY5adVj7Qt30DSn1GQUP7QHdci0pngvf0EcoeoJ2DSRKVPcy7sVKEGuBSqhkB8KmexKmyVQsQ83iPDx50i8+TvzsQTAca30MZmH3Y6Bc6IucUAA=="
+    },
+    "lounge-corner": {
+      "id": "lounge-corner",
+      "alt": "Lounge corner upholstery",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-corner/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-corner/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-corner/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-corner/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRoQAAABXRUJQVlA4IHgAAABQAgCdASoQAAwAA4BaJZgCdAYul2fnK3xVJoAA/P4RUm85WLs//EzXx4bEyjftwjbYFqtm+ve2jNfUUbtH+roNOdU3cRi400fapu1XnJuGugvp9Fo//4eHYCNX3moReDZwS+xGt9Cb941nlv+AISY+1/Ri8OtoAAA="
+    },
+    "lounge-bench": {
+      "id": "lounge-bench",
+      "alt": "Lounge bench upholstery",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-bench/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-bench/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-bench/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/lounge-bench/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnwAAABXRUJQVlA4IHAAAAAwAgCdASoQAAwAA4BaJbACdAEedHvVLGL1gAD8tPrSHQCHYOKqix9UQ9dNBD6EnXSJp3KsxCz82Zp2fCn9poYdu3h0d6zGp38RLmBZijrsWB1RKa3ZLk5N9YzQDLk3dcAoMZGxNd1YG2ZoZqvoAAAA"
+    },
+    "rear-lounge-seat": {
+      "id": "rear-lounge-seat",
+      "alt": "Rear lounge seat cushions",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/rear-lounge-seat/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/rear-lounge-seat/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/rear-lounge-seat/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/rear-lounge-seat/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAAAwAgCdASoQAAwAA4BaJZQAD43wIL9Sssd8AAD8iAMy6v3SyBwFlI+zMWr1oVMKYQrhDwItJRckd5O8P1oL2kV7oC4UeA6UsqQG+pX7TgAAAA=="
+    },
+    "rear-lounge-cushion": {
+      "id": "rear-lounge-cushion",
+      "alt": "Rear lounge seat cushion",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/rear-lounge-cushion/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/rear-lounge-cushion/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/rear-lounge-cushion/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/rear-lounge-cushion/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRlIAAABXRUJQVlA4IEYAAADwAQCdASoQAAwAA4BaJZQCdADcpgaC/8AA/tYoZ+YAvMPtSbySE4vUMVpVkQXVJkP1fAfmiBwGuZdJMdBFcUh6eMdntXAA"
+    },
+    "bow-entry": {
+      "id": "bow-entry",
+      "alt": "Bow deck and entry gate",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-entry/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-entry/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-entry/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-entry/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnwAAABXRUJQVlA4IHAAAAAwAgCdASoQAAwAA4BaJQBOj+DdAAcmWWLMAAD8j+oZho4tqNdhDvPvF/UX9zdcnmgJ8zNLl80zmOsj62OxzpTHSzlBbIeQf3V6XXkdLDwobf3DEswvN+RaQNsFZsKvuFLI32XtHCgLf3r8vO+rgAAA"
+    },
+    "helm-seat": {
+      "id": "helm-seat",
+      "alt": "Helm seat",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-seat/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-seat/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-seat/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-seat/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRn4AAABXRUJQVlA4IHIAAABwAgCdASoQAAwAA4BaJbACdAYp525lBbwJ5UwAAP7HK0zGxd4vE//BUz5m5NA23Px5VfYEPpbIY0MT4sfzpYCWSKCAVKD3/daXzSKW33bjImdJ5O6cj8WQcHji3z+GbPIf0K8IRp8AWzknS5I2iWCzwAA="
+    },
+    "helm-dash": {
+      "id": "helm-dash",
+      "alt": "Helm dash with steering wheel, gauges and controls",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-dash/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-dash/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-dash/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-dash/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRngAAABXRUJQVlA4IGwAAAAwAgCdASoQAAwAA4BaJQBOgMVzrT6s7Mq6oAD+7axu01O8YTJ80GSz+HGhn9nDWVGuDzV9cZ984X5bNzOW9aEaaozsboOes621sY2SoKwfic8fZ1nf7HvB5PandEABFmj+WdqY/PHZRaZ8AAA="
+    },
+    "gauges": {
+      "id": "gauges",
+      "alt": "Speedometer and gauges",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/gauges/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/gauges/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/gauges/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/gauges/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRoAAAABXRUJQVlA4IHQAAABQAgCdASoQAAwAA4BaJbACdAYv/k0bRos9DQAA/ud9ESkmGWsoftoZAYzs4kXNXfN8VQKhd8x5toDQHI+Da2D/1kP8blD+gTxUt+FPL58wdz7NiyN0mlBqt1HjjtKVHeQGLZkm97X4ISOAegrWzaJFF4kCAA=="
+    },
+    "tachometer": {
+      "id": "tachometer",
+      "alt": "Tachometer",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/tachometer/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/tachometer/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/tachometer/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/tachometer/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRoIAAABXRUJQVlA4IHYAAAAwAgCdASoQAAwAA4BaJbACdAEQPdhqYVC0AAD+6vOp/3hTgUOYbJj+4R0Li5aOt1ay0OP5Nee4Uandqk127350Eb7Vd5/HknpvcIT4z0O7sPWXoTmmofrrrUxEZLbMHAV1zZDe8vz+CVYGDQw//0IQabWLgAAA"
+    },
+    "ignition": {
+      "id": "ignition",
+      "alt": "Ignition key switch",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/ignition/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/ignition/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/ignition/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/ignition/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRoQAAABXRUJQVlA4IHgAAADwAQCdASoQAAwAA4BaJbACdAYs2uNjrAAAzgKuQPgG7dg/eVmvt6XWdi97Yve1Ea/EoPVEmIX/EPTwZsXwvwbfHf0euC8kSNs7HKi0xps9q3sOIo/H3yQghWej19P7sU2H6dp19a16e0GirDtTbiOPXZO3mgilgAA="
+    },
+    "switch-panel": {
+      "id": "switch-panel",
+      "alt": "Switch panel with horn button",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/switch-panel/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/switch-panel/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/switch-panel/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/switch-panel/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRn4AAABXRUJQVlA4IHIAAABwAgCdASoQAAwAA4BaJbACdAYstlbKM5SbLY0AAP371LBvKkaN/GchSo56i4mMYvIQFOvU99IxxfWEvr2nyYi6bA/5qqClulkvCdPUGqztuom8ArxPAc43qnQa2/dbC07/u36zgD+rBrMPjwpwjfKcAAA="
+    },
+    "throttle": {
+      "id": "throttle",
+      "alt": "Yamaha binnacle throttle/shift control",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/throttle/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/throttle/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/throttle/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/throttle/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnwAAABXRUJQVlA4IHAAAABQAgCdASoQAAwAA4BaJZACdAYvDk0KYCAN80AA/rWljk74N6vZVUx0Tq56GsT3DjOH2XV1i8T4uCLBdMvegbgphIm95a5yCh++2235DduN1FX9KMvtdZ5AYzIyYinKWfA8fQEgtpvr9QfZzuGdAAAA"
+    },
+    "helm-console": {
+      "id": "helm-console",
+      "alt": "Helm console, windscreen and helm seat",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
           "webp": "/boat-media/harris-kayot-220-classic/photos/helm-console/thumb.webp"
         },
         {
           "name": "sm",
-          "width": 696,
-          "height": 670,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/helm-console/sm.avif",
+          "width": 768,
+          "height": 576,
           "webp": "/boat-media/harris-kayot-220-classic/photos/helm-console/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-console/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-console/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRn4AAABXRUJQVlA4IHIAAABwAgCdASoQAA8AA4BaJZQCw7YsjgfURcdDHyUAAP5ojdl7e/7Qfpj6C9TB5jCajBmCrdaK2Ffq0htFlWQl+NOzh3fGmEB7jUzuwZAOhQu7cSdAikOhKus9UR5/x36ReMwZjeScNEnX4++oNsid6x/xAAA="
+      "blurDataURL": "data:image/webp;base64,UklGRn4AAABXRUJQVlA4IHIAAACQAgCdASoQAAwAA4BaJbACdAYt9lKaN7+q7cRgAAD+6DF058aO8Nr9qnyqNKlFhxY7CzJOP5i1lok0oTF9LBYT0bQTOu0vaCEF72te5lR+1yBSZfl5imLhi6PW4yea+9Aef36jJ17wAgEmX8YlV48AAAA="
     },
-    "aft-lounge": {
-      "id": "aft-lounge",
-      "alt": "Detail of the aft L-shaped lounge seating",
+    "windscreen": {
+      "id": "windscreen",
+      "alt": "Helm windscreen",
       "placeholder": false,
-      "derivedFrom": "interior-overhead",
-      "width": 1198,
-      "height": 567,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
-          "height": 189,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/aft-lounge/thumb.webp"
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/windscreen/thumb.webp"
         },
         {
           "name": "sm",
           "width": 768,
-          "height": 363,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/aft-lounge/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/aft-lounge/sm.webp"
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/windscreen/sm.webp"
         },
         {
           "name": "md",
-          "width": 1198,
-          "height": 567,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/aft-lounge/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/aft-lounge/md.webp"
-        }
-      ],
-      "blurDataURL": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAADwAQCdASoQAAgAA4BaJZwAAsckmJZD0AAA/mFRMaquD6kNj829k+qxWTUX+EP9dl3gF5N9LWlCHEdMkRFTULkA8XpM2P5NAwjtunwSSbxxwAAA"
-    },
-    "captains-chairs": {
-      "id": "captains-chairs",
-      "alt": "Detail of the two captain's chairs on the port side",
-      "placeholder": false,
-      "derivedFrom": "interior-overhead",
-      "width": 734,
-      "height": 1494,
-      "tiers": [
-        {
-          "name": "thumb",
-          "width": 400,
-          "height": 814,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chairs/thumb.webp"
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/windscreen/md.webp"
         },
         {
-          "name": "sm",
-          "width": 734,
-          "height": 1494,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/captains-chairs/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/captains-chairs/sm.webp"
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/windscreen/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRuQAAABXRUJQVlA4INgAAACwBQCdASoQACEAPuVipk2pJaOiNVgIASAciWIArDKAL0E0CHq1HKtm94ARIsutAs7gO5XJ1wAA3elBZepXRXUI6rk3QKkvBxOziU9agDLs/2GmzKfOYNbbVRB67ipvvspbmlYOb234+WoYpWWTGG3Vt28hVbNH0x5QZeJrXd//x10juzQV3onTQBSU45kaxwTU5TsfUVrKv5wuFkwshnDgJqWnJT6tBkgRvaAivSeQw6sp1qn+tK4t8trz1QcU7Y3E3zdxIzBF4brvmqfh10dJfBVHSXtwAAA="
+      "blurDataURL": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAAAwAgCdASoQAAwAA4BaJQBOgMWHtnfdoHB9SAD+m+/weXI6Hs/fnakHbKDWIQTZGCL6XuOTqt8BPG7m2z+CJxO8xRrmvg7v39K1MFyeyCprSV+H6g8rghK4OQAFzuMujgAAAA=="
     },
-    "bow-bench": {
-      "id": "bow-bench",
-      "alt": "Detail of the starboard bench seating",
+    "capacity-plate": {
+      "id": "capacity-plate",
+      "alt": "Capacity plate: 14 persons or 1,925 lbs, 3,160 lbs total, 130 HP maximum",
       "placeholder": false,
-      "derivedFrom": "interior-overhead",
-      "width": 696,
-      "height": 1340,
+      "width": 4032,
+      "height": 3024,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
-          "height": 770,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-bench/thumb.webp"
-        },
-        {
-          "name": "sm",
-          "width": 696,
-          "height": 1340,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/bow-bench/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-bench/sm.webp"
-        }
-      ],
-      "blurDataURL": "data:image/webp;base64,UklGRsgAAABXRUJQVlA4ILwAAACwBACdASoQAB8APu1iqk2ppaQiMAgBMB2JYwC7IIjDMst28cJP9k7tGSnMA2AAAP2omPWxfJ6ftd7JWG2Q3AUdp0BMogpoSwOuf/hjQqlHbKUoH1Co6ILIQslol3VGw8L/sXqLdXujPG2wlS1Q/G51vC0DZr9qUbJbH0NKvTZzmEdOxK848zJGVIE9mwUvx5NBomSnfyslsx4gR+5eI918oRPkpH3BDKH6n50KAgqr3EKzm/1NAQjZdAAAAA=="
-    },
-    "deck-table": {
-      "id": "deck-table",
-      "alt": "Detail of the pedestal table and blue deck carpet",
-      "placeholder": false,
-      "derivedFrom": "interior-overhead",
-      "width": 889,
-      "height": 979,
-      "tiers": [
-        {
-          "name": "thumb",
-          "width": 400,
-          "height": 440,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-table/thumb.webp"
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/capacity-plate/thumb.webp"
         },
         {
           "name": "sm",
           "width": 768,
-          "height": 846,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/deck-table/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-table/sm.webp"
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/capacity-plate/sm.webp"
         },
         {
           "name": "md",
-          "width": 889,
-          "height": 979,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/deck-table/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-table/md.webp"
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/capacity-plate/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/capacity-plate/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRpoAAABXRUJQVlA4II4AAACwBACdASoQABIAPu1iqU2ppaOiMAgBMB2JZACdMoMuun/AaAjK2vZ96c0/sHCwAP7s0YVzwDyXYVLHGH+H50gMe+EcWddCb3A9IAFFbXDwVmbq5I7zh2ITPwYYvnyVMYLP6TgtKYLuonOgfQasvWpBzAHTFTcLhkbcUdZO5CyAVgTnSEAl6331XUVBrgAA"
+      "blurDataURL": "data:image/webp;base64,UklGRmIAAABXRUJQVlA4IFYAAAAQAgCdASoQAAwAA4BaJagCdAENhVxO265YAP7uJS1Qc2Y8qGbVdHpPr9a0yARPu5kKS6eFz0JiZj+PKmg1X6O/+r+WL7qm9sfMgxxEg44Zr0/SAOCgAA=="
     },
-    "bow-starboard": {
-      "id": "bow-starboard",
-      "alt": "Detail of the bow, pontoon noses and trailer winch stand",
+    "fish-finder": {
+      "id": "fish-finder",
+      "alt": "Humminbird PiranhaMAX 4 fish finder",
       "placeholder": false,
-      "derivedFrom": "starboard-side",
-      "width": 979,
-      "height": 657,
+      "width": 5712,
+      "height": 4032,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
-          "height": 268,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-starboard/thumb.webp"
+          "height": 282,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/fish-finder/thumb.webp"
         },
         {
           "name": "sm",
           "width": 768,
-          "height": 515,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/bow-starboard/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-starboard/sm.webp"
+          "height": 542,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/fish-finder/sm.webp"
         },
         {
           "name": "md",
-          "width": 979,
-          "height": 657,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/bow-starboard/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-starboard/md.webp"
+          "width": 1440,
+          "height": 1016,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/fish-finder/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1446,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/fish-finder/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAAAQAgCdASoQAAsAA4BaJZwAAwBO8tkIB5OAAM4Hf7s1d+O5CN+c5ti6dCZU+ytSmeXHJq3WAcsBkDngScz7OT+Uwgb/M+1WAj+wMyl1BRooWC8qS1H8FvqilQMyPgS4AAA="
+      "blurDataURL": "data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAABQAgCdASoQAAsAA4BaJYgCdAYu5gfFkovU0AAA/vIujMPwYbr5j8aqmO7UgNnE6lC40+s95Vfg2JrBVsmgOZb3SS0thzvTUvEHNrPO/D7/0Eoy/U0w8yaAQQ5wAA=="
     },
-    "bow-port": {
-      "id": "bow-port",
-      "alt": "Detail of the bow from the port side",
+    "stereo": {
+      "id": "stereo",
+      "alt": "Sony Bluetooth stereo head unit",
       "placeholder": false,
-      "derivedFrom": "port-side",
-      "width": 927,
-      "height": 657,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
-          "height": 283,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-port/thumb.webp"
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/stereo/thumb.webp"
         },
         {
           "name": "sm",
           "width": 768,
-          "height": 544,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/bow-port/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-port/sm.webp"
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/stereo/sm.webp"
         },
         {
           "name": "md",
-          "width": 927,
-          "height": 657,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/bow-port/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/bow-port/md.webp"
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/stereo/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/stereo/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRmoAAABXRUJQVlA4IF4AAADQAQCdASoQAAsAA4BaJZwAAlhX25RwgAD+7bI3r4VZJb68QdPgzGo/CYchzjFy5qzn7TrbT16wS8JN8Iqp7F5HimzHET8poJpA+mDjc4yGegA3MR/qyGohcFGeAAAA"
+      "blurDataURL": "data:image/webp;base64,UklGRmoAAABXRUJQVlA4IF4AAAAQAgCdASoQAAwAA4BaJaAC7AEfhhbKgWOAAP7n/qC3MFopndpNmFNdl3waL/BMWsMeVJFWAk8KvfnH9U6+bswqTYqtdELv9Wd0dGTHeWfLu+Ql6ag5sNZCtQCdAAAA"
     },
-    "trailer-axles": {
-      "id": "trailer-axles",
-      "alt": "Detail of the tandem-axle trailer wheels",
+    "speaker": {
+      "id": "speaker",
+      "alt": "Kicker marine speaker in the helm console",
       "placeholder": false,
-      "derivedFrom": "starboard-side",
-      "width": 773,
-      "height": 386,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
-          "height": 200,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-axles/thumb.webp"
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/speaker/thumb.webp"
         },
         {
           "name": "sm",
           "width": 768,
-          "height": 384,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/trailer-axles/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-axles/sm.webp"
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/speaker/sm.webp"
         },
         {
           "name": "md",
-          "width": 773,
-          "height": 386,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/trailer-axles/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-axles/md.webp"
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/speaker/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/speaker/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAADQAQCdASoQAAgAA4BaJZQAAucVKbEkAAD7I/ZHYPiO0M701C8Q8cDtZRrw71K7Nu0kTVfPkBb7jYxa4+aykF9SA8AAAA=="
+      "blurDataURL": "data:image/webp;base64,UklGRmIAAABXRUJQVlA4IFYAAADwAQCdASoQAAwAA4BaJbACdAEG9zzhq3gA/q93sanLMZKH2tZHm/SsYgY4yskgUvaicwBnra/XNuezclpiEC0Nf6JyaxWFgbKbqvdBQ/Twnj9N+IAAAA=="
+    },
+    "speaker-net": {
+      "id": "speaker-net",
+      "alt": "Speaker and storage net",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/speaker-net/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/speaker-net/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/speaker-net/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/speaker-net/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAAAQAgCdASoQAAwAA4BaJbACw7EOROOHPzgAAP7qxnJQ4kMb/7VT9fbiBS8ow+P7RkL14CIaHPfpxoZD0KKc7v1Y6z2CSaF6xF/3mCoeb41VS1BAKHg8D7n9BgAAAA=="
+    },
+    "storage-seat-1": {
+      "id": "storage-seat-1",
+      "alt": "Under-seat storage compartment",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-1/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-1/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-1/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-1/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRn4AAABXRUJQVlA4IHIAAAAwAgCdASoQAAwAA4BaJaACdAYtzqh4fAh9UADMmTUerbWegvmFho5QmVflIgm6nvILIY/1atvyY++U9T0MryMvlwvgtVVw+nCPIwAyDIndCZxSZ70/WEJzNP5bUCt/M04Qy1sA26j7wxRatJ7gYDnlUAA="
+    },
+    "storage-seat-2": {
+      "id": "storage-seat-2",
+      "alt": "Under-seat storage compartment",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-2/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-2/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-2/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-2/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRoQAAABXRUJQVlA4IHgAAABQAgCdASoQAAwAA4BaJbACdAYub20Yt5LVogAA/uuvrb/al9WJUf2eETeJbkywvB5czbf0pbF8Rn6a9cRZ1CN3POFvuc0YC3HFnI0QGu9d1y83BUNJcOqwUPObqEVX/FrdNnuPVKfL8GcIyfu4a5FMz6Kcy5cv4AA="
+    },
+    "storage-seat-3": {
+      "id": "storage-seat-3",
+      "alt": "Under-seat storage compartment",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-3/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-3/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-3/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-seat-3/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnQAAABXRUJQVlA4IGgAAAAwAgCdASoQAAwAA4BaJQBOgMVk5RxsAUEwAAD+uA2LuLuC76s50afNkpktqMnnOm4yX9kVJ//eRwgZx0uvRHL61ahvFxlCtn5m0L2jMjhiK9yPeKClqaBHFvkFBvCTp+4STjjpIAAAAA=="
+    },
+    "battery-compartment": {
+      "id": "battery-compartment",
+      "alt": "Under-seat compartment with battery box",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/battery-compartment/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/battery-compartment/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/battery-compartment/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/battery-compartment/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAAAwAgCdASoQAAwAA4BaJbACdAEem5ohIkcOAADLT9yXQQiDn2e92lO/4GHTViviAVeg2VRMOK8i/MKDBVbNT41YoQx+AUWdSP5ptBi8rejAVTqYIyNSWOI4eeiN1jAQ6VvvcT6vLG6yqiN3XgAAAA=="
+    },
+    "storage-locker": {
+      "id": "storage-locker",
+      "alt": "Large storage locker",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-locker/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-locker/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-locker/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-locker/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAAAQAgCdASoQAAwAA4BaJZQAAq2hz7Au19uAAP6zr2HuNjMBg7BoV293dzf3rsMFpskY8ecsg0VNuYR+xwtSsYmrWNhUgXzXdX+Kwzk8bR+xwIOCXR2gN+ysTZWc0OzN1CAAAA=="
+    },
+    "fuel-tank-compartment": {
+      "id": "fuel-tank-compartment",
+      "alt": "Under-seat compartment with fuel tank and lines",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/fuel-tank-compartment/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/fuel-tank-compartment/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/fuel-tank-compartment/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/fuel-tank-compartment/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAABQAgCdASoQAAwAA4BaJQBdgMW07d05RgbPK+gA/tI+Lk1cdJ6EOxRxCmD3bo8JKHKSP15b8qwzb9I1EBcufLfM91yeyY5raewI2YucK7grEWV6QWJzgCNoNVbvVlUIZxXAAA=="
+    },
+    "console-lid": {
+      "id": "console-lid",
+      "alt": "Helm console storage lid",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-lid/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-lid/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-lid/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-lid/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAAAwAgCdASoQAAwAA4BaJZgC7AYu5jIOr9KmwAD+19HuCvZj20x/F+xjbtf+i6Zy0DA3ioDRccqTKNXgs0puaG0Y9in9OgbOPd5K0R5enTB0DmCK37UfAAAA"
+    },
+    "console-storage": {
+      "id": "console-storage",
+      "alt": "Helm console storage bin",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-storage/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-storage/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-storage/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-storage/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAAAwAgCdASoQAAwAA4BaJYgC7ADdc+XYSYPgmAD+4KulibQM1YHTyrmYRVAUXxXi2shN+F1ZhWA52VDPf8Rf7WDkvgxk1ZjzX3AxgAAA"
+    },
+    "console-access": {
+      "id": "console-access",
+      "alt": "Helm console access door",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-access/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-access/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-access/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/console-access/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAADwAQCdASoQAAwAA4BaJbACsAENs419VIAA/u2AdpLj9yvjyTB51v5Vr1u9wgmc0OotP4S0zddg1X1PDj/TEP0Lyp6QncTvFulEf3trsKYsX5SOE2DcSFd7avJ39hq0FZYDpGZ3feSkYAAA"
+    },
+    "engine-cowling": {
+      "id": "engine-cowling",
+      "alt": "Yamaha 100 four-stroke engine cowling",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-cowling/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-cowling/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-cowling/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-cowling/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnAAAABXRUJQVlA4IGQAAABQAgCdASoQAAwAA4BaJYwCdADpM33+vtbd9vAA/l9vx6KZwUmLzQTgBzU82cuh+BIsG8EX3DDbEcg3COujgBLmlPk1nLGth723Ywim/LokKYcgJXXA27Rvjv0qyLk3fOoogDAA"
+    },
+    "prop": {
+      "id": "prop",
+      "alt": "Three-blade propeller",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/prop/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/prop/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/prop/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/prop/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAAAQAgCdASoQAAwAA4BaJQBdgMXDrFwOxQUgAP7tFwJYk6BdlvRpTA4cbMFP8k8mIgdAvwokidxunSWOE1yjo3woD7PHhWn9GCXK6+URg3gtihckabw092HMs1ePdEi0AAA="
+    },
+    "engine-from-deck": {
+      "id": "engine-from-deck",
+      "alt": "Outboard seen from the deck",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-from-deck/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-from-deck/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-from-deck/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-from-deck/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAACQAgCdASoQAAwAA4BaJQBOgMX67c1+RTmd9/OMAAD+34BeGQF030EfoniLAmF1frngBwPM1jXdlZeuhcJXuJaSuL5I+6RR3f/adQ2aMio9TXOBWIyjEwAA"
+    },
+    "engine-rigging": {
+      "id": "engine-rigging",
+      "alt": "Stern access and engine rigging",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-rigging/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-rigging/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-rigging/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/engine-rigging/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAADwAQCdASoQAAwAA4BaJQBOj+ACMyeV+OIA/gdJ1JzsdlekKlcegpP5zU8SfktCxlP+OtyvlBtRTbk8YZ+w7f8qq6O2J8B5teRlv2wBADF5v642ESr1Ox6HIGlJRopDuF5YQQ5ysJLMJAAA"
+    },
+    "nav-light-port": {
+      "id": "nav-light-port",
+      "alt": "Bow cap with red navigation light and docking light",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/nav-light-port/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/nav-light-port/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/nav-light-port/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/nav-light-port/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAACwAQCdASoQAAwAA4BaJZQAAxXM8qrAAP2aHe7b9uLzuq24YRoVaXWUu3lnyVaJWWKxg15U8bfWOmcU6SnpqqLpD/6ViJKIVrQrpwYe1thy8AAA"
+    },
+    "nav-light-starboard": {
+      "id": "nav-light-starboard",
+      "alt": "Bow cap with green navigation light and docking light",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/nav-light-starboard/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/nav-light-starboard/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/nav-light-starboard/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/nav-light-starboard/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnAAAABXRUJQVlA4IGQAAADQAQCdASoQAAwAA4BaJQBOgCHIT+AEMAD4XfCa/8klZk9B3zIc9fJm9Nu9dkNMLJFWlrROTqZmz07C+C2bykOBfw3xxuZ71rMFkK2FxTpzxpLhrORxnyaJHwlBkmoR7jWcmAAA"
+    },
+    "model-script": {
+      "id": "model-script",
+      "alt": "220 Classic script on the fence panel",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/model-script/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/model-script/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/model-script/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/model-script/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAAAwAgCdASoQAAwAA4BaJagCdAEVm4GZVgMoAAD+kZ6YZmf8kpcL9KCGQzrP52soAYJ6iJzh8XhxG9GwM99AHSHfjwOWgjcs8ArYU20w1pVYtPy2WcfTA3LCZgAAAA=="
+    },
+    "hk-emblem": {
+      "id": "hk-emblem",
+      "alt": "Harris-Kayot emblem",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/hk-emblem/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/hk-emblem/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/hk-emblem/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/hk-emblem/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRmoAAABXRUJQVlA4IF4AAADQAQCdASoQAAwAA4BaJbACdAEIRSoIAADiMJfi5Ifv3NMwDVAed6pGRgGlWmlj1rhTODDEvqcQiKXpO0NI58VVhCfHu0f6tq/L96Ul1Ku0cvqjhWQbQqZqv6l4/LAA"
+    },
+    "gas-fill": {
+      "id": "gas-fill",
+      "alt": "220 Classic graphic and gas fill cap",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/gas-fill/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/gas-fill/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/gas-fill/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/gas-fill/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRnwAAABXRUJQVlA4IHAAAABwAgCdASoQAAwAA4BaJaACdH8G6AFpJJ3CUgAAAP61rfo3UcRFTSzRoeYd+bUhG5Lyx5icTaKtWNvk4+T76zFW2yZIZrPnSLgIway1LBtBQ6//pd/P4DD17csfL0AkHeEmeTEd4NaliMx0otFyoAAA"
+    },
+    "registration": {
+      "id": "registration",
+      "alt": "HK emblem and 2027 registration sticker",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/registration/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/registration/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/registration/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/registration/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRoAAAABXRUJQVlA4IHQAAABQAgCdASoQAAwAA4BaJZACdH8AgjTLMxw9rsAA/sB+JLYC7Bf3fKCm1MdIdK6COlPc0EY5N5y/b9eqdLrjgsnueG3reHwmk7g27i6WjWXyjKgdR7Vs2EAahzZ5+HSaukisCGnmAJI8hvARiBxyT0wGolAAAA=="
+    },
+    "trailer-wheels": {
+      "id": "trailer-wheels",
+      "alt": "Tandem-axle wheels with Kenda Loadstar tires",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-wheels/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-wheels/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-wheels/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-wheels/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAADwAQCdASoQAAwAA4BaJaQAAuRzmmDpyAAA/fA7G3s0x2IceI60LMe7YHONjb3yD7JQPcMaafbKpwlVBoUyIy1aJgAAAA=="
+    },
+    "trailer-wheels-2": {
+      "id": "trailer-wheels-2",
+      "alt": "Tandem-axle wheels and fender",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-wheels-2/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-wheels-2/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-wheels-2/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-wheels-2/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAAAQAgCdASoQAAwAA4BaJYwAD4otVcgSYsz8AP1zodWpAJxB8pegz++P6UzOSChXuWwhj5YxZimgRvaSUMiI47r6k9Hptj3Bv+5PQPAA"
     },
     "trailer-tongue": {
       "id": "trailer-tongue",
-      "alt": "Detail of the trailer tongue, winch stand and Mid America decal",
+      "alt": "Trailer tongue with swing-away jack and manual winch",
       "placeholder": false,
-      "derivedFrom": "starboard-side",
-      "width": 721,
-      "height": 657,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
-          "height": 364,
+          "height": 300,
           "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-tongue/thumb.webp"
         },
         {
           "name": "sm",
-          "width": 721,
-          "height": 657,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/trailer-tongue/sm.avif",
+          "width": 768,
+          "height": 576,
           "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-tongue/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-tongue/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-tongue/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAAAQAgCdASoQAA8AA4BaJZwAD5XQHRvf/nJgAP7opOteNhMBERBh9csddJL37Ts37lPPgWOb4qqdGRq4HQKsK0IXpbseo4B2UPxPF+X7goQKOXsHSFrB4LIx3vh9KAgpICERfImeAP/DFAAA"
+      "blurDataURL": "data:image/webp;base64,UklGRnAAAABXRUJQVlA4IGQAAAAwAgCdASoQAAwAA4BaJYwCdAYvDOY7IwmNAAD+7kohJs3tfTZ1jp7Chaab8og8OBBdAYX/THdAHy9chTndDYxi+jbPWcLbOeCDhG9dkf7vlrIHLh303CvjjY1IMBVgNmjXvgAA"
     },
-    "pontoon-surface": {
-      "id": "pontoon-surface",
-      "alt": "Detail of the starboard pontoon tube surface",
+    "trailer-winch-stand": {
+      "id": "trailer-winch-stand",
+      "alt": "Winch stand and step ladder",
       "placeholder": false,
-      "derivedFrom": "starboard-side",
-      "width": 2009,
-      "height": 348,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
-          "height": 69,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-winch-stand/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-winch-stand/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-winch-stand/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-winch-stand/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRmIAAABXRUJQVlA4IFYAAAAwAgCdASoQAAwAA4BaJQBWAMWM1UewSSXMAAD+vhOtXvGJIqbQx5JXaKLC5dMJUOU9P3k1r3nLeJ0twEk3p/ay+C6n8PaA0fA0zj8k+P1CSr/n26+AAA=="
+    },
+    "trailer-decal": {
+      "id": "trailer-decal",
+      "alt": "Mid America Trailers frame",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-decal/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-decal/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-decal/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-decal/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAABQAgCdASoQAAwAA4BaJYwC7AYul2w/63LIyCAA/uuQ19KAms3pdKnRJuOtBPezhnavupawCERkSqFqjMYRs0QsHGYaTeO9Wf8i/jZlhBUTbSPUm/uQvSEJHDufX5PuDsHAAA=="
+    },
+    "trailer-frame": {
+      "id": "trailer-frame",
+      "alt": "Trailer frame and cross members",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-frame/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-frame/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-frame/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-frame/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRmIAAABXRUJQVlA4IFYAAAAwAgCdASoQAAwAA4BaJZwAD5AvKWPr3SLOAAD+6pZirP+ODesT90AGqn2mQDK30bSmOSQaudkE8Gn2vciFR78kchuI6vG85LRNZPnL03zXj5AEXcCAAA=="
+    },
+    "trailer-decal-2": {
+      "id": "trailer-decal-2",
+      "alt": "Mid America Trailers frame decal",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-decal-2/thumb.webp"
+        },
+        {
+          "name": "sm",
+          "width": 768,
+          "height": 576,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-decal-2/sm.webp"
+        },
+        {
+          "name": "md",
+          "width": 1440,
+          "height": 1080,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-decal-2/md.webp"
+        },
+        {
+          "name": "lg",
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/trailer-decal-2/lg.webp"
+        }
+      ],
+      "blurDataURL": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAACwAQCdASoQAAwAA4BaJZQCw7C9s48AAMsvoz4JgwhLIuXGK6waINMnP4L3Kxu8U1Xe5ZsOXarLBhMlTXNuTM1nXW/N1rgg7AAAAA=="
+    },
+    "pontoon-surface": {
+      "id": "pontoon-surface",
+      "alt": "Starboard pontoon tube surface",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
+      "tiers": [
+        {
+          "name": "thumb",
+          "width": 400,
+          "height": 300,
           "webp": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface/thumb.webp"
         },
         {
           "name": "sm",
           "width": 768,
-          "height": 133,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface/sm.avif",
+          "height": 576,
           "webp": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface/sm.webp"
         },
         {
           "name": "md",
           "width": 1440,
-          "height": 249,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface/md.avif",
+          "height": 1080,
           "webp": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface/md.webp"
         },
         {
           "name": "lg",
-          "width": 2009,
-          "height": 348,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface/lg.avif",
+          "width": 2048,
+          "height": 1536,
           "webp": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAACwAQCdASoQAAMAA4BaJZwAAuQw4EEwAPZ30xrkzCPuA527TIYeEtllfm1OdbCAAAA="
+      "blurDataURL": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAAAQAgCdASoQAAwAA4BaJZwAAsV6ve/h49+AAP7WK04Zb5BPBV6AE0J3b27VCXH8fnd99ewQyYdaP5bFA17i60dvAznCUad1PuVna7Hd5jaClXCAAAA="
     },
-    "upholstery-bench": {
-      "id": "upholstery-bench",
-      "alt": "Detail of the starboard bench upholstery surface",
+    "pontoon-surface-2": {
+      "id": "pontoon-surface-2",
+      "alt": "Pontoon tube surface near the bow",
       "placeholder": false,
-      "derivedFrom": "interior-overhead",
-      "width": 580,
-      "height": 876,
-      "tiers": [
-        {
-          "name": "thumb",
-          "width": 400,
-          "height": 604,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/upholstery-bench/thumb.webp"
-        },
-        {
-          "name": "sm",
-          "width": 580,
-          "height": 876,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/upholstery-bench/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/upholstery-bench/sm.webp"
-        }
-      ],
-      "blurDataURL": "data:image/webp;base64,UklGRqQAAABXRUJQVlA4IJgAAAAQBACdASoQABgAPu1iqU2ppaOiMAgBMB2JYwDCgCKFhZWZPDboH+onQAD+x16CnCJFWpH/WTF3UPJTjmoepdbPuF1meCCXhX6Js6VM8KMFDoGdHsDhPQn/z9K4rZtWTcf8Zg/kBBe+CiOxjY6IcCXIrKnSG+8PZ83q6JXJYw2L/NssZVgRA2BplOkrG1t2LEZRV3q+DFyAAA=="
-    },
-    "front-view-needed": {
-      "id": "front-view-needed",
-      "alt": "Placeholder — front view photo not yet supplied",
-      "placeholder": true,
-      "width": 1600,
-      "height": 1200,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
           "height": 300,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/front-view-needed/thumb.webp"
+          "webp": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface-2/thumb.webp"
         },
         {
           "name": "sm",
           "width": 768,
           "height": 576,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/front-view-needed/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/front-view-needed/sm.webp"
+          "webp": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface-2/sm.webp"
         },
         {
           "name": "md",
           "width": 1440,
           "height": 1080,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/front-view-needed/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/front-view-needed/md.webp"
+          "webp": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface-2/md.webp"
         },
         {
           "name": "lg",
-          "width": 1600,
-          "height": 1200,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/front-view-needed/lg.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/front-view-needed/lg.webp"
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/pontoon-surface-2/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAABwAQCdASoQAAwAA4BaJZwCdAFAAAD+8Xzzf7wJbDDD9UF/7l4T9WAAAAA="
+      "blurDataURL": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAAAQAgCdASoQAAwAA4BaJYwC7AYstLbpZ+IgAMtJCELBeUrSg+s95Ch9wFqH/s9xieRJKvts05Icgt7dMxywWU7HjM94U+QwYkKTza+w6UcqriRGBa5HCeFpi4AD1RkHwAA="
     },
-    "helm-closeup-needed": {
-      "id": "helm-closeup-needed",
-      "alt": "Placeholder — helm close-up photo not yet supplied",
-      "placeholder": true,
-      "width": 1600,
-      "height": 1200,
+    "deck-underside": {
+      "id": "deck-underside",
+      "alt": "Underside of the deck between the pontoons",
+      "placeholder": false,
+      "width": 5712,
+      "height": 4284,
       "tiers": [
         {
           "name": "thumb",
           "width": 400,
           "height": 300,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-closeup-needed/thumb.webp"
+          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-underside/thumb.webp"
         },
         {
           "name": "sm",
           "width": 768,
           "height": 576,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/helm-closeup-needed/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-closeup-needed/sm.webp"
+          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-underside/sm.webp"
         },
         {
           "name": "md",
           "width": 1440,
           "height": 1080,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/helm-closeup-needed/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-closeup-needed/md.webp"
+          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-underside/md.webp"
         },
         {
           "name": "lg",
-          "width": 1600,
-          "height": 1200,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/helm-closeup-needed/lg.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/helm-closeup-needed/lg.webp"
+          "width": 2048,
+          "height": 1536,
+          "webp": "/boat-media/harris-kayot-220-classic/photos/deck-underside/lg.webp"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAABwAQCdASoQAAwAA4BaJZwCdAFAAAD+8Xzzf7wQcReTfjiVr4pElgAA"
-    },
-    "storage-needed": {
-      "id": "storage-needed",
-      "alt": "Placeholder — storage photo not yet supplied",
-      "placeholder": true,
-      "width": 1600,
-      "height": 1200,
-      "tiers": [
+      "blurDataURL": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAwAA4BaJQBOgBuQ9fkuoADJXaSgcGWbf8zItSPKqpYag2G3inh7yYw20u8NevdHLG+BPNaehZiRQ+pUln+4UpAAAA=="
+    }
+  },
+  "videos": {
+    "walkaround": {
+      "id": "walkaround",
+      "src": "/boat-media/harris-kayot-220-classic/video/walkaround.mp4",
+      "sources": [
         {
-          "name": "thumb",
-          "width": 400,
-          "height": 300,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-needed/thumb.webp"
+          "src": "/boat-media/harris-kayot-220-classic/video/walkaround.webm",
+          "type": "video/webm"
         },
         {
-          "name": "sm",
-          "width": 768,
-          "height": 576,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/storage-needed/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-needed/sm.webp"
-        },
-        {
-          "name": "md",
-          "width": 1440,
-          "height": 1080,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/storage-needed/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-needed/md.webp"
-        },
-        {
-          "name": "lg",
-          "width": 1600,
-          "height": 1200,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/storage-needed/lg.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/storage-needed/lg.webp"
+          "src": "/boat-media/harris-kayot-220-classic/video/walkaround.mp4",
+          "type": "video/mp4"
         }
       ],
-      "blurDataURL": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAABwAQCdASoQAAwAA4BaJZwCdAFAAAD+8Xzzf7wJPRhuIFnQNprrRSAA"
-    },
-    "electronics-needed": {
-      "id": "electronics-needed",
-      "alt": "Placeholder — electronics photo not yet supplied",
-      "placeholder": true,
-      "width": 1600,
-      "height": 1200,
-      "tiers": [
-        {
-          "name": "thumb",
-          "width": 400,
-          "height": 300,
-          "webp": "/boat-media/harris-kayot-220-classic/photos/electronics-needed/thumb.webp"
-        },
-        {
-          "name": "sm",
-          "width": 768,
-          "height": 576,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/electronics-needed/sm.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/electronics-needed/sm.webp"
-        },
-        {
-          "name": "md",
-          "width": 1440,
-          "height": 1080,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/electronics-needed/md.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/electronics-needed/md.webp"
-        },
-        {
-          "name": "lg",
-          "width": 1600,
-          "height": 1200,
-          "avif": "/boat-media/harris-kayot-220-classic/photos/electronics-needed/lg.avif",
-          "webp": "/boat-media/harris-kayot-220-classic/photos/electronics-needed/lg.webp"
-        }
-      ],
-      "blurDataURL": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACQAQCdASoQAAwAA4BaJZwE6AhwBFAA/vF8837mVJGH7weHtPAfkgAA"
+      "poster": "/boat-media/harris-kayot-220-classic/video/walkaround-poster.webp"
     }
   },
   "spin": null

@@ -37,6 +37,9 @@ export function validateBoatConfig(boat: BoatViewerConfig): string[] {
 
   for (const v of boat.views) {
     if (v.action.type === "gallery" && !galleries.has(v.action.galleryId)) problems.push(`View "${v.id}" opens missing gallery "${v.action.galleryId}".`);
+    if (v.action.type === "video" && !boat.videos?.some((x) => x.id === (v.action as { videoId: string }).videoId)) {
+      problems.push(`View "${v.id}" plays missing video.`);
+    }
     if (v.action.type === "angle" && !boat.spin) problems.push(`View "${v.id}" needs a spin set.`);
   }
   return problems;

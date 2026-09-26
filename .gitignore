@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Boat media originals are fetched from Google Drive (scripts/boat360/fetch-drive.mjs)
+/media-source/boats/*/photos/
+/media-source/boats/*/video/
+/media-source/boats/*/360/

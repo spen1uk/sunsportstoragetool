@@ -1,29 +1,423 @@
 {
-  "$comment": "Source manifest for scripts/boat360/build-media.mjs. Crops are percentages of the (EXIF-rotated) source photo. 'placeholder' entries generate clearly-labelled 'photo needed' cards — they are not photographs.",
+  "$comment": "Source manifest for scripts/boat360/build-media.mjs. Originals live in Google Drive (fetch with scripts/boat360/fetch-drive.mjs); only optimized derivatives are committed.",
   "slug": "harris-kayot-220-classic",
+  "driveFolderId": "1mMVCoVkDwfZ2zb1670GUO66XxhCfRG-r",
   "assets": [
-    { "id": "starboard-side", "source": "photos/starboard-side.jpg", "alt": "Harris-Kayot 220 Classic on its trailer, starboard (right) side, bow to the right" },
-    { "id": "port-side", "source": "photos/port-side.jpg", "alt": "Harris-Kayot 220 Classic on its trailer, port (left) side, bow to the left" },
-    { "id": "stern-engine", "source": "photos/stern-engine.jpg", "alt": "Stern of the Harris-Kayot showing the Yamaha 100 four-stroke outboard between the pontoons" },
-    { "id": "interior-overhead", "source": "photos/interior-overhead.jpg", "alt": "Elevated view of the deck looking aft: helm console, lounge seating, captain's chairs, table and blue carpet" },
-
-    { "id": "engine-cowling", "source": "photos/stern-engine.jpg", "crop": { "x": 38, "y": 3, "w": 26, "h": 36 }, "alt": "Detail of the Yamaha 100 four-stroke engine cowling" },
-    { "id": "engine-lower-unit", "source": "photos/stern-engine.jpg", "crop": { "x": 33, "y": 50, "w": 30, "h": 50 }, "alt": "Detail of the outboard lower unit and propeller" },
-    { "id": "helm-console", "source": "photos/interior-overhead.jpg", "crop": { "x": 13, "y": 13, "w": 36, "h": 26 }, "alt": "Detail of the helm console, steering wheel and windscreen" },
-    { "id": "aft-lounge", "source": "photos/interior-overhead.jpg", "crop": { "x": 25, "y": 5, "w": 62, "h": 22 }, "alt": "Detail of the aft L-shaped lounge seating" },
-    { "id": "captains-chairs", "source": "photos/interior-overhead.jpg", "crop": { "x": 62, "y": 24, "w": 38, "h": 58 }, "alt": "Detail of the two captain's chairs on the port side" },
-    { "id": "bow-bench", "source": "photos/interior-overhead.jpg", "crop": { "x": 0, "y": 40, "w": 36, "h": 52 }, "alt": "Detail of the starboard bench seating" },
-    { "id": "deck-table", "source": "photos/interior-overhead.jpg", "crop": { "x": 38, "y": 34, "w": 46, "h": 38 }, "alt": "Detail of the pedestal table and blue deck carpet" },
-    { "id": "bow-starboard", "source": "photos/starboard-side.jpg", "crop": { "x": 62, "y": 38, "w": 38, "h": 34 }, "alt": "Detail of the bow, pontoon noses and trailer winch stand" },
-    { "id": "bow-port", "source": "photos/port-side.jpg", "crop": { "x": 0, "y": 38, "w": 36, "h": 34 }, "alt": "Detail of the bow from the port side" },
-    { "id": "trailer-axles", "source": "photos/starboard-side.jpg", "crop": { "x": 12, "y": 56, "w": 30, "h": 20 }, "alt": "Detail of the tandem-axle trailer wheels" },
-    { "id": "trailer-tongue", "source": "photos/starboard-side.jpg", "crop": { "x": 72, "y": 42, "w": 28, "h": 34 }, "alt": "Detail of the trailer tongue, winch stand and Mid America decal" },
-    { "id": "pontoon-surface", "source": "photos/starboard-side.jpg", "crop": { "x": 6, "y": 50, "w": 78, "h": 18 }, "alt": "Detail of the starboard pontoon tube surface" },
-    { "id": "upholstery-bench", "source": "photos/interior-overhead.jpg", "crop": { "x": 0, "y": 31, "w": 30, "h": 34 }, "alt": "Detail of the starboard bench upholstery surface" },
-
-    { "id": "front-view-needed", "placeholder": { "title": "FRONT VIEW", "note": "Bow-on exterior photo needed" }, "alt": "Placeholder — front view photo not yet supplied" },
-    { "id": "helm-closeup-needed", "placeholder": { "title": "HELM CLOSE-UP", "note": "Gauges / switch panel photo needed" }, "alt": "Placeholder — helm close-up photo not yet supplied" },
-    { "id": "storage-needed", "placeholder": { "title": "STORAGE", "note": "Under-seat storage photos needed" }, "alt": "Placeholder — storage photo not yet supplied" },
-    { "id": "electronics-needed", "placeholder": { "title": "ELECTRONICS", "note": "Stereo / fish finder photos needed" }, "alt": "Placeholder — electronics photo not yet supplied" }
+    {
+      "id": "starboard-side",
+      "source": "photos/IMG_5108.jpeg",
+      "drive": "1muDi1YAmo4eqGdfH0L0nRROqBOQCP6tS",
+      "alt": "Harris-Kayot 220 Classic on its tandem-axle trailer, starboard (right) side"
+    },
+    {
+      "id": "port-side",
+      "source": "photos/IMG_5174.jpeg",
+      "drive": "1PWYDzUKLXvNvL7TkLLtOUavhWiWqKPew",
+      "alt": "Harris-Kayot 220 Classic on its trailer, port (left) side"
+    },
+    {
+      "id": "stern-engine",
+      "source": "photos/IMG_5117.jpeg",
+      "drive": "1XdNA2YimftBuX-ghoskfSAVZZOyYnKPe",
+      "alt": "Stern view with the Yamaha 100 four-stroke outboard between the pontoons"
+    },
+    {
+      "id": "front-quarter",
+      "source": "photos/IMG_5194.jpeg",
+      "drive": "1E4HKBf0CWIECCboGk_9uW7LWzEGFdHzk",
+      "alt": "Front three-quarter view from the port bow"
+    },
+    {
+      "id": "port-bow-quarter",
+      "source": "photos/IMG_5180.jpeg",
+      "drive": "1-BuvHdVdUUPu2MMV_6m5kq_cQvkDxoOw",
+      "alt": "Port bow quarter showing the bow cap and trailer guide-ons"
+    },
+    {
+      "id": "stern-quarter",
+      "source": "photos/IMG_5121.jpeg",
+      "drive": "1fuT8l7u0ZCpl6BJkS4trIXlufKTWTU0a",
+      "alt": "Starboard stern quarter with the Yamaha outboard"
+    },
+    {
+      "id": "street-starboard",
+      "source": "photos/IMG_5193.jpeg",
+      "drive": "1UlKCCSLtA-6salceAPYDRrUao2gKffqG",
+      "alt": "Starboard side on the street, bimini raised"
+    },
+    {
+      "id": "street-port",
+      "source": "photos/IMG_5190.jpeg",
+      "drive": "1HH-48HsWV6tIkQpdeJij_09DFtEoz1JS",
+      "alt": "Port side on the street, bimini raised"
+    },
+    {
+      "id": "street-stern",
+      "source": "photos/IMG_5192.jpeg",
+      "drive": "1tJn-ZdAZBwkLAw8-DGD8OxhqQPWb5dVT",
+      "alt": "Stern view on the street"
+    },
+    {
+      "id": "overhead-deck",
+      "source": "photos/IMG_5169.jpeg",
+      "drive": "17ShxvkIdPe7VntjSPJ1w6xqBt-PsV4gt",
+      "alt": "Elevated view of the deck looking aft: helm, lounge seating, captain's chairs and table"
+    },
+    {
+      "id": "deck-from-stern",
+      "source": "photos/IMG_5170.jpeg",
+      "drive": "1GWOSweut43mTBlSy1dDlE1UuLVTFAsei",
+      "alt": "Deck view past the table toward the helm"
+    },
+    {
+      "id": "helm-lounge",
+      "source": "photos/IMG_5129.jpeg",
+      "drive": "1RQM3vthBOuGbJPNzyy-K20WmS_3rvMUl",
+      "alt": "Helm console and aft L-lounge"
+    },
+    {
+      "id": "lounge-table",
+      "source": "photos/IMG_5154.jpeg",
+      "drive": "1Qd5lbn7QCrrgeqon19axk5Hu7DqBsgM_",
+      "alt": "Helm, table and aft lounge seating"
+    },
+    {
+      "id": "table-lounge",
+      "source": "photos/IMG_5155.jpeg",
+      "drive": "1u45c_x5DDBve2221wbSCOViC769xAqU8",
+      "alt": "Pedestal table and lounge seating"
+    },
+    {
+      "id": "captains-chairs-table",
+      "source": "photos/IMG_5156.jpeg",
+      "drive": "1LJ-5FyS5LVDcpFukDXAyYxMwqnXuSXA2",
+      "alt": "Captain's chairs and pedestal table"
+    },
+    {
+      "id": "bow-seating",
+      "source": "photos/IMG_5123.jpeg",
+      "drive": "1VVn1gOZ2LynjDMO2NINzCLoF8b2V4N5q",
+      "alt": "Bow seating area with lounge and captain's chair"
+    },
+    {
+      "id": "l-lounge",
+      "source": "photos/IMG_5124.jpeg",
+      "drive": "1qF141eQQWLO9-XeNqGqrulprfwe09y6f",
+      "alt": "L-shaped lounge seat"
+    },
+    {
+      "id": "captains-chair-1",
+      "source": "photos/IMG_5126.jpeg",
+      "drive": "1FVUzWK8ksH55_SqcrZyFxcNDkgNmpNJi",
+      "alt": "Captain's chair"
+    },
+    {
+      "id": "captains-chair-2",
+      "source": "photos/IMG_5127.jpeg",
+      "drive": "14rm8tDPizX98J36vxfvt2rib5lXl8MoO",
+      "alt": "Second captain's chair"
+    },
+    {
+      "id": "captains-chairs-pair",
+      "source": "photos/IMG_5128.jpeg",
+      "drive": "1RaQtenJ4kFjzeqEEcdRXm9YngIIr4NIa",
+      "alt": "Pair of captain's chairs and side lounge"
+    },
+    {
+      "id": "lounge-corner",
+      "source": "photos/IMG_5137.jpeg",
+      "drive": "1tMK6iA5JmTq7zcaS4KtDtS0QSue37gVT",
+      "alt": "Lounge corner upholstery"
+    },
+    {
+      "id": "lounge-bench",
+      "source": "photos/IMG_5139.jpeg",
+      "drive": "1pAtaZf80pE79f38gZMdJSDLOq4LgyhXP",
+      "alt": "Lounge bench upholstery"
+    },
+    {
+      "id": "rear-lounge-seat",
+      "source": "photos/IMG_5141.jpeg",
+      "drive": "1B4Tdkl6iJS9uf7dIZ-Ing3c0RnTK0eVs",
+      "alt": "Rear lounge seat cushions"
+    },
+    {
+      "id": "rear-lounge-cushion",
+      "source": "photos/IMG_5145.jpeg",
+      "drive": "1Pq3DBNnBpoAax6OvhkFMHZlzgQ65na-D",
+      "alt": "Rear lounge seat cushion"
+    },
+    {
+      "id": "bow-entry",
+      "source": "photos/IMG_5122.jpeg",
+      "drive": "1PSSKfqX6-6injQkzBMTLnIlERaao_Dxl",
+      "alt": "Bow deck and entry gate"
+    },
+    {
+      "id": "helm-seat",
+      "source": "photos/IMG_5153.jpeg",
+      "drive": "1c0BMcMwcSTZ4Q9xQOFXoOyWpZwjWDI_2",
+      "alt": "Helm seat"
+    },
+    {
+      "id": "helm-dash",
+      "source": "photos/IMG_5158.jpeg",
+      "drive": "1oFYxx1bwRyrkb4_kH2ffoYBEUKX5QLl0",
+      "alt": "Helm dash with steering wheel, gauges and controls"
+    },
+    {
+      "id": "gauges",
+      "source": "photos/IMG_5159.jpeg",
+      "drive": "1aqLZZh04uAGQKWkWVtI31SofIt07P0b8",
+      "alt": "Speedometer and gauges"
+    },
+    {
+      "id": "tachometer",
+      "source": "photos/IMG_5163.jpeg",
+      "drive": "1nPYf5TbsE8lFc2WFzoMBigwRGDW-pEEn",
+      "alt": "Tachometer"
+    },
+    {
+      "id": "ignition",
+      "source": "photos/IMG_5160.jpeg",
+      "drive": "1F9tXwLC886CnnXljpjuJrKKfq5o1lNpn",
+      "alt": "Ignition key switch"
+    },
+    {
+      "id": "switch-panel",
+      "source": "photos/IMG_5164.jpeg",
+      "drive": "1mxWC7M2PuO7__VIGGpyGykWK1m4CuT-g",
+      "alt": "Switch panel with horn button"
+    },
+    {
+      "id": "throttle",
+      "source": "photos/IMG_5161.jpeg",
+      "drive": "1_rc9DYcBZQz-qNTzaFy9XGgrqAjBv1CY",
+      "alt": "Yamaha binnacle throttle/shift control"
+    },
+    {
+      "id": "helm-console",
+      "source": "photos/IMG_5157.jpeg",
+      "drive": "1VNiLrIqeVUi63ScB6csVRh__XGoM6Lxo",
+      "alt": "Helm console, windscreen and helm seat"
+    },
+    {
+      "id": "windscreen",
+      "source": "photos/IMG_5167.jpeg",
+      "drive": "1dPHF6Qip4wj9pP0eOeTy-i-3dx9KX6lX",
+      "alt": "Helm windscreen"
+    },
+    {
+      "id": "capacity-plate",
+      "source": "photos/IMG_5166.jpeg",
+      "drive": "1GdGiZnPBnydA_34wkqxrc5Vw-bCMNi54",
+      "alt": "Capacity plate: 14 persons or 1,925 lbs, 3,160 lbs total, 130 HP maximum"
+    },
+    {
+      "id": "fish-finder",
+      "source": "photos/IMG_5162.jpeg",
+      "drive": "1z9kxNJoX7RK4GKS6byZ4GpF7ZkZS5fj6",
+      "alt": "Humminbird PiranhaMAX 4 fish finder"
+    },
+    {
+      "id": "stereo",
+      "source": "photos/IMG_5165.jpeg",
+      "drive": "1iQMQDZafd1aYQLK9jpIxc0sfLR3ehFaT",
+      "alt": "Sony Bluetooth stereo head unit"
+    },
+    {
+      "id": "speaker",
+      "source": "photos/IMG_5150.jpeg",
+      "drive": "1csjzeSmShWgMnV5ke9U6rXEggsPfRVO_",
+      "alt": "Kicker marine speaker in the helm console"
+    },
+    {
+      "id": "speaker-net",
+      "source": "photos/IMG_5151.jpeg",
+      "drive": "1ph31qfat8MWrxE6rYGCuJ406GHQM6PuF",
+      "alt": "Speaker and storage net"
+    },
+    {
+      "id": "storage-seat-1",
+      "source": "photos/IMG_5125.jpeg",
+      "drive": "1DY5Au72EUsqV7rckikF1cs7UTxjBkSLh",
+      "alt": "Under-seat storage compartment"
+    },
+    {
+      "id": "storage-seat-2",
+      "source": "photos/IMG_5136.jpeg",
+      "drive": "1wibm6QnMQEtMEH6t7WZpRh6970FYgXvR",
+      "alt": "Under-seat storage compartment"
+    },
+    {
+      "id": "storage-seat-3",
+      "source": "photos/IMG_5138.jpeg",
+      "drive": "1p693BfRX98XfKpECm3g_jCo0Dzfn7Xmw",
+      "alt": "Under-seat storage compartment"
+    },
+    {
+      "id": "battery-compartment",
+      "source": "photos/IMG_5140.jpeg",
+      "drive": "1c7xmbXFhibnQvQPRNANyhd1pLorS2uOc",
+      "alt": "Under-seat compartment with battery box"
+    },
+    {
+      "id": "storage-locker",
+      "source": "photos/IMG_5142.jpeg",
+      "drive": "1hcnlqVbMicYEOJCZXbbSBRESSHscQ6X8",
+      "alt": "Large storage locker"
+    },
+    {
+      "id": "fuel-tank-compartment",
+      "source": "photos/IMG_5144.jpeg",
+      "drive": "1sUSVYD8bQ-YLUAHzjFmZJ5i0lRN5t5mm",
+      "alt": "Under-seat compartment with fuel tank and lines"
+    },
+    {
+      "id": "console-lid",
+      "source": "photos/IMG_5130.jpeg",
+      "drive": "1bXHeLKXSfy3mKOasaUel-r__oGYYICmr",
+      "alt": "Helm console storage lid"
+    },
+    {
+      "id": "console-storage",
+      "source": "photos/IMG_5134.jpeg",
+      "drive": "1L3Do7e2UvFepRJ79pbKyWgA-YhHC5EaA",
+      "alt": "Helm console storage bin"
+    },
+    {
+      "id": "console-access",
+      "source": "photos/IMG_5152.jpeg",
+      "drive": "1tbAQ7AmtVG15Ismm5OaJz0B8VaPocKzs",
+      "alt": "Helm console access door"
+    },
+    {
+      "id": "engine-cowling",
+      "source": "photos/IMG_5118.jpeg",
+      "drive": "1waETrEem48lBIYidD2IGTJp1X9IiwO_l",
+      "alt": "Yamaha 100 four-stroke engine cowling"
+    },
+    {
+      "id": "prop",
+      "source": "photos/IMG_5119.jpeg",
+      "drive": "1uzqCnTX-g6G96ggrXVZzSp8fHcEJeRir",
+      "alt": "Three-blade propeller"
+    },
+    {
+      "id": "engine-from-deck",
+      "source": "photos/IMG_5146.jpeg",
+      "drive": "1FOXuRHV9_v1pFvzy4IO022pxAc0Z-9tC",
+      "alt": "Outboard seen from the deck"
+    },
+    {
+      "id": "engine-rigging",
+      "source": "photos/IMG_5147.jpeg",
+      "drive": "1hml2kaBS3gZzGBHixbwLH8I6oRs4gE8f",
+      "alt": "Stern access and engine rigging"
+    },
+    {
+      "id": "nav-light-port",
+      "source": "photos/IMG_5171.jpeg",
+      "drive": "1BPK1M3a2HtXk2Lr1YcK9b3Yd0rE7hCUF",
+      "alt": "Bow cap with red navigation light and docking light"
+    },
+    {
+      "id": "nav-light-starboard",
+      "source": "photos/IMG_5172.jpeg",
+      "drive": "1BiMjnLQ9GKYrc7nMVdP1nzO-ppiV6yM_",
+      "alt": "Bow cap with green navigation light and docking light"
+    },
+    {
+      "id": "model-script",
+      "source": "photos/IMG_5114.jpeg",
+      "drive": "1-qSCOPg85mpdss_2XfKicPjOw_nMG-16",
+      "alt": "220 Classic script on the fence panel"
+    },
+    {
+      "id": "hk-emblem",
+      "source": "photos/IMG_5113.jpeg",
+      "drive": "1v_Bl-8vSBHPu4IG1kOvfoRl-q1IFTm2Q",
+      "alt": "Harris-Kayot emblem"
+    },
+    {
+      "id": "gas-fill",
+      "source": "photos/IMG_5179.jpeg",
+      "drive": "1Reo8rVN3bQctrtYiFKxI-mphu83C5dMO",
+      "alt": "220 Classic graphic and gas fill cap"
+    },
+    {
+      "id": "registration",
+      "source": "photos/IMG_5177.jpeg",
+      "drive": "1C3aI5JOCCT1uamlHztc1sfDwC1iJ_4gs",
+      "alt": "HK emblem and 2027 registration sticker"
+    },
+    {
+      "id": "trailer-wheels",
+      "source": "photos/IMG_5186.jpeg",
+      "drive": "13-HRW_qb9EW7nAzBuzluHhdIvlZlvQyd",
+      "alt": "Tandem-axle wheels with Kenda Loadstar tires"
+    },
+    {
+      "id": "trailer-wheels-2",
+      "source": "photos/IMG_5183.jpeg",
+      "drive": "11JFrm4e4RvBwY1a2XkWfa2cpItmpT7hV",
+      "alt": "Tandem-axle wheels and fender"
+    },
+    {
+      "id": "trailer-tongue",
+      "source": "photos/IMG_5181.jpeg",
+      "drive": "1Gg4w0z3aWrpHa2nQWQjzTorSa00R0pNJ",
+      "alt": "Trailer tongue with swing-away jack and manual winch"
+    },
+    {
+      "id": "trailer-winch-stand",
+      "source": "photos/IMG_5188.jpeg",
+      "drive": "1odQi_Tqr73l0xtgGS0_OGY-b6WJ1W5_Y",
+      "alt": "Winch stand and step ladder"
+    },
+    {
+      "id": "trailer-decal",
+      "source": "photos/IMG_5182.jpeg",
+      "drive": "1eXRforv75U_MFjmkfYdfsI3iDme-2OQG",
+      "alt": "Mid America Trailers frame"
+    },
+    {
+      "id": "trailer-frame",
+      "source": "photos/IMG_5185.jpeg",
+      "drive": "1TNtSGPYOQbbvkH16DifiHiUPvpId7aq-",
+      "alt": "Trailer frame and cross members"
+    },
+    {
+      "id": "trailer-decal-2",
+      "source": "photos/IMG_5187.jpeg",
+      "drive": "1c38xF517YVGdtA5Atdz4zCGmStzU8Maq",
+      "alt": "Mid America Trailers frame decal"
+    },
+    {
+      "id": "pontoon-surface",
+      "source": "photos/IMG_5116.jpeg",
+      "drive": "1fmzyynk5PbMD3N-dy9ppyNMCNRBwICnO",
+      "alt": "Starboard pontoon tube surface"
+    },
+    {
+      "id": "pontoon-surface-2",
+      "source": "photos/IMG_5178.jpeg",
+      "drive": "1ebI8p3KFYZZMt1DEc2Hpt365CIgfda7Q",
+      "alt": "Pontoon tube surface near the bow"
+    },
+    {
+      "id": "deck-underside",
+      "source": "photos/IMG_5184.jpeg",
+      "drive": "1yCh5IhwDWN6uPn7zC2N-pBCAGkp7W47r",
+      "alt": "Underside of the deck between the pontoons"
+    }
+  ],
+  "videos": [
+    {
+      "id": "walkaround",
+      "source": "video/IMG_5189.MOV",
+      "drive": "18oWKVxcMv2KqHuptsKiIAa9UoDr2iJg2",
+      "posterAt": 17
+    }
   ]
 }

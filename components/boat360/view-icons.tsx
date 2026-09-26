@@ -9,6 +9,9 @@ import {
   Rotate3d,
   Scan,
   Truck,
+  Video,
+  Radio,
+  Archive,
   type LucideIcon,
 } from "lucide-react";
 import type { HotspotCategory, ViewIcon } from "@/lib/boat360/types";
@@ -24,6 +27,9 @@ export const VIEW_ICONS: Record<ViewIcon, LucideIcon> = {
   helm: Gauge,
   engine: Cog,
   trailer: Truck,
+  electronics: Radio,
+  storage: Archive,
+  video: Video,
 };
 
 export const CATEGORY_LABEL: Record<HotspotCategory, string> = {
