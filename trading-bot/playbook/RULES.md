@@ -21,9 +21,8 @@ These are the parts that translate into bot rules:
 | Mistake #5: only invest what you can afford to lose (p.35) | 1% risk per trade, 20% drawdown kill switch, paper first | `risk` | on (fixed) |
 | Trading exchanges with leverage: BloFin/Bybit 3x-10x (p.5) | **Not used.** The bot runs 1x (no leverage) until paper results prove the strategy | `risk.max_leverage` | 1.0 |
 
-The Market Cipher A ribbon lengths in `config.json` (5, 11, 15, 18, 21, 24, 28, 34)
-are the commonly cited ones. **Replace them with Calvin's exact indicator settings**
-when you have them.
+The ribbon now uses Calvin's own settings (20-55) from his TradingView screenshots;
+see Source 2.
 
 ## Source 2: Calvin's indicator set (TradingView screenshots, Oct 2026): built in
 
