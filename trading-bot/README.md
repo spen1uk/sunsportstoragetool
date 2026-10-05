@@ -31,6 +31,19 @@ proves itself on data it wasn't tuned on.
    evaluate, don't data-mine.
 4. **Adopt or reject:** both are logged. Undo the last change with `python run.py rollback`.
 
+### Loss autopsy (cutting avoidable losses)
+
+Every trade records what the market looked like when it entered: how stretched the price
+was, how strong the trend was, volatility, whether the EMA ribbon was lined up, and whether
+Bitcoin's trend agreed. Each learning cycle, the bot looks for what its **losing** trades had
+in common. Example: *"trades entered when price was stretched more than 2.5 ATR past the 50
+EMA lost 9R in total (14 losers vs 3 winners)."* It then tests a filter that would have
+skipped them. The filter is kept only if results improve on data it hasn't seen, because
+every filter also blocks some winners.
+
+Rules from Calvin Hill's ebook (EMA ribbon, Bitcoin trend, don't chase/FOMO, take partial
+profits) are built in as optional rules the learner can switch on. See `playbook/RULES.md`.
+
 **About "eliminating losses":** no strategy wins every trade. Losses are the cost of trading. The
 goal is small, controlled losses (about 1% each) and winners bigger than losers. A bot claiming
 it never loses is either lying or hiding risk.
@@ -59,13 +72,27 @@ python -m unittest discover tests   # run the tests
 
 ## Running 24/7
 
-Your laptop sleeps, so use an always-on machine. A small cloud VPS (~$5/month) is ideal.
+Your laptop sleeps, so the bot needs a small always-on cloud server. About $4-6/month from
+DigitalOcean, Vultr, Hetzner, Linode or similar.
 
-**Docker:** `docker compose -f deploy/docker-compose.yml up -d --build`
+1. **Create the server.** Pick the cheapest Ubuntu 24.04 plan (1 CPU / 1 GB RAM is plenty).
+   Region: start with one near you. If BloFin blocks it, step 4 will tell you; recreate the
+   server in another region.
+2. **Log in.** The provider shows a command like `ssh root@<server-ip>`. Run it in Terminal
+   (Mac) or PowerShell (Windows).
+3. **Copy the bot onto it:**
+   `git clone https://github.com/spen1uk/sunsportstoragetool.git && cd sunsportstoragetool/trading-bot`
+   (if the repo is private, GitHub asks you to log in. Use a personal access token as the
+   password: GitHub → Settings → Developer settings → Tokens.)
+4. **Run the setup script:** `bash deploy/setup_vps.sh`. It installs Python, checks BloFin
+   works from that server, runs the tests and starts the bot as a service that restarts
+   after crashes or reboots.
+5. **Phone updates (optional):** `nano .env`, paste your Discord webhook or Telegram details,
+   then `sudo systemctl restart tradebot`.
 
-**No Docker (Linux):** see `deploy/tradebot.service`.
+Check on it anytime: `ssh` in and run `python3 run.py status`, or download `data/report.html`.
 
-Check BloFin is available in your country before relying on it.
+Prefer Docker? `docker compose -f deploy/docker-compose.yml up -d --build`.
 
 ## Getting updates on your phone
 

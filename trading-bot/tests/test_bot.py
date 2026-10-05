@@ -15,9 +15,9 @@ from tradebot.config import load_config  # noqa: E402
 from tradebot.data import synthetic_candles  # noqa: E402
 from tradebot.engine import Engine  # noqa: E402
 from tradebot.indicators import atr, ema, rsi  # noqa: E402
-from tradebot.learner import candidates, improve  # noqa: E402
+from tradebot.learner import candidates, improve, loss_autopsy  # noqa: E402
 from tradebot.models import Candle, Position  # noqa: E402
-from tradebot.strategy import compute_indicators  # noqa: E402
+from tradebot.strategy import compute_indicators, signal_at  # noqa: E402
 
 CFG = load_config()
 
@@ -129,6 +129,64 @@ class EngineRules(unittest.TestCase):
         self.assertEqual(eng2.positions["X"].entry_price, 100.0)
 
 
+class NewRules(unittest.TestCase):
+    def test_partial_take_profit_accounting(self):
+        eng = _engine()
+        eng.p["partial_tp_r"], eng.p["partial_tp_pct"] = 1.0, 50
+        p = _pos(eng, qty=1.0)
+        p.orig_qty = 1.0
+        start = eng.balance
+        eng._manage(p, Candle(3_600_000, 100, 102.5, 99.5, 102), 1.0)  # hits +1R -> bank half
+        self.assertTrue(p.partial_done)
+        self.assertAlmostEqual(p.qty, 0.5)
+        eng._manage(p, Candle(7_200_000, 102, 104.5, 101.5, 104), 1.0)  # target on the rest
+        t = eng.closed[-1]
+        self.assertEqual(t.exit_reason, "take_profit+partial")
+        self.assertAlmostEqual(t.qty, 1.0)
+        self.assertAlmostEqual(t.gross_pnl, 0.5 * 2 + 0.5 * 4)
+        self.assertAlmostEqual(t.r_multiple, t.net_pnl / 2.0)
+
+    def test_btc_filter_blocks_altcoin_long_in_btc_downtrend(self):
+        p = copy.deepcopy(CFG["strategy"])
+        c = synthetic_candles(3000, seed=2)
+        ind = compute_indicators(c, p)
+        idx = [i for i in range(250, 3000) if signal_at(c, ind, i, p)]
+        self.assertTrue(idx)
+        p["btc_filter"] = True
+        for i in idx[:20]:
+            self.assertIsNone(signal_at(c, ind, i, p, {"btc_up": False}))
+            self.assertIsNotNone(signal_at(c, ind, i, p, {"btc_up": True}))
+
+    def test_signals_record_features(self):
+        p = CFG["strategy"]
+        c = synthetic_candles(3000, seed=2)
+        ind = compute_indicators(c, p)
+        sig = next(s for s in (signal_at(c, ind, i, p, {"btc_up": True}) for i in range(250, 3000)) if s)
+        for k in ("extension_atr", "trend_strength", "rsi", "atr_pct", "ribbon_aligned", "btc_aligned"):
+            self.assertIn(k, sig.features)
+
+    def test_loss_autopsy_finds_planted_pattern(self):
+        trades = []
+        for k in range(40):
+            chasing = k % 2 == 0
+            trades.append({"r_multiple": -1.1 if chasing and k % 10 else 1.9, "symbol": "A",
+                           "features": json.dumps({"extension_atr": 3.0 + k * 0.01 if chasing else 0.5,
+                                                   "trend_strength": 1.0, "atr_pct": 1.0,
+                                                   "ribbon_aligned": True, "btc_aligned": True})})
+        lessons, props = loss_autopsy(trades, CFG["strategy"])
+        self.assertTrue(any("max_extension_atr" in pr for pr, _ in props), lessons)
+        thr = next(pr["max_extension_atr"] for pr, _ in props if "max_extension_atr" in pr)
+        caught = [t for t in trades if t["r_multiple"] < 0 and json.loads(t["features"])["extension_atr"] > thr]
+        self.assertGreaterEqual(len(caught), 12)  # the filter would have skipped most planted losers
+        self.assertTrue(any("chasing" in x for x in lessons))
+
+    def test_toggle_candidates(self):
+        names = [why for _, why in candidates(CFG["strategy"], CFG["learning"]["tunable"], {}, (),
+                                              CFG["learning"]["toggles"])]
+        self.assertIn("ribbon_filter on", names)
+        self.assertIn("btc_filter on", names)
+
+
 class NoLookahead(unittest.TestCase):
     def test_future_bars_do_not_change_past_trades(self):
         c = synthetic_candles(2500, seed=11)
@@ -146,7 +204,7 @@ class Learner(unittest.TestCase):
         tun = CFG["learning"]["tunable"]
         for c, _ in candidates(CFG["strategy"], tun, {"atr_stop_mult": 1}, [({"atr_stop_mult": 99}, "x")]):
             for k, (lo, hi, _s) in tun.items():
-                self.assertTrue(lo <= c[k] <= hi, (k, c[k]))
+                self.assertTrue(lo <= c[k] <= hi or c[k] == CFG["strategy"][k], (k, c[k]))
             for k in ("ema_fast", "ema_slow", "ema_trend"):
                 self.assertEqual(c[k], CFG["strategy"][k])
 

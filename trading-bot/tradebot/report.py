@@ -56,7 +56,10 @@ def write_html(cfg, journal, engine=None, path=None, title="Paper trading log"):
         bal += t["net_pnl"]
         curve.append((t["exit_ts"], bal))
     learn_path = os.path.join(DATA_DIR, "learning_log.md")
-    learning = open(learn_path).read()[-6000:] if os.path.exists(learn_path) else "No learning cycles yet."
+    learning = "No learning cycles yet."
+    if os.path.exists(learn_path):
+        with open(learn_path) as f:
+            learning = f.read()[-6000:]
 
     def card(k, v):
         return f"<div class=card><div class=k>{k}</div><div class=v>{v}</div></div>"

@@ -1,6 +1,8 @@
 """Backtester: replays history bar-by-bar through the exact same Engine the live bot uses."""
 from .engine import Engine
-from .strategy import compute_indicators
+from .strategy import btc_regime, compute_indicators
+
+BTC = "BTC-USDT"
 
 
 def run_backtest(cfg, params, candles_by_symbol, start_ts=None, end_ts=None, balance=None, journal=None):
@@ -8,16 +10,20 @@ def run_backtest(cfg, params, candles_by_symbol, start_ts=None, end_ts=None, bal
     only happens for bars in [start_ts, end_ts). Nothing reads beyond the current bar."""
     eng = Engine(cfg, params, journal=journal, mode="backtest", balance=balance)
     inds = {s: compute_indicators(c, params) for s, c in candles_by_symbol.items()}
+    btc = btc_regime(candles_by_symbol[BTC], params) if BTC in candles_by_symbol else {}
+    # BTC data may be supplied purely as market context (for the Bitcoin-trend filter).
+    traded = [s for s in candles_by_symbol if s != BTC or BTC in cfg["symbols"]]
     timeline = sorted({c.ts for cs in candles_by_symbol.values() for c in cs})
     index = {s: {c.ts: i for i, c in enumerate(cs)} for s, cs in candles_by_symbol.items()}
     curve = []
     for ts in timeline:
         if (start_ts and ts < start_ts) or (end_ts and ts >= end_ts):
             continue
-        for s, cs in candles_by_symbol.items():
+        for s in traded:
+            cs = candles_by_symbol[s]
             i = index[s].get(ts)
             if i is not None:
-                eng.on_bar(s, cs, inds[s], i)
+                eng.on_bar(s, cs, inds[s], i, ctx={"btc_up": btc.get(ts)})
         curve.append((ts, eng.balance))
     # Close anything still open at the last price so results are complete.
     for s in list(eng.positions):

@@ -19,6 +19,7 @@ class Signal:
     target: float
     atr: float
     reasons: list = field(default_factory=list)
+    features: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -41,6 +42,11 @@ class Position:
     worst_price: float = 0.0  # most adverse price seen (for MAE)
     entry_fee: float = 0.0
     breakeven_moved: bool = False
+    features: dict = field(default_factory=dict)
+    orig_qty: float = 0.0        # size at entry (qty shrinks after a partial take-profit)
+    partial_done: bool = False
+    partial_pnl: float = 0.0     # gross P&L already banked by the partial take-profit
+    partial_fees: float = 0.0
 
     def to_dict(self):
         return asdict(self)
@@ -74,6 +80,7 @@ class Trade:
     params_version: int
     entry_reasons: str
     mode: str = "paper"
+    features: str = "{}"  # JSON of entry measurements, used by the loss autopsy
 
     def to_dict(self):
         return asdict(self)

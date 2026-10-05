@@ -12,7 +12,7 @@ from .journal import Journal
 from .learner import improve
 from .notify import notify
 from .report import summary_text, write_html
-from .strategy import compute_indicators
+from .strategy import btc_regime, compute_indicators
 from .util import BAR_MS, now_iso
 
 STATE_FILE = os.path.join(DATA_DIR, "state.json")
@@ -54,8 +54,11 @@ class PaperBot:
     def tick(self):
         bar_ms = BAR_MS[self.cfg["timeframe"]]
         now_ms = int(time.time() * 1000)
+        data = {s: get_history(self.client, s, self.cfg["timeframe"], LIVE_BARS)
+                for s in dict.fromkeys(["BTC-USDT"] + list(self.cfg["symbols"]))}
+        btc = btc_regime(data["BTC-USDT"], self.engine.p) if data.get("BTC-USDT") else {}
         for sym in self.cfg["symbols"]:
-            candles = get_history(self.client, sym, self.cfg["timeframe"], LIVE_BARS)
+            candles = data[sym]
             if not candles:
                 continue
             ind = compute_indicators(candles, self.engine.p)
@@ -69,7 +72,8 @@ class PaperBot:
             for i in new:
                 # Catch-up bars (after downtime) still manage stops/targets, but only the
                 # newest bar may open a trade - the bot never "trades the past".
-                self.engine.on_bar(sym, candles, ind, i, allow_entry=(i == newest and fresh))
+                self.engine.on_bar(sym, candles, ind, i, allow_entry=(i == newest and fresh),
+                                  ctx={"btc_up": btc.get(candles[i].ts)})
             for t in self.engine.closed[before:]:
                 notify(self.cfg, f"{t.side} {t.symbol} closed ({t.exit_reason}): ${t.net_pnl:+.2f} "
                                  f"({t.r_multiple:+.2f}R). Balance ${t.balance_after:.2f}", log)
@@ -101,6 +105,9 @@ class PaperBot:
         log("Learning cycle: reviewing trades and testing improvements...")
         hist = {s: get_history(self.client, s, self.cfg["timeframe"], self.cfg["learning"]["history_bars"])
                 for s in self.cfg["symbols"]}
+        if "BTC-USDT" not in hist:  # needed for the Bitcoin-trend filter, not traded
+            hist["BTC-USDT"] = get_history(self.client, "BTC-USDT", self.cfg["timeframe"],
+                                           self.cfg["learning"]["history_bars"])
         live = self.journal.trades(mode="paper")
         extra = []
         try:

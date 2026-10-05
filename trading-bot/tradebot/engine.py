@@ -6,6 +6,8 @@ Fill model (deliberately pessimistic):
   * if a bar touches both stop and target, the STOP is assumed to hit first
   * gaps through the stop fill at the bar open (worse than the stop)
 """
+import json
+
 from .models import Position, Trade
 from .strategy import signal_at
 from .util import BAR_MS, new_id, ts_iso, utc_day
@@ -68,8 +70,9 @@ class Engine:
         return eq
 
     # ------------------------------------------------------------------ main hook
-    def on_bar(self, symbol, candles, ind, i, allow_entry=True):
-        """Process CLOSED bar i for `symbol`: manage the open position, then look for an entry."""
+    def on_bar(self, symbol, candles, ind, i, allow_entry=True, ctx=None):
+        """Process CLOSED bar i for `symbol`: manage the open position, then look for an entry.
+        ctx: market context for the filters, e.g. {"btc_up": True}."""
         bar = candles[i]
         self._roll_day(bar.ts)
         exited = False
@@ -77,7 +80,7 @@ class Engine:
         if pos and bar.ts > pos.entry_ts:
             exited = self._manage(pos, bar, ind["atr"][i])
         if allow_entry and not exited and symbol not in self.positions:
-            self._maybe_enter(symbol, candles, ind, i)
+            self._maybe_enter(symbol, candles, ind, i, ctx)
         self.last_ts[symbol] = bar.ts
 
     def _manage(self, pos, bar, atr_now):
@@ -115,6 +118,20 @@ class Engine:
 
         pos.bars_held += 1
         risk = pos.risk_per_unit
+        # Partial take-profit ("don't forget to take profits"): bank part of the position early.
+        pr = p.get("partial_tp_r", 0)
+        if pr > 0 and not pos.partial_done:
+            level = pos.entry_price + d * pr * risk
+            if (bar.h >= level) if d > 0 else (bar.l <= level):
+                q = (pos.orig_qty or pos.qty) * p.get("partial_tp_pct", 50) / 100.0
+                q = min(q, pos.qty)
+                gross = (level - pos.entry_price) * d * q
+                fee = q * level * self.taker
+                self.balance += gross - fee
+                pos.partial_pnl += gross
+                pos.partial_fees += fee
+                pos.qty -= q
+                pos.partial_done = True
         favourable = (pos.best_price - pos.entry_price) * d
         be_r = p["breakeven_at_r"]
         if be_r > 0 and not pos.breakeven_moved and favourable >= be_r * risk:
@@ -131,13 +148,13 @@ class Engine:
             return True
         return False
 
-    def _maybe_enter(self, symbol, candles, ind, i):
+    def _maybe_enter(self, symbol, candles, ind, i, ctx=None):
         bar = candles[i]
         if self.halted or bar.ts < self.pause_until:
             return
         if len(self.positions) >= self.risk["max_open_positions"] or self.daily_loss_hit():
             return
-        sig = signal_at(candles, ind, i, self.p)
+        sig = signal_at(candles, ind, i, self.p, ctx)
         if not sig:
             return
         d = sig.side
@@ -159,7 +176,7 @@ class Engine:
             id=new_id(), symbol=symbol, side=d, entry_ts=bar.ts, entry_price=fill, qty=qty,
             stop=sig.stop, initial_stop=sig.stop, target=target, risk_per_unit=risk_per_unit,
             atr=sig.atr, params_version=self.pv, reasons=sig.reasons,
-            best_price=fill, worst_price=fill, entry_fee=fee,
+            best_price=fill, worst_price=fill, entry_fee=fee, features=sig.features, orig_qty=qty,
         )
         self.positions[symbol] = pos
         if self.journal:
@@ -168,21 +185,26 @@ class Engine:
 
     def _close(self, pos, ts, px, reason):
         d = pos.side
-        gross = (px - pos.entry_price) * d * pos.qty
+        rest = (px - pos.entry_price) * d * pos.qty
         exit_fee = pos.qty * px * self.taker
-        self.balance += gross - exit_fee
-        net = gross - pos.entry_fee - exit_fee
-        risk_dollars = pos.risk_per_unit * pos.qty
+        self.balance += rest - exit_fee
+        gross = rest + pos.partial_pnl
+        fees = pos.entry_fee + pos.partial_fees + exit_fee
+        net = gross - fees
+        size = pos.orig_qty or pos.qty
+        risk_dollars = pos.risk_per_unit * size
+        if pos.partial_done:
+            reason += "+partial"
         t = Trade(
             id=pos.id, symbol=pos.symbol, side="LONG" if d > 0 else "SHORT",
             entry_ts=pos.entry_ts, entry_price=pos.entry_price, exit_ts=ts, exit_price=px,
-            qty=pos.qty, initial_stop=pos.initial_stop, target=pos.target, exit_reason=reason,
-            gross_pnl=gross, fees=pos.entry_fee + exit_fee, net_pnl=net,
+            qty=size, initial_stop=pos.initial_stop, target=pos.target, exit_reason=reason,
+            gross_pnl=gross, fees=fees, net_pnl=net,
             r_multiple=net / risk_dollars if risk_dollars else 0.0,
             mfe_r=(pos.best_price - pos.entry_price) * d / pos.risk_per_unit,
             mae_r=(pos.worst_price - pos.entry_price) * d / pos.risk_per_unit,
             bars_held=pos.bars_held, balance_after=self.balance, params_version=pos.params_version,
-            entry_reasons="; ".join(pos.reasons), mode=self.mode,
+            entry_reasons="; ".join(pos.reasons), mode=self.mode, features=json.dumps(pos.features),
         )
         del self.positions[pos.symbol]
         self.closed.append(t)

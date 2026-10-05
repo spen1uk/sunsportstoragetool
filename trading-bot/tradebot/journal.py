@@ -11,7 +11,7 @@ from .util import ts_iso
 TRADE_COLS = [
     "id", "mode", "symbol", "side", "entry_ts", "entry_price", "exit_ts", "exit_price", "qty",
     "initial_stop", "target", "exit_reason", "gross_pnl", "fees", "net_pnl", "r_multiple",
-    "mfe_r", "mae_r", "bars_held", "balance_after", "params_version", "entry_reasons",
+    "mfe_r", "mae_r", "bars_held", "balance_after", "params_version", "entry_reasons", "features",
 ]
 
 
@@ -26,12 +26,15 @@ class Journal:
                 entry_ts INTEGER, entry_price REAL, exit_ts INTEGER, exit_price REAL, qty REAL,
                 initial_stop REAL, target REAL, exit_reason TEXT, gross_pnl REAL, fees REAL,
                 net_pnl REAL, r_multiple REAL, mfe_r REAL, mae_r REAL, bars_held INTEGER,
-                balance_after REAL, params_version INTEGER, entry_reasons TEXT);
+                balance_after REAL, params_version INTEGER, entry_reasons TEXT, features TEXT);
             CREATE TABLE IF NOT EXISTS events (
                 rowid INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, kind TEXT, message TEXT);
             CREATE TABLE IF NOT EXISTS equity (
                 ts INTEGER PRIMARY KEY, balance REAL, equity REAL, open_positions INTEGER);
         """)
+        cols = {r[1] for r in self.db.execute("PRAGMA table_info(trades)")}
+        if "features" not in cols:  # journals created before the loss autopsy existed
+            self.db.execute("ALTER TABLE trades ADD COLUMN features TEXT DEFAULT '{}'")
         self.db.commit()
 
     def record_trade(self, t):

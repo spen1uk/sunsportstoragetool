@@ -15,6 +15,7 @@ This is evaluation, not data-mining: a change that only looks good on the data i
 on is rejected.
 """
 import copy
+import json
 import math
 import os
 
@@ -46,9 +47,9 @@ def diagnose(trades, candles_by_symbol, params):
                    f"per trade, profit factor {st['profit_factor']:.2f}.")
 
     losers = [t for t in trades if t["r_multiple"] <= 0]
-    tps = [t for t in trades if t["exit_reason"] == "take_profit"]
+    tps = [t for t in trades if t["exit_reason"].startswith("take_profit")]
     stops = [t for t in trades if t["exit_reason"].startswith("stop_loss")]
-    times = [t for t in trades if t["exit_reason"] == "time_exit"]
+    times = [t for t in trades if t["exit_reason"].startswith("time_exit")]
 
     real_losers = [t for t in losers if t["r_multiple"] < -0.25]  # ignore breakeven scratches
     gave_back = [t for t in real_losers if t["mfe_r"] >= 1.0]
@@ -97,6 +98,75 @@ def diagnose(trades, candles_by_symbol, params):
     return lessons, hints
 
 
+# ---------------------------------------------------------------- 1b. loss autopsy
+# What did losing trades have in common at the moment they were entered?
+AUTOPSY_NUMERIC = [  # (entry measurement, filter setting, block trades whose value is ...)
+    ("extension_atr", "max_extension_atr", "above", "price stretched past the 50 EMA by more than {:.2f} ATR (chasing)"),
+    ("trend_strength", "min_trend_strength", "below", "a weak trend (EMAs less than {:.2f} ATR apart)"),
+    ("atr_pct", "max_atr_pct", "above", "very high volatility (ATR above {:.2f}% of price)"),
+]
+AUTOPSY_FLAGS = [
+    ("ribbon_aligned", "ribbon_filter", "the EMA ribbon was NOT lined up with the trade"),
+    ("btc_aligned", "btc_filter", "Bitcoin's trend pointed the other way"),
+]
+
+
+def loss_autopsy(trades, params, min_trades=20, min_saved_r=2.0):
+    """Find entry conditions shared by losing trades and propose filters that would skip them.
+    Proposals are only *candidates* - they still have to pass the walk-forward test, because
+    a filter that blocks losers usually blocks some winners too."""
+    rows = []
+    for t in trades:
+        try:
+            f = json.loads(t.get("features") or "{}")
+        except (TypeError, json.JSONDecodeError):
+            f = {}
+        if f:
+            rows.append((t, f))
+    if len(rows) < min_trades:
+        return [f"Loss autopsy: waiting for {min_trades}+ trades with entry measurements (have {len(rows)})."], []
+    lessons, proposals = [], []
+
+    def describe(blocked):
+        nl = sum(1 for t, _ in blocked if t["r_multiple"] < -0.25)
+        nw = sum(1 for t, _ in blocked if t["r_multiple"] > 0)
+        return nl, nw, sum(t["r_multiple"] for t, _ in blocked)
+
+    for feat, param, side, text in AUTOPSY_NUMERIC:
+        vals = sorted(f[feat] for _, f in rows if f.get(feat) is not None)
+        if len(vals) < min_trades:
+            continue
+        best = None
+        for q in ((0.5, 0.6, 0.7, 0.8, 0.9) if side == "above" else (0.1, 0.2, 0.3, 0.4, 0.5)):
+            thr = vals[int(q * (len(vals) - 1))]
+            blocked = [(t, f) for t, f in rows if f.get(feat) is not None
+                       and (f[feat] > thr if side == "above" else f[feat] < thr)]
+            if len(blocked) < 5:
+                continue
+            nl, nw, r_sum = describe(blocked)
+            if best is None or r_sum < best[3]:
+                best = (thr, nl, nw, r_sum)
+        if best and best[3] <= -min_saved_r:
+            thr, nl, nw, r_sum = best
+            lessons.append(f"Loss autopsy: trades entered with {text.format(thr)} lost {r_sum:+.1f}R in total "
+                           f"({nl} losers vs {nw} winners) -> testing a filter that skips them.")
+            proposals.append(({param: thr}, f"autopsy: skip {feat} {side} {thr:.2f}"))
+
+    for feat, param, text in AUTOPSY_FLAGS:
+        if params.get(param):
+            continue
+        bad = [(t, f) for t, f in rows if f.get(feat) is False]
+        if len(bad) >= 5:
+            nl, nw, r_sum = describe(bad)
+            if r_sum <= -min_saved_r:
+                lessons.append(f"Loss autopsy: when {text}, trades lost {r_sum:+.1f}R in total "
+                               f"({nl} losers vs {nw} winners) -> testing the '{param}' rule.")
+                proposals.append(({param: True}, f"autopsy: turn on {param}"))
+    if not proposals:
+        lessons.append("Loss autopsy: losing trades didn't share a clear, filterable pattern this cycle.")
+    return lessons, proposals
+
+
 # ---------------------------------------------------------------- 2. propose
 def _clip(v, lo, hi, step):
     v = min(max(v, lo), hi)
@@ -104,11 +174,11 @@ def _clip(v, lo, hi, step):
     return int(v) if float(step).is_integer() and float(lo).is_integer() else v
 
 
-def candidates(params, tunable, hints, extra=()):
+def candidates(params, tunable, hints, extra=(), toggles=()):
     out, seen = [], set()
 
     def add(c, why):
-        key = tuple(sorted((k, c[k]) for k in tunable))
+        key = tuple(sorted((k, c.get(k)) for k in list(tunable) + list(toggles)))
         if key not in seen and c != params:
             seen.add(key)
             out.append((c, why))
@@ -122,10 +192,16 @@ def candidates(params, tunable, hints, extra=()):
             c = copy.deepcopy(params)
             c[k] = _clip(params[k] + hints[k] * 2 * step, lo, hi, step)
             add(c, f"{k} {params[k]} -> {c[k]} (from review)")
+    for k in toggles:  # optional rules: try switching each one on/off
+        c = copy.deepcopy(params)
+        c[k] = not bool(params.get(k))
+        add(c, f"{k} {'on' if c[k] else 'off'}")
     for prop, why in extra:
         c = copy.deepcopy(params)
         for k, v in prop.items():
-            if k in tunable:
+            if k in toggles:
+                c[k] = bool(v)
+            elif k in tunable:
                 lo, hi, step = tunable[k]
                 c[k] = _clip(float(v), lo, hi, step)
         add(c, why)
@@ -172,13 +248,17 @@ def improve(cfg, params, candles_by_symbol, live_trades=(), extra_proposals=(), 
     source = "live paper trades" if len(live_trades) >= 10 else "backtest of recent history"
     lessons, hints = diagnose(review_trades, candles_by_symbol, params)
     lessons.insert(0, f"Review source: {source}.")
+    autopsy_lessons, autopsy_props = loss_autopsy(review_trades, params)
+    lessons += autopsy_lessons
+    extra_proposals = list(extra_proposals) + autopsy_props
+    toggles = L.get("toggles", [])
 
     current, cur_eval = copy.deepcopy(params), base
     changes = []
     tested = 0
     for _ in range(L["max_param_changes_per_cycle"]):
         best = None
-        for cand, why in candidates(current, tunable, hints, extra_proposals):
+        for cand, why in candidates(current, tunable, hints, extra_proposals, toggles):
             tested += 1
             ev = evaluate(cfg, cand, candles_by_symbol, bounds)
             if ev["all"]["trades"] < L["min_trades"]:

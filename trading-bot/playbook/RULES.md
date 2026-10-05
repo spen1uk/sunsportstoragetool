@@ -3,27 +3,42 @@
 This file is the bot's rulebook in plain English. Claude reads it during every
 review (when `claude_review.enabled` is on) and judges each trade against it.
 
-**Put your course notes here.** Write your own summary of the rules from the
-course you're following (e.g. Calvin Hill's), not copied course material. The
-more mechanical a rule is, the better. "Enter when the 1H candle closes back
-above the 20 EMA after touching it, in an uptrend" can be coded and tested.
-"Enter when it feels strong" can't.
+## Source 1: *The Crypto Cheat Guide* (Calvin Hill, 2025 ebook): reviewed
 
-For each rule, fill in:
+The ebook is a beginner's investing guide (exchanges, portfolio split, wallets,
+market cycles, DCA, mistakes, scams). **It contains no entry/exit trading rules.**
+Those are expected in his *Super Simple Crypto Trading System* video course.
+These are the parts that translate into bot rules:
 
-| Rule | Exact condition (numbers!) | Timeframe | Already in bot? |
-|------|----------------------------|-----------|-----------------|
-| _example_ Trade with the trend | Price above 200 EMA, 50 EMA above 200 EMA | 1H | Yes - `ema_trend`, `ema_slow` |
-| _example_ Enter on pullback | Low touches 20 EMA in last 3 bars, candle closes back above | 1H | Yes - `ema_fast`, `pullback_lookback` |
-| _example_ Don't chase | RSI between 40 and 65 at entry | 1H | Yes - `rsi_min`, `rsi_max` |
-| _example_ Risk 1% per trade | Stop = 1.5 x ATR; size so stop = 1% of account | - | Yes - `risk_per_trade_pct`, `atr_stop_mult` |
-| _example_ Take profit at 2R, protect at 1R | Target 2R, stop to breakeven at +1R | - | Yes - `take_profit_r`, `breakeven_at_r` |
-| _your rule_ | | | |
-| _your rule_ | | | |
+| Ebook says (page) | Bot rule | Setting | Default |
+|---|---|---|---|
+| Market Cipher A = 8-EMA ribbon; bullish when the ribbon turns blue/white (p.34) | Only enter when the 8 EMAs are stacked in trade direction | `ribbon_filter`, `ribbon_lengths` | off; learner tests it |
+| "Bitcoin holds significant influence over market trends"; bull/bear cycles (p.5, 20-23) | Longs only while BTC is above its 200-EMA; shorts only below | `btc_filter` | off; learner tests it |
+| Mistake #6: don't buy all-time highs / FOMO (p.36) | Skip entries when price is stretched too far above the 50-EMA | `max_extension_atr` | off; loss autopsy proposes a level |
+| Mistake #1: not taking profits; take profits at set levels (p.35) | Bank 50% of the position at +X R | `partial_tp_r`, `partial_tp_pct` | off; learner tests it |
+| Mistake #9: chasing losses (p.36) | Never raise risk after losses; pause after 3 losses in a row | `risk.pause_after_consecutive_losses` | on (fixed) |
+| Mistake #8: ignoring fees (p.36) | Every simulated trade pays taker fees + slippage | `fees` | on (fixed) |
+| Mistake #5: only invest what you can afford to lose (p.35) | 1% risk per trade, 20% drawdown kill switch, paper first | `risk` | on (fixed) |
+| Trading exchanges with leverage: BloFin/Bybit 3x-10x (p.5) | **Not used.** The bot runs 1x (no leverage) until paper results prove the strategy | `risk.max_leverage` | 1.0 |
 
-Rules that aren't in the bot yet: open a Claude Code session in this repo and ask
-"add rule X from playbook/RULES.md to strategy.py with a test". Then run
-`python run.py backtest` to see whether it helps before trusting it.
+The Market Cipher A ribbon lengths in `config.json` (5, 11, 15, 18, 21, 24, 28, 34)
+are the commonly cited ones. **Replace them with Calvin's exact indicator settings**
+when you have them.
+
+## Source 2: *Super Simple Crypto Trading System* video course: TODO
+
+For each rule from the course, fill in a row. Use your own words and **exact numbers**.
+"Enter when the 1H candle closes back above the 20 EMA after touching it" can be
+coded and tested. "Enter when it looks strong" can't.
+
+| Rule | Exact condition (numbers!) | Timeframe | Indicator + settings | Entry / exit / filter? |
+|------|----------------------------|-----------|----------------------|------------------------|
+| | | | | |
+| | | | | |
+
+Then ask Claude Code: "add the rules from playbook/RULES.md Source 2 to strategy.py
+as optional filters the learner can test." Each new rule goes through the same
+walk-forward test as everything else, so a rule only stays on if it helps.
 
 ## Non-negotiables (enforced in code, never changed by the bot itself)
 

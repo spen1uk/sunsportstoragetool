@@ -32,7 +32,10 @@ def review(cfg, params, trades, lessons, log=print):
         return None, []
 
     playbook_path = os.path.join(ROOT, "playbook", "RULES.md")
-    playbook = open(playbook_path).read() if os.path.exists(playbook_path) else "(no playbook)"
+    playbook = "(no playbook)"
+    if os.path.exists(playbook_path):
+        with open(playbook_path) as f:
+            playbook = f.read()
     recent = trades[-60:]
     rows = [
         f"{t['id']} {t['symbol']} {t['side']} in {ts_iso(t['entry_ts'])} @ {t['entry_price']:.4f} "
