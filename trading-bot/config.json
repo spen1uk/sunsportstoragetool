@@ -1,0 +1,75 @@
+{
+  "mode": "paper",
+  "exchange": "blofin",
+  "symbols": ["BTC-USDT", "ETH-USDT", "SOL-USDT"],
+  "timeframe": "1H",
+  "starting_balance": 100.0,
+
+  "fees": {
+    "taker_pct": 0.06,
+    "slippage_pct": 0.05
+  },
+
+  "risk": {
+    "risk_per_trade_pct": 1.0,
+    "max_open_positions": 2,
+    "max_leverage": 1.0,
+    "daily_loss_limit_pct": 3.0,
+    "max_drawdown_pct": 20.0,
+    "pause_after_consecutive_losses": 3,
+    "pause_bars": 24,
+    "min_notional": 5.0
+  },
+
+  "strategy": {
+    "name": "trend_pullback",
+    "ema_fast": 20,
+    "ema_slow": 50,
+    "ema_trend": 200,
+    "rsi_len": 14,
+    "rsi_min": 40,
+    "rsi_max": 65,
+    "atr_len": 14,
+    "atr_stop_mult": 1.5,
+    "take_profit_r": 2.0,
+    "breakeven_at_r": 1.0,
+    "trail_atr_mult": 0.0,
+    "max_bars_in_trade": 48,
+    "pullback_lookback": 3,
+    "min_atr_pct": 0.3,
+    "max_atr_pct": 5.0,
+    "allow_shorts": false
+  },
+
+  "learning": {
+    "enabled": true,
+    "every_hours": 24,
+    "history_bars": 3000,
+    "folds": 5,
+    "min_trades": 25,
+    "min_improvement_pct": 10.0,
+    "max_param_changes_per_cycle": 2,
+    "tunable": {
+      "atr_stop_mult":     [1.0, 3.0, 0.25],
+      "take_profit_r":     [1.5, 4.0, 0.25],
+      "breakeven_at_r":    [0.5, 2.0, 0.25],
+      "trail_atr_mult":    [0.0, 3.0, 0.5],
+      "rsi_min":           [30, 50, 5],
+      "rsi_max":           [55, 75, 5],
+      "max_bars_in_trade": [12, 96, 12]
+    }
+  },
+
+  "reports": {
+    "every_hours": 24,
+    "discord_webhook_url": "",
+    "telegram_bot_token": "",
+    "telegram_chat_id": ""
+  },
+
+  "claude_review": {
+    "enabled": false,
+    "model": "claude-opus-5-5",
+    "effort": "high"
+  }
+}

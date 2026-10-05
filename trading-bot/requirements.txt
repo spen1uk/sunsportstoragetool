@@ -1,0 +1,2 @@
+# Optional: only used when claude_review.enabled is true in config.json
+anthropic

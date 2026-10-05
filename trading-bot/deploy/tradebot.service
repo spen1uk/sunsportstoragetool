@@ -1,0 +1,20 @@
+# systemd unit for a Linux VPS without Docker.
+#   sudo cp deploy/tradebot.service /etc/systemd/system/
+#   (edit User and WorkingDirectory below)
+#   sudo systemctl enable --now tradebot
+#   journalctl -u tradebot -f        # live log
+[Unit]
+Description=Paper trading bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=trader
+WorkingDirectory=/home/trader/trading-bot
+EnvironmentFile=-/home/trader/trading-bot/.env
+ExecStart=/usr/bin/python3 run.py run
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
