@@ -25,20 +25,47 @@ The Market Cipher A ribbon lengths in `config.json` (5, 11, 15, 18, 21, 24, 28, 
 are the commonly cited ones. **Replace them with Calvin's exact indicator settings**
 when you have them.
 
-## Source 2: *Super Simple Crypto Trading System* video course: TODO
+## Source 2: Calvin's indicator set (TradingView screenshots, Oct 2026): built in
 
-For each rule from the course, fill in a row. Use your own words and **exact numbers**.
-"Enter when the 1H candle closes back above the 20 EMA after touching it" can be
-coded and tested. "Enter when it looks strong" can't.
+| Indicator | Settings (from his screenshots) | Config keys |
+|---|---|---|
+| EMA ribbon (8 lines, yellow -> blue) | 20, 25, 30, 35, 40, 45, 50, 55 on close | `ribbon_lengths` |
+| SMMA (white) | 50 on close | `smma_len` |
+| UT Bot Alerts | Key value 2, ATR period 1, Heikin Ashi off | `ut_key`, `ut_atr` |
+| Stoch RSI | K 3, D 3, RSI 14, Stochastic 14, bands 80 / 20 | `stoch_*` |
+| Chart timeframe | 1D (BTC/USDT) | `timeframe` |
 
-| Rule | Exact condition (numbers!) | Timeframe | Indicator + settings | Entry / exit / filter? |
-|------|----------------------------|-----------|----------------------|------------------------|
-| | | | | |
-| | | | | |
+All four are standard open-source TradingView indicators; the bot computes them with the
+same formulas (see `tradebot/indicators.py`; tested).
 
-Then ask Claude Code: "add the rules from playbook/RULES.md Source 2 to strategy.py
-as optional filters the learner can test." Each new rule goes through the same
-walk-forward test as everything else, so a rule only stays on if it helps.
+**How the bot combines them (`strategy.name = "calvin_system"`).** This is **my reading of
+the chart, not confirmed by Calvin yet.** Correct anything that's wrong:
+
+1. **Trigger:** UT Bot prints BUY on a closed daily candle.
+2. **Trend (ribbon):** price above all 8 ribbon EMAs, and the ribbon stacked bullish
+   (20 above 25 above ... 55). Toggle: `ribbon_filter`.
+3. **Trend (SMMA):** price above the SMMA 50. Toggle: `smma_filter`.
+4. **Timing (Stoch RSI):** K above D and K below 80 (not overbought). Toggle: `stoch_filter`,
+   level: `stoch_max`.
+5. **Exit:** UT Bot SELL (`ut_exit`), or the safety stop (1.5 x ATR14), or target (3R).
+   The stop is always on.
+6. Shorts (UT SELL below a bearish ribbon) are off: `allow_shorts`.
+
+The learner may switch any of these filters off or adjust `stoch_max` / `ut_key` **only if**
+the change wins on unseen data.
+
+**Open questions for the course:**
+- Does he require UT Bot BUY *and* the ribbon/SMMA, or does he use the ribbon alone?
+- Stoch RSI: buy when K crosses up from below 20, or just K above D?
+- Where is his stop-loss: below the UT Bot line, below the ribbon, or a % amount?
+- How does he take profit: UT SELL, a % target, or scaling out?
+- Does he trade the daily only, or lower timeframes (4H/1H) too? Which coins?
+
+## Source 3: indicators you're adding next: TODO
+
+| Indicator | Settings | How it's used (entry / exit / filter) |
+|---|---|---|
+| | | |
 
 ## Non-negotiables (enforced in code, never changed by the bot itself)
 

@@ -92,9 +92,13 @@ def diagnose(trades, candles_by_symbol, params):
         hints["max_bars_in_trade"] = +1 if avg_t > 0 else -1
 
     if st["expectancy_r"] < 0:
-        lessons.append("Negative expectancy -> test stricter entries (narrower RSI band).")
-        hints["rsi_max"] = -1
-        hints["rsi_min"] = +1
+        if params.get("name") == "calvin_system":
+            lessons.append("Negative expectancy -> test stricter entries (lower Stoch RSI limit).")
+            hints["stoch_max"] = -1
+        else:
+            lessons.append("Negative expectancy -> test stricter entries (narrower RSI band).")
+            hints["rsi_max"] = -1
+            hints["rsi_min"] = +1
     return lessons, hints
 
 
@@ -104,9 +108,10 @@ AUTOPSY_NUMERIC = [  # (entry measurement, filter setting, block trades whose va
     ("extension_atr", "max_extension_atr", "above", "price stretched past the 50 EMA by more than {:.2f} ATR (chasing)"),
     ("trend_strength", "min_trend_strength", "below", "a weak trend (EMAs less than {:.2f} ATR apart)"),
     ("atr_pct", "max_atr_pct", "above", "very high volatility (ATR above {:.2f}% of price)"),
+    ("stoch_k", "stoch_max", "above", "Stoch RSI already high (K above {:.0f}, late entry)"),
 ]
 AUTOPSY_FLAGS = [
-    ("ribbon_aligned", "ribbon_filter", "the EMA ribbon was NOT lined up with the trade"),
+    ("ribbon_aligned", "ribbon_filter", "price was not beyond a lined-up EMA ribbon"),
     ("btc_aligned", "btc_filter", "Bitcoin's trend pointed the other way"),
 ]
 

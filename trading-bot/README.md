@@ -13,6 +13,7 @@ proves itself on data it wasn't tuned on.
 |---|---|
 | Start with $100, paper trade | `starting_balance: 100` in `config.json`. Simulated fills use real BloFin prices, plus fees (0.06%) and slippage (0.05%). |
 | Conservative | Risks 1% per trade, max 2 positions, no leverage, and a stop-loss on every trade. Daily loss limit 3%. Pauses 24h after 3 losses in a row. Stops itself at 20% drawdown. |
+| Calvin Hill's indicators | Default strategy `calvin_system`: EMA ribbon 20-55, SMMA 50, UT Bot (2, 1), Stoch RSI (3,3,14,14) on the daily chart. Details and open questions in `playbook/RULES.md`. |
 | Follow a trading course's rules | `playbook/RULES.md` is where your rules go. `tradebot/strategy.py` is the coded version. Every trade records *why* it entered. |
 | Log of every trade | `data/trades.csv` (opens in Excel/Sheets) and `data/report.html`: entry/exit time and price, P&L, reason, R multiple, best open profit (MFE). |
 | Updates over time | `python run.py status` anytime. A daily summary goes to Discord or Telegram if you set one up. |

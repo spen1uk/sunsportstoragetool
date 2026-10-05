@@ -9,7 +9,7 @@ Fill model (deliberately pessimistic):
 import json
 
 from .models import Position, Trade
-from .strategy import signal_at
+from .strategy import exit_signal, signal_at
 from .util import BAR_MS, new_id, ts_iso, utc_day
 
 
@@ -78,12 +78,12 @@ class Engine:
         exited = False
         pos = self.positions.get(symbol)
         if pos and bar.ts > pos.entry_ts:
-            exited = self._manage(pos, bar, ind["atr"][i])
+            exited = self._manage(pos, bar, ind["atr"][i], exit_signal(ind, i, self.p, pos.side))
         if allow_entry and not exited and symbol not in self.positions:
             self._maybe_enter(symbol, candles, ind, i, ctx)
         self.last_ts[symbol] = bar.ts
 
-    def _manage(self, pos, bar, atr_now):
+    def _manage(self, pos, bar, atr_now, exit_now=False):
         d, p = pos.side, self.p
         if d > 0:
             pos.best_price = max(pos.best_price, bar.h)
@@ -143,6 +143,9 @@ class Engine:
             new_stop = bar.c - d * p["trail_atr_mult"] * atr_now
             if (new_stop - pos.stop) * d > 0:
                 pos.stop = new_stop
+        if exit_now:  # the strategy's own exit signal (e.g. UT Bot SELL), at the candle close
+            self._close(pos, bar.ts, bar.c * (1 - d * self.slip), "signal_exit")
+            return True
         if pos.bars_held >= p["max_bars_in_trade"]:
             self._close(pos, bar.ts, bar.c * (1 - d * self.slip), "time_exit")
             return True

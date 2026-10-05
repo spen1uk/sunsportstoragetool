@@ -2,7 +2,7 @@
   "mode": "paper",
   "exchange": "blofin",
   "symbols": ["BTC-USDT", "ETH-USDT", "SOL-USDT"],
-  "timeframe": "1H",
+  "timeframe": "1D",
   "starting_balance": 100.0,
 
   "fees": {
@@ -22,7 +22,20 @@
   },
 
   "strategy": {
-    "name": "trend_pullback",
+    "name": "calvin_system",
+
+    "ut_key": 2,
+    "ut_atr": 1,
+    "ut_exit": true,
+    "smma_len": 50,
+    "smma_filter": true,
+    "stoch_k": 3,
+    "stoch_d": 3,
+    "stoch_rsi_len": 14,
+    "stoch_len": 14,
+    "stoch_filter": true,
+    "stoch_max": 80,
+
     "ema_fast": 20,
     "ema_slow": 50,
     "ema_trend": 200,
@@ -31,19 +44,19 @@
     "rsi_max": 65,
     "atr_len": 14,
     "atr_stop_mult": 1.5,
-    "take_profit_r": 2.0,
+    "take_profit_r": 3.0,
     "breakeven_at_r": 1.0,
     "trail_atr_mult": 0.0,
     "max_bars_in_trade": 48,
     "pullback_lookback": 3,
     "min_atr_pct": 0.3,
-    "max_atr_pct": 5.0,
+    "max_atr_pct": 12.0,
     "allow_shorts": false,
 
     "partial_tp_r": 0,
     "partial_tp_pct": 50,
-    "ribbon_filter": false,
-    "ribbon_lengths": [5, 11, 15, 18, 21, 24, 28, 34],
+    "ribbon_filter": true,
+    "ribbon_lengths": [20, 25, 30, 35, 40, 45, 50, 55],
     "btc_filter": false,
     "max_extension_atr": 0,
     "min_trend_strength": 0
@@ -65,12 +78,14 @@
       "rsi_min":           [30, 50, 5],
       "rsi_max":           [55, 75, 5],
       "max_bars_in_trade": [12, 96, 12],
-      "max_atr_pct":       [2.0, 8.0, 0.5],
+      "max_atr_pct":       [3.0, 15.0, 1.0],
+      "stoch_max":         [50, 90, 10],
+      "ut_key":            [1.0, 4.0, 0.5],
       "partial_tp_r":      [0.75, 2.0, 0.25],
       "max_extension_atr": [1.0, 6.0, 0.5],
       "min_trend_strength":[0.25, 4.0, 0.25]
     },
-    "toggles": ["ribbon_filter", "btc_filter"]
+    "toggles": ["ribbon_filter", "smma_filter", "stoch_filter", "ut_exit", "btc_filter"]
   },
 
   "reports": {

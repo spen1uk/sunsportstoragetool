@@ -14,7 +14,7 @@ from tradebot.backtest import run_backtest  # noqa: E402
 from tradebot.config import load_config  # noqa: E402
 from tradebot.data import synthetic_candles  # noqa: E402
 from tradebot.engine import Engine  # noqa: E402
-from tradebot.indicators import atr, ema, rsi  # noqa: E402
+from tradebot.indicators import atr, ema, rsi, smma, stoch_rsi, ut_bot  # noqa: E402
 from tradebot.learner import candidates, improve, loss_autopsy  # noqa: E402
 from tradebot.models import Candle, Position  # noqa: E402
 from tradebot.strategy import compute_indicators, signal_at  # noqa: E402
@@ -116,7 +116,7 @@ class EngineRules(unittest.TestCase):
         for _ in range(3):
             _pos(eng, qty=0.1)
             eng._manage(eng.positions["X"], Candle(3_600_000, 100, 100, 97, 97), 1.0)
-        self.assertEqual(eng.pause_until, 3_600_000 + 24 * 3_600_000)
+        self.assertEqual(eng.pause_until, 3_600_000 + 24 * eng.bar_ms)
 
     def test_state_roundtrip(self):
         eng = _engine()
@@ -127,6 +127,52 @@ class EngineRules(unittest.TestCase):
         eng2.load_state(s)
         self.assertEqual(eng2.balance, 123.0)
         self.assertEqual(eng2.positions["X"].entry_price, 100.0)
+
+
+class CalvinIndicators(unittest.TestCase):
+    def test_smma_matches_wilder(self):
+        out = smma([1, 2, 3, 4, 5, 6], 3)
+        self.assertEqual(out[2], 2.0)
+        self.assertAlmostEqual(out[3], (2.0 * 2 + 4) / 3)
+
+    def test_stoch_rsi_range_and_lag(self):
+        c = [x.c for x in synthetic_candles(400, seed=3)]
+        k, d = stoch_rsi(c, 3, 3, 14, 14)
+        vals = [v for v in k if v is not None]
+        self.assertTrue(all(0 <= v <= 100 for v in vals))
+        self.assertIsNone(k[28])  # RSI(14) + stoch(14) + SMA(3) -> first K at bar 29
+        self.assertIsNotNone(k[29])
+        self.assertIsNotNone(d[60])
+
+    def test_ut_bot_flips_on_trend_change(self):
+        closes = [100 + i for i in range(30)] + [130 - 2 * i for i in range(30)]
+        highs = [x + 0.5 for x in closes]
+        lows = [x - 0.5 for x in closes]
+        stop, buy, sell = ut_bot(highs, lows, closes, key=2, atr_period=1)
+        self.assertTrue(any(sell[30:40]))        # sells soon after the turn down
+        self.assertFalse(any(buy[31:]))          # no buy while falling
+        for i in range(5, 29):                   # rising: stop trails below price
+            self.assertLess(stop[i], closes[i])
+
+    def test_calvin_entries_obey_every_rule(self):
+        p = copy.deepcopy(CFG["strategy"])
+        self.assertEqual(p["name"], "calvin_system")
+        c = synthetic_candles(3000, seed=4)
+        ind = compute_indicators(c, p)
+        sigs = [(i, signal_at(c, ind, i, p)) for i in range(60, 3000)]
+        sigs = [(i, s) for i, s in sigs if s]
+        self.assertTrue(sigs)
+        for i, s in sigs:
+            self.assertTrue(ind["ut_buy"][i])
+            self.assertTrue(all(c[i].c > r[i] for r in ind["ribbon"]))
+            self.assertGreater(c[i].c, ind["smma"][i])
+            self.assertGreater(ind["stoch_k"][i], ind["stoch_d"][i])
+            self.assertLess(ind["stoch_k"][i], p["stoch_max"])
+            self.assertLess(s.stop, s.entry)
+
+    def test_ut_sell_closes_calvin_trade(self):
+        res = run_backtest(CFG, CFG["strategy"], {"A": synthetic_candles(3000, seed=4)})
+        self.assertIn("signal_exit", {t.exit_reason.split("+")[0] for t in res["trades"]})
 
 
 class NewRules(unittest.TestCase):
@@ -183,7 +229,8 @@ class NewRules(unittest.TestCase):
     def test_toggle_candidates(self):
         names = [why for _, why in candidates(CFG["strategy"], CFG["learning"]["tunable"], {}, (),
                                               CFG["learning"]["toggles"])]
-        self.assertIn("ribbon_filter on", names)
+        self.assertIn("ribbon_filter off", names)
+        self.assertIn("stoch_filter off", names)
         self.assertIn("btc_filter on", names)
 
 
