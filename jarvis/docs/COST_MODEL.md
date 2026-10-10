@@ -20,5 +20,13 @@
 ## How the budget code behaves against this
 Fixed costs (VM, number, plan fees) are entered under **Settings → Budget** and reserved first. Every billable job reserves its estimate before dispatch; 75% flags burn rate, 90% blocks optional work (deep research/extra content), the cap blocks all billable work, and raising the cap needs a high-risk approval. Stopping jobs does not stop fixed fees — that is why they are counted first. Provider bills lag; local reservations are deliberately conservative.
 
-## Recommendation
-Stay on **A** while polishing; move to **B** (smallest paid step, ≈$20–37) when you approve a model provider and host; add SMS (**C**) next; treat voice (**D**) as the first feature that needs an explicit budget decision. Nothing is purchased or deployed.
+## Recommendation — cheap-first (decided 2026-10-10: voice deferred, never above $100)
+Scenarios D and E are **shelved**. The plan is:
+
+1. **Now ($0):** run on your Mac. No hosting, no model, no phone. This is the current slice.
+2. **Next (≈ $5–20/mo):** add a model provider, **Haiku-class only** by default (≈ $0.10/$0.50 per MTok, unverified). Sonnet-class only for jobs you explicitly flag. A per-day token ceiling on top of the monthly cap, so one runaway loop cannot eat the month.
+3. **Optional (≈ +$5–7/mo):** a small always-on VM ($5–12) only if you need Jarvis running while your Mac is off. Skip it otherwise; local tasks simply wait.
+4. **Optional, only on your approval (≈ +$12–16/mo):** SMS number. Notifications can use desktop alerts and email first at ~$0, so SMS is the first thing to skip if cost matters.
+5. **Voice, calls, continuous vision, heavy 24/7 research, image generation:** off, and marked gated in the UI.
+
+Expected steady state: **≈ $10–35/mo**, with the $100 cap as the backstop rather than the target. Nothing is purchased or deployed.

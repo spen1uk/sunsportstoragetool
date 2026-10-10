@@ -13,7 +13,8 @@
 | 7 | Extractive provider behind a seam (`research.ts`) — no model | Honest slice with $0 variable cost; model provider slots in later with budget reservation already wired in `worker.ts` | Model approved + key provisioned |
 | 8 | three.js for the universe, DOM buttons for all interactive targets | GPU scene + accessible, stable hit targets; labels projected from 3D each frame at fixed px size | Perf problems on target Macs |
 | 9 | Push via SSE, no polling, no model calls for "live" UI | Required; cheap | WebSocket needed for audio |
-| 10 | Voice/telephony: LiveKit Agents is the leading candidate, **not installed** | See DEPENDENCIES.md for the review that must precede it | Phase 2 start |
+| 10 | Voice/telephony **deferred** (cost). LiveKit Agents remains the candidate, **not installed** | Luke: voice not important now; keep spend low | Luke asks for voice |
+| 11 | Cheap-first: local Mac by default, Haiku-class models by default, per-day token ceiling under the monthly cap | Keep steady state ≈ $10–35/mo | — |
 
 ## Components
 `server/http.ts` (router, auth gate, CSRF, Host check, CSP) → `approvals.ts`, `tasks.ts`, `artifacts.ts`, `memory.ts`, `budget.ts`, `chat.ts` → `db.ts`/`audit.ts`.

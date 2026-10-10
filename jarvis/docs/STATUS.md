@@ -1,6 +1,6 @@
 # Feature status & acceptance checklist
 
-Legend: ✅ implemented **and tested** · 🟢 implemented, manually verified · 🟡 partial · ⚪ planned (not built) · ⛔ blocked on a decision/access
+Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 implemented, manually verified · 🟡 partial · ⚪ planned (not built) · ⛔ blocked on a decision/access
 
 ## Feature matrix
 
@@ -29,7 +29,7 @@ Legend: ✅ implemented **and tested** · 🟢 implemented, manually verified ·
 | Voice nav (typed commands only), "yes" never approves | ✅ | Real speech not built |
 | Briefings, reminders, contact-hours/escalation engine, Chicago DST | ⚪ | Phase 2 (budget period already uses America/Chicago ✅) |
 | Apple Calendar / Notes | ⛔ | Needs provider/route verification (see FEASIBILITY) |
-| British streaming voice, interruption, audio-driven core | ⚪ | Phase 2; animation will follow real audio only |
+| British streaming voice, interruption, audio-driven core | ⏸ deferred | Not a priority (cost). Core animation stays state-driven; it will follow real audio only if voice is ever added |
 | SMS/calls on a dedicated number | ⛔ | Needs your approval to buy + registration/pricing verification |
 | Sandra integration | ⛔ | Needs access to inspect; read-only first |
 | Mac companion, screen observation, wake word | ⚪ | Phase 3 |
