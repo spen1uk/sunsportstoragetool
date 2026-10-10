@@ -3,6 +3,7 @@ import { api, ApiError, connection, setCsrf, startEvents, stopEvents, useLive, u
 import { Universe, type CoreState, type Route } from './Universe.tsx';
 import { Chat } from './Chat.tsx';
 import { Detail } from './Detail.tsx';
+import { BriefingsPage, OvernightPage, ModeControl, Notifications } from './today.tsx';
 import { TasksPage, ReviewPage, ApprovalsPage, MemoryPage, ConnectionsPage, ActivityPage, SettingsPage, PlannedPage } from './pages.tsx';
 
 export const NAV: { hash: string; label: string; planned?: string }[] = [
@@ -11,9 +12,9 @@ export const NAV: { hash: string; label: string; planned?: string }[] = [
   { hash: '#/workspace', label: 'Modular Workspace', planned: 'Phase 2. Movable, resizable panels (conversation, calendar, previews, reports, files, tasks, charts, approvals) with saved layouts.' },
   { hash: '#/universe-full', label: 'Agent Universe' },
   { hash: '#/tasks', label: 'Tasks & Projects' },
-  { hash: '#/calendar', label: 'Calendar', planned: 'Phase 2. Needs the Apple Calendar route verified first (provider backing, recurring events, busy/free, write behavior). A separate "Jarvis Tasks" calendar will hold Jarvis-owned blocks.' },
-  { hash: '#/briefings', label: 'Briefings', planned: 'Phase 2. 8:00 a.m. briefing (2–3 min), 10:00 p.m. recap, guided tour. Needs manager reports and the contact-hours engine.' },
-  { hash: '#/overnight', label: 'Overnight Plan', planned: 'Phase 2. Overnight queue with owner, desired morning result, dependencies, budget and approval holds. The task queue it will build on exists today.' },
+  { hash: '#/calendar', label: 'Calendar', planned: 'Needs the Apple Calendar route verified first (provider backing, recurring events, busy/free, write behavior). Until then, the proposed schedule on Briefings is planned against work hours only and nothing is written to any calendar.' },
+  { hash: '#/briefings', label: 'Briefings' },
+  { hash: '#/overnight', label: 'Overnight Plan' },
   { hash: '#/review', label: 'Ready for Review' },
   { hash: '#/approvals', label: 'Approvals' },
   { hash: '#/memory', label: 'Memory' },
@@ -98,6 +99,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         {st && <span className={`pill ${st.budget.level === 'ok' ? '' : 'warn'}`} title={st.budget.note}>{usd(st.budget.committedMicroUsd)} / {usd(st.budget.capMicroUsd)} this month</span>}
         {st && st.counts.approvals > 0 && <a className="pill warn" href="#/approvals">{st.counts.approvals} approval{st.counts.approvals > 1 ? 's' : ''} pending</a>}
         <span className="grow" />
+        <ModeControl />
+        <Notifications navigate={navigate} />
         <button className={st?.pause.paused ? 'primary' : 'danger'} onClick={() => api('/api/pause', 'POST', { paused: !st?.pause.paused }).then(reload)}>{st?.pause.paused ? 'Resume Jarvis' : 'Pause Jarvis'}</button>
         <button onClick={onLogout}>Lock</button>
       </header>
@@ -121,6 +124,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           </section>
         )}
         {!isUniverse && pageNav?.planned && <PlannedPage title={pageNav.label} text={pageNav.planned} />}
+        {hash === '#/briefings' && <BriefingsPage />}
+        {hash === '#/overnight' && <OvernightPage />}
         {hash === '#/tasks' && <TasksPage />}
         {hash === '#/review' && <ReviewPage />}
         {hash === '#/approvals' && <ApprovalsPage />}

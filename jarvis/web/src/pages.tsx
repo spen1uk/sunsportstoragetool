@@ -17,7 +17,7 @@ export function PlannedPage({ title, text }: { title: string; text: string }) {
 export function TasksPage() {
   const { data: tasks, reload } = useLive<any[]>(() => api('/api/tasks'), ['tasks']);
   const { data: projects, reload: reloadP } = useLive<any[]>(() => api('/api/projects'), []);
-  const [title, setTitle] = useState(''), [q, setQ] = useState(''), [urls, setUrls] = useState(''), [open, setOpen] = useState<string | null>(null);
+  const [title, setTitle] = useState(''), [mins, setMins] = useState('30'), [due, setDue] = useState(''), [q, setQ] = useState(''), [urls, setUrls] = useState(''), [open, setOpen] = useState<string | null>(null);
   const [events, setEvents] = useState<any[]>([]), [pTitle, setPTitle] = useState('');
   const a = useAction();
   const groups = useMemo(() => {
@@ -34,9 +34,11 @@ export function TasksPage() {
       <h1>Tasks &amp; Projects</h1>
       <Err m={a.err} />
       <div className="grid2">
-        <form className="glass pad" onSubmit={(e) => { e.preventDefault(); void a.run(async () => { await api('/api/tasks', 'POST', { title }); setTitle(''); reload(); }); }}>
+        <form className="glass pad" onSubmit={(e) => { e.preventDefault(); void a.run(async () => { await api('/api/tasks', 'POST', { title, minutes: Number(mins) || 30, deadline: due ? new Date(due).getTime() : null }); setTitle(''); setDue(''); reload(); }); }}>
           <h2>New task</h2>
           <label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} /></label>
+          <div className="row"><label className="grow">Minutes<input type="number" min={5} max={480} step={5} value={mins} onChange={(e) => setMins(e.target.value)} /></label>
+            <label className="grow">Deadline (your local time, optional)<input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></label></div>
           <button className="primary" disabled={!title.trim()}>Add task</button>
         </form>
         <form className="glass pad" onSubmit={(e) => { e.preventDefault(); void a.run(async () => {

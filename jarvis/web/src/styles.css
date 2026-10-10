@@ -54,3 +54,8 @@ pre.diff, pre.payload { background: rgba(0,0,0,.35); padding: 10px; border-radiu
 .login { height: 100%; display: grid; place-items: center; } .login form { width: 340px; padding: 28px; } .login h1 { text-align: center; letter-spacing: .4em; color: var(--cyan); } .boot { padding: 40px; color: var(--muted); }
 @media (max-width: 760px) { .shell { grid-template-columns: 1fr; grid-template-areas: "top" "main"; } .sidenav { display: none; } .detail { width: calc(100% - 24px); top: auto; bottom: 12px; max-height: 40%; } .chat { width: calc(100% - 28px); max-width: none; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+
+.modectl { display: inline-flex; gap: 6px; align-items: center; } .modectl select { width: auto; }
+.bell { position: relative; } .bell .count { margin-left: 4px; background: var(--amber); color: #000; border-radius: 999px; padding: 0 6px; font-size: 11px; }
+.tray { position: absolute; right: 0; top: 36px; width: 380px; max-height: 70vh; overflow-y: auto; padding: 12px; z-index: 20; background: rgba(6,16,32,.97); }
+li.urgent a, li.urgent { color: #ffd9a0; }

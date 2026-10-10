@@ -49,8 +49,8 @@ export type Plan = {
  * (external events AND other Jarvis blocks). Order: deadline first, then priority (1 = highest).
  * `now` blocks scheduling in the past. Protected non-work times (family, church, meals) arrive as busy intervals.
  */
-export function planTasks(tasks: PlanTask[], busy: Interval[], now: number, horizonDays = 14): Plan {
-  const windows = workWindows(now, horizonDays).map((w) => ({ start: Math.max(w.start, now), end: w.end })).filter((w) => w.end > w.start);
+export function planTasks(tasks: PlanTask[], busy: Interval[], now: number, horizonDays = 14, until = Infinity): Plan {
+  const windows = workWindows(now, horizonDays).filter((w) => w.start < until).map((w) => ({ start: Math.max(w.start, now), end: Math.min(w.end, until) })).filter((w) => w.end > w.start);
   let free = subtract(windows, busy.map((b) => ({ start: b.start - BUFFER, end: b.end + BUFFER })));
   const order = [...tasks].filter((t) => !t.completed).sort((a, b) => (a.deadline ?? Infinity) - (b.deadline ?? Infinity) || a.priority - b.priority);
   const placements: Placement[] = [], unscheduled: string[] = [], risk: Plan['deadlineRisk'] = [];
@@ -94,4 +94,11 @@ export function reconcile(tasks: PlanTask[], events: CalEvent[], now: number, ho
   const plan = planTasks(tasks.filter((t) => needPlan.has(t.id)), [...external, ...keep], now, horizonDays);
   for (const p of plan.placements) ops.push({ op: 'create', taskId: p.taskId, start: p.start, end: p.end, reason: 'scheduled into open work slot' });
   return { ops, plan };
+}
+
+/** The span a briefing should plan: the next work window that still has time left (today, or Monday after a weekend/evening), or that plus the week ahead. */
+export function briefingSpan(now: number, week: boolean): { until: number; firstStart: number } | null {
+  const first = workWindows(now, 14).find((w) => w.end > now);
+  if (!first) return null;
+  return { firstStart: Math.max(first.start, now), until: week ? first.end + 4.5 * 24 * 3600_000 : first.end };
 }

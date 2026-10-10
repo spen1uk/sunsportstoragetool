@@ -24,7 +24,7 @@ export type AppState = {
   running: { id: string; title: string; kind: string }[];
 };
 
-type Listener = (type: string) => void;
+type Listener = (type: string, e?: any) => void;
 const listeners = new Set<Listener>();
 let es: EventSource | null = null;
 export const connection = { up: false, subs: new Set<() => void>() };
@@ -34,7 +34,7 @@ export function startEvents() {
   es = new EventSource('/api/events');
   es.onopen = () => { connection.up = true; connection.subs.forEach((f) => f()); };
   es.onerror = () => { connection.up = false; connection.subs.forEach((f) => f()); };
-  es.onmessage = (m) => { try { const e = JSON.parse(m.data); listeners.forEach((l) => l(e.type)); } catch { /* ignore */ } };
+  es.onmessage = (m) => { try { const e = JSON.parse(m.data); listeners.forEach((l) => l(e.type, e)); } catch { /* ignore */ } };
 }
 export function stopEvents() { es?.close(); es = null; connection.up = false; }
 
@@ -55,3 +55,5 @@ export function useLive<T>(fetcher: () => Promise<T>, types: string[], deps: unk
 
 export const usd = (micro: number) => `$${(micro / 1e6).toFixed(micro < 1e6 ? 3 : 2)}`;
 export const ago = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+
+export function subscribe(fn: Listener) { listeners.add(fn); return () => { listeners.delete(fn); }; }

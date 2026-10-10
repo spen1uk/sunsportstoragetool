@@ -8,7 +8,7 @@ export type TaskRow = {
   id: string; project_id: string | null; title: string; description: string; kind: 'manual' | 'research' | 'revision'; state: string;
   priority: number; owner: string; requires: 'cloud' | 'mac'; optional_work: number; input: string; lease_owner: string | null;
   lease_expires_at: number | null; attempts: number; max_attempts: number; next_run_at: number; waiting_reason: string | null;
-  last_error: string | null; is_demo: number; version: number; completion_evidence: string | null; created_at: string; updated_at: string; completed_at: string | null;
+  last_error: string | null; is_demo: number; version: number; completion_evidence: string | null; minutes: number; deadline: number | null; tonight: number; created_at: string; updated_at: string; completed_at: string | null;
 };
 
 export function logEvent(db: DB, taskId: string, kind: string, detail = '') {
@@ -17,17 +17,17 @@ export function logEvent(db: DB, taskId: string, kind: string, detail = '') {
 
 export function createTask(db: DB, t: {
   title: string; description?: string; kind?: TaskRow['kind']; projectId?: string | null; priority?: number; owner?: string;
-  requires?: 'cloud' | 'mac'; input?: object; idempotencyKey?: string; isDemo?: boolean; optional?: boolean;
+  requires?: 'cloud' | 'mac'; minutes?: number; deadline?: number | null; input?: object; idempotencyKey?: string; isDemo?: boolean; optional?: boolean;
 }): string {
   if (t.idempotencyKey) {
     const ex = db.prepare('SELECT id FROM tasks WHERE idempotency_key=?').get(t.idempotencyKey) as { id: string } | undefined;
     if (ex) return ex.id;
   }
   const tid = id(), ts = now(), kind = t.kind ?? 'manual';
-  db.prepare(`INSERT INTO tasks(id,project_id,title,description,kind,state,priority,owner,requires,optional_work,input,idempotency_key,is_demo,created_at,updated_at)
-              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(tid, t.projectId ?? null, t.title.slice(0, 200), (t.description ?? '').slice(0, 4000), kind,
+  db.prepare(`INSERT INTO tasks(id,project_id,title,description,kind,state,priority,owner,requires,optional_work,input,idempotency_key,is_demo,created_at,updated_at,minutes,deadline)
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(tid, t.projectId ?? null, t.title.slice(0, 200), (t.description ?? '').slice(0, 4000), kind,
     'ready', t.priority ?? 3, t.owner ?? (kind === 'manual' ? 'luke' : 'jarvis'), t.requires ?? 'cloud', t.optional ? 1 : 0,
-    JSON.stringify(t.input ?? {}), t.idempotencyKey ?? null, t.isDemo ? 1 : 0, ts, ts);
+    JSON.stringify(t.input ?? {}), t.idempotencyKey ?? null, t.isDemo ? 1 : 0, ts, ts, Math.max(5, Math.min(480, t.minutes ?? 30)), t.deadline ?? null);
   logEvent(db, tid, 'created', `${kind} task`);
   audit(db, 'luke', 'task.created', tid, { kind, title: t.title });
   publish({ type: 'tasks' });

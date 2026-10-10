@@ -7,7 +7,7 @@ import { type DB, now } from './db.ts';
 import { config } from './config.ts';
 import * as auth from './auth.ts';
 import { audit, verifyAuditChain } from './audit.ts';
-import { bus } from './events.ts';
+import { bus, clients } from './events.ts';
 import { handleChat } from './chat.ts';
 import * as tasks from './tasks.ts';
 import * as arts from './artifacts.ts';
@@ -17,6 +17,9 @@ import * as budget from './budget.ts';
 import { pauseStatus, setPaused } from './pause.ts';
 import { backupTo } from './backup.ts';
 import { researchInput } from './research.ts';
+import { buildBriefing, buildRecap, overnightPlan, contactNow } from './today.ts';
+import { getMode, setMode, MODES } from './modes.ts';
+import * as notify from './notify.ts';
 
 type Ctx = { req: http.IncomingMessage; res: http.ServerResponse; db: DB; session: auth.Session | null; params: Record<string, string>; body: any; url: URL };
 type Handler = (c: Ctx) => unknown;
@@ -75,9 +78,10 @@ route('POST', '/api/tasks', ({ db, body }) => {
   const b = parse(z.object({
     title: z.string().min(1).max(200), description: z.string().max(4000).optional(), priority: z.number().int().min(1).max(5).optional(),
     projectId: z.string().nullish(), kind: z.enum(['manual', 'research']).default('manual'), research: researchInput.optional(), idempotencyKey: z.string().max(100).optional(),
+    minutes: z.number().int().min(5).max(480).optional(), deadline: z.number().int().nullish(),
   }), body);
   if (b.kind === 'research' && !b.research) throw bad('research tasks need a question and at least one URL');
-  return { id: tasks.createTask(db, { title: b.title, description: b.description, priority: b.priority, projectId: b.projectId, kind: b.kind, input: b.research, idempotencyKey: b.idempotencyKey }) };
+  return { id: tasks.createTask(db, { title: b.title, description: b.description, priority: b.priority, projectId: b.projectId, kind: b.kind, input: b.research, idempotencyKey: b.idempotencyKey, minutes: b.minutes, deadline: b.deadline }) };
 });
 route('POST', '/api/tasks/:id/complete', ({ db, params }) => {
   const t = row(db, 'SELECT kind FROM tasks WHERE id=?', params.id) as any;
@@ -87,6 +91,18 @@ route('POST', '/api/tasks/:id/complete', ({ db, params }) => {
 });
 route('POST', '/api/tasks/:id/reopen', ({ db, params }) => { tasks.reopenTask(db, params.id); return { ok: true }; });
 route('POST', '/api/tasks/:id/cancel', ({ db, params }) => { tasks.cancelTask(db, params.id); return { ok: true }; });
+route('PATCH', '/api/tasks/:id', ({ db, params, body }) => {
+  const b = parse(z.object({ minutes: z.number().int().min(5).max(480).optional(), deadline: z.number().int().nullable().optional(), priority: z.number().int().min(1).max(5).optional() }), body);
+  const sets: string[] = [], vals: any[] = [];
+  if (b.minutes !== undefined) { sets.push('minutes=?'); vals.push(b.minutes); } if (b.deadline !== undefined) { sets.push('deadline=?'); vals.push(b.deadline); } if (b.priority !== undefined) { sets.push('priority=?'); vals.push(b.priority); }
+  if (!sets.length) throw bad('nothing to change');
+  db.prepare(`UPDATE tasks SET ${sets.join(',')}, version=version+1, updated_at=? WHERE id=?`).run(...vals, now(), params.id); audit(db, 'luke', 'task.updated', params.id, b); return { ok: true };
+});
+route('POST', '/api/tasks/:id/tonight', ({ db, params, body }) => {
+  const on = parse(z.object({ on: z.boolean() }), body).on;
+  const r = db.prepare("UPDATE tasks SET tonight=?, priority=CASE WHEN ?=1 THEN 1 ELSE priority END, updated_at=? WHERE id=? AND kind IN ('research','revision')").run(on ? 1 : 0, on ? 1 : 0, now(), params.id);
+  if (!r.changes) throw bad('Only Jarvis-owned work can be queued for tonight.'); audit(db, 'luke', 'task.tonight', params.id, { on }); return { ok: true };
+});
 route('GET', '/api/projects', ({ db }) => rows(db, 'SELECT * FROM projects ORDER BY is_demo, created_at DESC'));
 route('POST', '/api/projects', ({ db, body }) => {
   const b = parse(z.object({ title: z.string().min(1).max(200), scope: z.enum(['personal', 'business']).default('personal') }), body);
@@ -142,6 +158,19 @@ route('POST', '/api/memory', ({ db, body }) => {
 });
 route('PATCH', '/api/memory/:id', ({ db, params, body }) => { const r = memory.update(db, params.id, parse(z.object({ content: z.string().min(1).max(1000) }), body).content); if (!r.ok) throw bad(r.error); return r; });
 route('DELETE', '/api/memory/:id', ({ db, params }) => ({ ok: memory.forget(db, params.id) }));
+
+// ---- today: briefing, recap, overnight, contact mode, notifications ----
+route('GET', '/api/today', ({ db }) => ({ briefing: buildBriefing(db), recap: buildRecap(db), overnight: overnightPlan(db), contact: contactNow(db), modes: MODES }));
+route('POST', '/api/mode', ({ db, body }) => {
+  const b = parse(z.object({ mode: z.enum(MODES as [string, ...string[]]), untilMinutes: z.number().int().min(1).max(24 * 60).optional() }), body);
+  setMode(db, b.mode as any, b.untilMinutes ? Date.now() + b.untilMinutes * 60_000 : null);
+  if (b.mode === 'normal') notify.tickNotifications(db); // "I'm back": release anything held, important first (ordering by due time)
+  return { ...getMode(db), contact: contactNow(db) };
+});
+route('GET', '/api/notifications', ({ db }) => rows(db, "SELECT * FROM notifications WHERE state!='skipped' ORDER BY due_at DESC LIMIT 60"));
+route('POST', '/api/notifications/:id/ack', ({ db, params }) => ({ ok: notify.ack(db, params.id) }));
+route('POST', '/api/notifications/:id/seen', ({ db, params }) => ({ ok: notify.seen(db, params.id) }));
+route('POST', '/api/notifications/:id/snooze', ({ db, params, body }) => ({ ok: notify.snooze(db, params.id, parse(z.object({ minutes: z.number().int().min(1).max(480) }), body).minutes) }));
 
 // ---- misc pages ----
 route('GET', '/api/connections', ({ db }) => ({ items: rows(db, 'SELECT * FROM connections ORDER BY status, name'), domains: rows(db, 'SELECT * FROM allowed_domains ORDER BY host') }));
@@ -201,8 +230,8 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
         res.write(': ok\n\n');
         const on = (e: unknown) => res.write(`data: ${JSON.stringify(e)}\n\n`);
-        bus.on('event', on); const ka = setInterval(() => res.write(': ka\n\n'), 20000);
-        req.on('close', () => { bus.off('event', on); clearInterval(ka); });
+        clients.n++; bus.on('event', on); const ka = setInterval(() => res.write(': ka\n\n'), 20000);
+        req.on('close', () => { clients.n--; bus.off('event', on); clearInterval(ka); });
         return;
       }
       const method = req.method ?? 'GET';

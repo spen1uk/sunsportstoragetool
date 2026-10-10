@@ -31,7 +31,13 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Escalation (desktop → text +5 min; urgent call → text → one retry; ack cancels; dedupe) | ✅ | Pure logic; nothing is sent |
 | Chicago DST-correct daily times (8:00 briefing, 12/16/20 reminders, 22:00 recap, 7:30/23:05 collection) | ✅ | `schedule.ts` |
 | Day planner: work-hour slots, 15-min buffers, deadline/overcapacity flags; reconcile touches only Jarvis-owned blocks | ✅ | Pure logic; no calendar connected yet |
-| Briefing/reminder content, notification delivery, UI for these | ⚪ | Next: wire to dashboard + desktop notifications (local, $0) |
+| Briefings page (urgent → updates → proposed schedule → recommendations; Monday = week ahead; narration capped < 3 min; unconnected managers listed as "no report") | ✅ | Text only; read-aloud deferred with voice |
+| 12/4/8 p.m. reminders (unfinished tasks by importance; completing cancels), 10 p.m. recap, missed items recorded as missed | ✅ | Runs only while the app is running on the Mac |
+| Desktop notifications (browser Notification API) + in-app tray, acknowledge / snooze / open | ✅/🟢 | Needs your browser permission. "Open" suppresses escalation without approving anything |
+| Text/SMS step of escalation | 🟡 | Decided and **recorded as "NOT SENT"** — no SMS adapter exists |
+| Contact-mode controls (Available, Personal, Family, Meal, Church, Unavailable, "I'm out for a bit" / "I'm back") | ✅ | In the top bar; timed modes expire on their own |
+| Overnight Plan page ("Do this tonight" overrides priority; holds, owner, desired result, estimate) | ✅ | Executes only while the app runs |
+| Task duration + deadline fields feeding the planner | ✅ | Deadline entered in browser-local time |
 | Apple Calendar / Notes | ⛔ | Needs provider/route verification (see FEASIBILITY) |
 | British streaming voice, interruption, audio-driven core | ⏸ deferred | Not a priority (cost). Core animation stays state-driven; it will follow real audio only if voice is ever added |
 | SMS/calls on a dedicated number | ⛔ | Needs your approval to buy + registration/pricing verification |
@@ -50,7 +56,7 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Queued task survives restart; Mac work waits | ✅ |
 | Reminder/briefing timing across DST, weekends, modes | ✅ logic / ⚪ delivery |
 | Gym/church/sleep/dedupe/5-min escalation/single retry | ✅ logic / ⚪ delivery |
-| Calendar block ending ≠ done; auto-reschedule only Jarvis blocks | ✅ |
+| Calendar block ending ≠ done; auto-reschedule only Jarvis blocks | ✅ logic (no calendar connected; proposed schedule is display-only) |
 | Unauthorized tool denied server-side; changed/expired approval denied; no duplicate execution | ✅ |
 | Untrusted document can't exfiltrate/alter policy | ✅ |
 | Private mode leaves no session content | ✅ |
