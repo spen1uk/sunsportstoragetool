@@ -1,0 +1,36 @@
+{
+  "name": "jarvis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "setup": "node server/setup.ts",
+    "seed:demo": "node server/seed-demo.ts",
+    "api": "node --watch server/index.ts",
+    "worker": "node --watch server/worker-main.ts",
+    "web": "vite --config web/vite.config.ts",
+    "build": "vite build --config web/vite.config.ts",
+    "start": "node server/index.ts",
+    "backup:verify": "node server/backup-verify.ts",
+    "test": "node --test server/test/*.test.ts",
+    "typecheck": "tsc -p server/tsconfig.json && tsc -p web/tsconfig.json"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "three": "0.186.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/three": "0.186.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "5.9.3",
+    "vite": "8.3.4"
+  }
+}
