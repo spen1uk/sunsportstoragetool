@@ -27,7 +27,11 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Planned/demo/live labelling | 🟢 | Everything except Jarvis + Research worker is PLANNED |
 | Chat | 🟡 | Deterministic command mode, persistent; **no language model** |
 | Voice nav (typed commands only), "yes" never approves | ✅ | Real speech not built |
-| Briefings, reminders, contact-hours/escalation engine, Chicago DST | ⚪ | Phase 2 (budget period already uses America/Chicago ✅) |
+| Contact-hours rules (sleep, gym text-only, church silence, family/personal/meal, away, emergency exception) | ✅ | Pure logic in `contact.ts`; not yet wired to real notifications |
+| Escalation (desktop → text +5 min; urgent call → text → one retry; ack cancels; dedupe) | ✅ | Pure logic; nothing is sent |
+| Chicago DST-correct daily times (8:00 briefing, 12/16/20 reminders, 22:00 recap, 7:30/23:05 collection) | ✅ | `schedule.ts` |
+| Day planner: work-hour slots, 15-min buffers, deadline/overcapacity flags; reconcile touches only Jarvis-owned blocks | ✅ | Pure logic; no calendar connected yet |
+| Briefing/reminder content, notification delivery, UI for these | ⚪ | Next: wire to dashboard + desktop notifications (local, $0) |
 | Apple Calendar / Notes | ⛔ | Needs provider/route verification (see FEASIBILITY) |
 | British streaming voice, interruption, audio-driven core | ⏸ deferred | Not a priority (cost). Core animation stays state-driven; it will follow real audio only if voice is ever added |
 | SMS/calls on a dedicated number | ⛔ | Needs your approval to buy + registration/pricing verification |
@@ -44,9 +48,9 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Universe hierarchy, click/zoom/back; layout persists; labels usable while planets move | 🟢 manual (drag, reload, zoom, Esc verified) |
 | Audio animation follows playback; interruption; voice nav ≠ approval | ⚪ audio / ✅ nav-≠-approval |
 | Queued task survives restart; Mac work waits | ✅ |
-| Reminder/briefing timing across DST, weekends, modes | ⚪ |
-| Gym/church/sleep/dedupe/5-min escalation/single retry | ⚪ |
-| Calendar block ending ≠ done; auto-reschedule only Jarvis blocks | ✅ (no path marks done by time) / ⚪ scheduler |
+| Reminder/briefing timing across DST, weekends, modes | ✅ logic / ⚪ delivery |
+| Gym/church/sleep/dedupe/5-min escalation/single retry | ✅ logic / ⚪ delivery |
+| Calendar block ending ≠ done; auto-reschedule only Jarvis blocks | ✅ |
 | Unauthorized tool denied server-side; changed/expired approval denied; no duplicate execution | ✅ |
 | Untrusted document can't exfiltrate/alter policy | ✅ |
 | Private mode leaves no session content | ✅ |

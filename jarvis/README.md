@@ -2,6 +2,8 @@
 
 Luke's personal assistant and operational coordinator. This is a **new, self-contained project** (own `package.json`, own database); it shares no code or data with the Sun Sport Marine app in the parent repository and does not touch Sandra.
 
+**Plan:** local-only on the Mac until Jarvis is substantially set up; deployment/launch is the last step; voice is deferred; cost stays cheap-first (see docs/COST_MODEL.md).
+
 **Honest scope today:** a runnable vertical slice — secure single-user API, durable task queue + worker, policy-gated research, review/versioning, approvals, memory, budget accounting, audit log, and the animated universe UI. No language model, voice, phone, calendar, Sandra, or Mac integration is connected; those are labelled *planned* everywhere they appear. See [docs/STATUS.md](docs/STATUS.md).
 
 ## Run it locally
@@ -23,7 +25,7 @@ Optional: `npm run seed:demo` adds clearly-flagged DEMO records (`-- --remove` d
 ## Verify
 
 ```bash
-npm test               # 23 tests: HTTP auth/CSRF/Host, approvals, policy/SSRF, queue recovery, budget, memory, private mode, e2e research workflow, backup restore
+npm test               # 35 tests: contact rules, escalation, DST scheduling, planner, HTTP auth/CSRF/Host, approvals, policy/SSRF, queue recovery, budget, memory, private mode, e2e research workflow, backup restore
 npm run typecheck
 npm run backup:verify -- data/backups/<snapshot>.db   # restore test: integrity + audit-chain check
 ```

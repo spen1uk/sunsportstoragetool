@@ -14,6 +14,7 @@
 | 8 | three.js for the universe, DOM buttons for all interactive targets | GPU scene + accessible, stable hit targets; labels projected from 3D each frame at fixed px size | Perf problems on target Macs |
 | 9 | Push via SSE, no polling, no model calls for "live" UI | Required; cheap | WebSocket needed for audio |
 | 10 | Voice/telephony **deferred** (cost). LiveKit Agents remains the candidate, **not installed** | Luke: voice not important now; keep spend low | Luke asks for voice |
+| 12 | **Launch is the last step.** Build, test and live on the Mac until Jarvis is substantially set up; no hosting, public exposure or paid service before then (Luke, 2026-10-10) | Avoids paying for infrastructure while features are incomplete | Luke says Jarvis is ready to launch |
 | 11 | Cheap-first: local Mac by default, Haiku-class models by default, per-day token ceiling under the monthly cap | Keep steady state ≈ $10–35/mo | — |
 
 ## Components
