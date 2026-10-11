@@ -4,7 +4,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { api, type Agent } from './api.ts';
+import { api, subscribe, type Agent } from './api.ts';
 import { speechState } from './speech.ts';
 
 export type CoreState = 'idle' | 'working' | 'thinking' | 'speaking' | 'urgent' | 'blocked' | 'disconnected' | 'paused';
@@ -239,7 +239,7 @@ export function Universe(props: Props) {
     };
 
     // --- systems ---
-    type Sys = { id: string; group: THREE.Group; sun: THREE.Mesh; sunU: { uTime: { value: number } }; flare: THREE.Sprite; glow: THREE.Sprite; light: THREE.PointLight; planets: { id: string; mesh: THREE.Object3D; body: THREE.Mesh; r: number; phase: number; speed: number; ring: THREE.LineLoop; comet: THREE.Sprite }[]; pulse?: THREE.Mesh };
+    type Sys = { id: string; group: THREE.Group; sun: THREE.Mesh; sunU: { uTime: { value: number } }; flare: THREE.Sprite; glow: THREE.Sprite; light: THREE.PointLight; energy: number; flow: number; boost: number; streamT: number; planets: { id: string; mesh: THREE.Object3D; body: THREE.Mesh; r: number; phase: number; speed: number; ring: THREE.LineLoop; comet: THREE.Sprite }[] };
     const systems = new Map<string, Sys>(); let builtKey = '';
     const flareTex = flareTexture();
     const links = new Map<string, THREE.Line>();
@@ -275,11 +275,26 @@ export function Universe(props: Props) {
           group.add(rg);
           return { id: e.id, mesh, body, r, phase: j * 1.7 + i, speed: 0.35 / Math.sqrt(r / 5), ring: rg, comet };
         });
-        const pulse = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), new THREE.MeshBasicMaterial({ color: 0xbfe9ff })); pulse.visible = false; scene.add(pulse);
-        systems.set(m.id, { id: m.id, group, sun, sunU: sunMat.uniforms as any, flare, glow, light, planets, pulse });
+        systems.set(m.id, { id: m.id, group, sun, sunU: sunMat.uniforms as any, flare, glow, light, energy: 0, flow: 0, boost: 0, streamT: 0, planets });
         const lg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]); const ln = new THREE.Line(lg, new THREE.LineDashedMaterial({ color, dashSize: 1.3, gapSize: 1.0, transparent: true, opacity: planned ? 0.25 : 0.6, blending: THREE.AdditiveBlending, depthWrite: false })); scene.add(ln); links.set(m.id, ln);
       });
     };
+
+    // --- energy packets: REAL events only (server 'pulse' events) + a steady stream while a task is genuinely running ---
+    type Packet = { sys: string; dir: 1 | -1; t0: number; dur: number; big: boolean; color: THREE.Color; phase: number; sprites: THREE.Sprite[]; arrived?: boolean };
+    const packets: Packet[] = [], impacts: { pos: THREE.Vector3; t0: number; color: THREE.Color; sprite: THREE.Sprite }[] = [], queue: any[] = [];
+    const dotTex = glowTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)'); let coreBoost = 0;
+    const KIND_COLOR: Record<string, number> = { dispatch: 0x4fd0ff, done: 0x1dff94, attention: 0xff9f1a, failed: 0xff2d55, stream: 0x3fc4ff };
+    const mkSprite = (c: THREE.Color, o: number) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: c, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: o })); scene.add(sp); return sp; };
+    const spawn = (sys: string, dir: 1 | -1, kind: string, big: boolean, trailN: number) => {
+      if (!systems.has(sys)) return; const color = new THREE.Color(KIND_COLOR[kind] ?? KIND_COLOR.dispatch);
+      const sprites = Array.from({ length: trailN + 1 }, () => mkSprite(color, 0));
+      const len = systems.get(sys)!.group.position.length();
+      packets.push({ sys, dir, t0: performance.now(), dur: Math.min(2300, Math.max(900, (len / 40) * 1000)) * (big ? 1 : 1.25), big, color, phase: Math.random() * 6.28, sprites });
+    };
+    const impact = (pos: THREE.Vector3, color: THREE.Color) => { const sp = mkSprite(color, 0.9); sp.position.copy(pos); impacts.push({ pos: pos.clone(), t0: performance.now(), color, sprite: sp }); };
+    const unsubPulse = subscribe((type, e) => { if (type === 'pulse') queue.push(e); });
+    const retire = (sp: THREE.Sprite) => { scene.remove(sp); (sp.material as THREE.SpriteMaterial).dispose(); };
 
     // --- labels (DOM, positioned from 3D each frame; stable pixel size, generous hit area) ---
     const els = new Map<string, HTMLElement>();
@@ -321,6 +336,7 @@ export function Universe(props: Props) {
       else if (st === 'urgent') { pulse = 1 + 0.1 * Math.abs(Math.sin(tNow / 170)); gain = 1.25; fine = 0.4; }
       else if (st === 'blocked') pulse = 1 + 0.05 * Math.sin(tNow / 600);
       else if (st === 'idle') pulse = 1 + 0.015 * Math.sin(tNow / 1800);                         // gentle, continuous
+      pulse += coreBoost * 0.14; gain += coreBoost * 0.55; fine += coreBoost * 0.25;   // a result arriving at the core makes it surge
       if (reduced) { pulse = 1; fine = 0.15; }
       ringU.uFine.value = fine; ringU.uGain.value = gain;
       burst.scale.setScalar(40 * (0.92 + 0.08 * pulse) * (st === 'urgent' ? 1.25 : 1)); (burst.material as THREE.SpriteMaterial).rotation += dt * 0.02 * speed;
@@ -392,10 +408,42 @@ export function Universe(props: Props) {
         (s.glow.material as THREE.SpriteMaterial).opacity = (p.agents.find((a) => a.id === sid)?.status_kind === 'planned' ? 0.22 : 0.5) * dim;
         const ln = links.get(sid)!; const pa = ln.geometry.attributes.position as THREE.BufferAttribute;
         pa.setXYZ(0, 0, 0, 0); pa.setXYZ(1, s.group.position.x, s.group.position.y, 0); pa.needsUpdate = true;
-        ln.computeLineDistances(); { const ld = ln.geometry.attributes.lineDistance as THREE.BufferAttribute, off = (tAcc * 2.5) % 2.3; ld.setX(0, -off); ld.setX(1, ld.getX(1) - off); ld.needsUpdate = true; } // light flowing along the data link
-        // Communication pulse only while that system has real running work.
-        if (s.pulse) { const on = p.active.has(sid) && !reduced; s.pulse.visible = on; if (on) { const u = (tAcc * 0.45) % 1; s.pulse.position.set(s.group.position.x * u, s.group.position.y * u, 0); } }
+        ln.computeLineDistances(); { const ld = ln.geometry.attributes.lineDistance as THREE.BufferAttribute, off = s.flow % 2.3; ld.setX(0, -off); ld.setX(1, ld.getX(1) - off); ld.needsUpdate = true; } // light flowing along the data link
+        // Link energy follows REAL running work: brighter, faster flow, and a stream of small packets while a task executes.
+        const working = p.active.has(sid) && !reduced; s.energy += ((working ? 1 : 0) - s.energy) * Math.min(1, dt * 3); s.flow += dt * speed * (2.5 + s.energy * 7);
+        (ln.material as THREE.LineDashedMaterial).opacity = (p.agents.find((a) => a.id === sid)?.status_kind === 'planned' ? 0.25 : 0.6) * (1 + s.energy * 0.9);
+        if (working) { const wall = performance.now(); if (wall - s.streamT > 850) { s.streamT = wall; spawn(sid, 1, 'stream', false, p.quality === 'low' ? 3 : 6); } }   // wall-clock cadence: same rhythm at any frame rate
+        s.boost *= Math.exp(-dt * 3.2); s.flare.scale.setScalar(15 * (1 + s.boost * 0.55)); (s.flare.material as THREE.SpriteMaterial).opacity = (p.agents.find((x) => x.id === sid)?.status_kind === 'planned' ? 0.16 : 0.38) + s.boost * 0.35;
       }
+
+      // drain real events → packets (reduced motion: no packets, the link just lights)
+      while (queue.length) {
+        const ev = queue.shift(); const sys = ev.system as string; if (!systems.has(sys)) continue;
+        if (reduced) { systems.get(sys)!.boost = 1; continue; }
+        const tn = p.quality === 'low' ? 5 : 10;
+        if (ev.kind === 'dispatch') spawn(sys, 1, 'dispatch', true, tn); else spawn(sys, -1, ev.kind, true, tn);
+      }
+      for (let k = packets.length - 1; k >= 0; k--) {
+        const pk = packets[k], s2 = systems.get(pk.sys); const age = (performance.now() - pk.t0) / pk.dur;
+        if (!s2 || age >= 1.12) { pk.sprites.forEach(retire); packets.splice(k, 1); continue; }
+        const u = Math.min(1, age), e = u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2, end = s2.group.position;
+        if (!pk.arrived && age >= 1) { pk.arrived = true; impact(pk.dir === 1 ? end.clone() : new THREE.Vector3(), pk.color); if (pk.dir === 1) s2.boost = Math.max(s2.boost, pk.big ? 1 : 0.35); else coreBoost = Math.max(coreBoost, pk.big ? 1 : 0.4); }
+        const px = -end.y, py = end.x, pl = Math.max(Math.hypot(px, py), 0.001);   // perpendicular, for a gentle helical weave
+        pk.sprites.forEach((sp, idx) => {
+          const lag = idx * (pk.big ? 0.026 : 0.034), uu = pk.dir === 1 ? e - lag : 1 - e + lag; const q = Math.min(1, Math.max(0, uu));
+          const weave = pk.big ? Math.sin(q * 20 + pk.phase) * 0.42 * (1 - Math.abs(q - 0.5) * 1.2) : 0;
+          sp.position.set(end.x * q + (px / pl) * weave, end.y * q + (py / pl) * weave, 0.4);
+          const fade = idx === 0 ? 1 : Math.pow(1 - idx / pk.sprites.length, 1.5) * 0.75, vis = u < 1 && uu > 0 && uu < 1 ? 1 : 0;
+          (sp.material as THREE.SpriteMaterial).opacity = fade * vis * (pk.big ? 1 : 0.8);
+          sp.scale.setScalar(idx === 0 ? (pk.big ? 5.4 : 2.7) : (pk.big ? 3.9 : 2.0) * (1 - idx / (pk.sprites.length * 1.3)));
+        });
+      }
+      for (let k = impacts.length - 1; k >= 0; k--) {
+        const im = impacts[k], a = (performance.now() - im.t0) / 800;
+        if (a >= 1) { retire(im.sprite); impacts.splice(k, 1); continue; }
+        im.sprite.scale.setScalar(2 + a * 9); (im.sprite.material as THREE.SpriteMaterial).opacity = (1 - a) * (1 - a) * 0.85;
+      }
+      coreBoost *= Math.exp(-dt * 3);
 
       // project labels
       const w = el.clientWidth, h = el.clientHeight, v = new THREE.Vector3();
@@ -413,7 +461,7 @@ export function Universe(props: Props) {
       if (composer) composer.render(); else renderer.render(scene, camera);
     };
     raf = requestAnimationFrame(frame);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); disposeSystems(); composer?.dispose(); renderer.dispose(); renderer.domElement.remove(); };
+    return () => { cancelAnimationFrame(raf); unsubPulse(); packets.forEach((pk) => pk.sprites.forEach(retire)); impacts.forEach((im) => retire(im.sprite)); ro.disconnect(); disposeSystems(); composer?.dispose(); renderer.dispose(); renderer.domElement.remove(); };
   }, []);
 
   const mgrs = props.agents.filter((a) => a.role === 'manager');

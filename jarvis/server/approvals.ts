@@ -1,6 +1,6 @@
 import { type DB, tx, id, now, canonicalJson, sha256 } from './db.ts';
 import { audit } from './audit.ts';
-import { publish } from './events.ts';
+import { publish, pulse } from './events.ts';
 import { hasStepUp, type Session } from './auth.ts';
 import { isPaused } from './pause.ts';
 import { setCap } from './budget.ts';
@@ -67,6 +67,7 @@ export function requestApproval(db: DB, a: { actionType: string; payload: unknow
     def.risk, a.scope ?? '', JSON.stringify(a.limits ?? {}), a.requestedBy, a.taskId ?? null, Date.now() + (a.ttlMs ?? TTL_MS), now());
   audit(db, a.requestedBy, 'approval.requested', aid, { actionType: a.actionType });
   publish({ type: 'approvals' });
+  if (a.taskId) pulse('attention', a.taskId); // an agent is asking Luke for something
   return aid;
 }
 

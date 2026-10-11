@@ -1,6 +1,6 @@
 import { type DB, tx, id, now } from './db.ts';
 import { audit } from './audit.ts';
-import { publish } from './events.ts';
+import { publish, pulse } from './events.ts';
 import { isPaused } from './pause.ts';
 import { config } from './config.ts';
 
@@ -40,6 +40,8 @@ export function setState(db: DB, taskId: string, state: string, extra: { reason?
     .run(state, extra.reason ?? null, extra.error ?? null, extra.nextRunAt ?? null, now(), taskId);
   logEvent(db, taskId, `state:${state}`, extra.reason ?? extra.error ?? '');
   publish({ type: 'tasks' });
+  const kind = state === 'completed' ? 'done' : state === 'failed' ? 'failed' : state === 'waiting_input' || state === 'waiting_approval' ? 'attention' : null;
+  if (kind && (db.prepare('SELECT kind FROM tasks WHERE id=?').get(taskId) as { kind: string } | undefined)?.kind !== 'manual') pulse(kind, taskId);
 }
 
 /**
@@ -48,7 +50,7 @@ export function setState(db: DB, taskId: string, state: string, extra: { reason?
 export function completeTask(db: DB, taskId: string, completedBy: string, evidence: string) {
   const r = db.prepare("UPDATE tasks SET state='completed', completed_at=?, completion_evidence=?, waiting_reason=NULL, lease_owner=NULL, lease_expires_at=NULL, version=version+1, updated_at=? WHERE id=? AND state NOT IN ('completed','canceled')")
     .run(now(), `${completedBy}: ${evidence}`, now(), taskId);
-  if (r.changes) { logEvent(db, taskId, 'completed', evidence); audit(db, completedBy, 'task.completed', taskId, { evidence }); publish({ type: 'tasks' }); }
+  if (r.changes) { logEvent(db, taskId, 'completed', evidence); audit(db, completedBy, 'task.completed', taskId, { evidence }); publish({ type: 'tasks' }); if ((db.prepare('SELECT kind FROM tasks WHERE id=?').get(taskId) as { kind: string }).kind !== 'manual') pulse('done', taskId); }
   return !!r.changes;
 }
 
@@ -84,6 +86,7 @@ export function claimNext(db: DB, workerId: string): TaskRow | null {
       .run(workerId, Date.now() + config.leaseMs, now(), t.id);
     logEvent(db, t.id, 'claimed', workerId);
     publish({ type: 'tasks' });
+    pulse('dispatch', t.id);
     return { ...t, state: 'running', attempts: t.attempts + 1 };
   });
 }
