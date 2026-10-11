@@ -16,7 +16,7 @@ type Props = {
 };
 
 const DEFAULTS: Pos = { ssm: { x: -40, y: 8 }, proj: { x: 38, y: 10 }, investing: { x: -22, y: -26 }, trading: { x: 22, y: -26 }, health: { x: 2, y: 30 } };
-const SYS_COLORS = [0xffb86b, 0x6bd0ff, 0x9d8bff, 0x6bffb0, 0xff7aa8, 0xf0e26b];
+const SYS_COLORS = [0xff8a3d, 0x4db8ff, 0xb45cff, 0x3dffc0, 0xff4fa3, 0xffd36b];
 const STATE_COLORS: Record<CoreState, number> = { idle: 0x4db8ff, working: 0x44f0d0, thinking: 0xb7a6ff, speaking: 0x9fe8ff, urgent: 0xff5a5f, blocked: 0xffb347, disconnected: 0x6a7684, paused: 0xc98a3a };
 const TILT = -0.95;
 
@@ -49,11 +49,23 @@ function nebulaMaterial() {
     uniforms: { uTime: { value: 0 } }, side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     vertexShader: 'varying vec3 vD; void main(){ vD=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
     fragmentShader: `varying vec3 vD; uniform float uTime; ${NOISE}
-      void main(){ vec3 d=normalize(vD); float n=fbm(d*2.2+vec3(uTime*0.004)); float m=fbm(d*4.6-vec3(uTime*0.006)+7.);
-        float cloud=smoothstep(.40,.86,n);
-        vec3 c=mix(vec3(.02,.07,.26), vec3(.34,.10,.55), smoothstep(.30,.90,m));
-        c=mix(c, vec3(.04,.50,.65), smoothstep(.55,.95,n*m*1.7));
-        gl_FragColor=vec4(c*cloud*.17, 1.); }`,
+      void main(){
+        vec3 d=normalize(vD); float t=uTime*0.003;
+        vec3 w=vec3(fbm(d*2.0+t), fbm(d*2.0+vec3(5.2,1.3,8.1)-t), fbm(d*2.0+vec3(2.7,9.2,3.4)+t));   // domain warp = swirling, painterly shapes
+        vec3 q=d*2.3+w*1.9;
+        float body=fbm(q), fil=fbm(q*3.4+w*2.0), ridge=1.-abs(2.*fil-1.);
+        float dens=smoothstep(.47,.86,body)*(.35+1.1*ridge*ridge);
+        float zoneW=smoothstep(.38,.62,fbm(d*1.15+vec3(3.1,.4,2.2)));   // warm side
+        float zoneG=smoothstep(.62,.80,fbm(d*1.7+vec3(20.,4.,9.)));     // green-teal wisps
+        float zoneM=smoothstep(.45,.70,fbm(d*1.4+vec3(7.,11.,1.)));     // magenta bands
+        vec3 blue=vec3(.05,.22,.85), cyan=vec3(.08,.65,1.), violet=vec3(.48,.14,.95), magenta=vec3(.95,.18,.58), ember=vec3(1.,.42,.10), gold=vec3(1.,.72,.32), teal=vec3(.10,.95,.62);
+        vec3 c=mix(blue, violet, smoothstep(.30,.75,fbm(q*.8+3.)));
+        c=mix(c, cyan, smoothstep(.55,.9,ridge)*.55);
+        c=mix(c, magenta, zoneM*.75);
+        c=mix(c, mix(ember,gold,smoothstep(.7,1.,ridge)*.5), zoneW*.9);
+        c=mix(c, teal, zoneG*.7);
+        float stars=pow(max(0.,fbm(d*14.)-.62),2.)*14.;                  // faint dust-lit pinpoints inside the clouds
+        gl_FragColor=vec4(c*c*dens*.55 + c*stars*dens*.3, 1.); }`,
   });
 }
 
@@ -78,6 +90,40 @@ function atmosphereMaterial(color: number, strength = 1) {
     vertexShader: 'varying vec3 vN; void main(){ vN=normalize(normalMatrix*normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
     fragmentShader: 'varying vec3 vN; uniform vec3 uColor; uniform float uK; void main(){ float i=pow(max(0.72-dot(vN,vec3(0.,0.,1.)),0.),3.4)*1.5*uK; gl_FragColor=vec4(uColor*i, i); }',
   });
+}
+
+/** Detailed worlds. 'gas' = swirling storm bands (the blue giant); 'lava' = dark rock, glowing fissures, night-side city lights (the ember worlds). Lit from the system's sun. */
+function planetMaterial(a: THREE.Color, b: THREE.Color, kind: 'gas' | 'lava', planned: boolean) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uA: { value: a }, uB: { value: b }, uL: { value: new THREE.Vector3(0.6, 0.5, 0.6) }, uKind: { value: kind === 'gas' ? 0 : 1 }, uAlpha: { value: planned ? 0.9 : 1 } }, transparent: planned,
+    vertexShader: 'varying vec3 vN; varying vec3 vP; void main(){ vN=normalize(normalMatrix*normal); vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+    fragmentShader: `varying vec3 vN; varying vec3 vP; uniform float uTime; uniform vec3 uA; uniform vec3 uB; uniform vec3 uL; uniform float uKind; uniform float uAlpha; ${NOISE}
+      void main(){ vec3 n=normalize(vN); float ndl=dot(n,normalize(uL)); float day=smoothstep(-.12,.55,ndl);
+        vec3 p=vP*1.15; vec3 col; vec3 emis=vec3(0.);
+        if(uKind<.5){ float w=fbm(p*3.+uTime*.03); float lat=p.y*5.5+w*3.2+sin(p.x*2.+w*4.)*.6; float bands=.5+.5*sin(lat*2.6); float storm=smoothstep(.55,.8,fbm(p*5.5+w*2.2));
+          col=mix(uA,uB,bands); col=mix(col,uB*1.3+.1,storm*.6); col+=vec3(.06,.10,.2)*fbm(p*14.); }
+        else { float rock=fbm(p*4.+1.7); float crack=1.-abs(2.*fbm(p*6.5+w3(p))-1.); float lava=smoothstep(.86,.97,crack)*smoothstep(.35,.7,rock);
+          col=mix(vec3(.03,.02,.03), uA*.45, rock); emis=vec3(1.,.38,.08)*lava*1.6 + vec3(1.,.55,.15)*lava*lava;
+          float city=step(.93,n3(p*46.))*(1.-day)*smoothstep(.45,.75,rock); emis+=vec3(1.,.72,.35)*city*1.3; }
+        float rim=pow(1.-max(dot(n,vec3(0.,0.,1.)),0.),3.); vec3 rimC=mix(uB,vec3(.7,.9,1.),.5)*rim*(.25+.9*day);
+        vec3 c=col*(.10+day*1.05)+emis*(.45+.55*(1.-day))+rimC; gl_FragColor=vec4(c,uAlpha); }`.replace('w3(p)','fbm(p*2.)*2.'),
+  });
+}
+
+function ringMaterial(color: THREE.Color) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: color } }, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    vertexShader: 'varying vec2 vP; void main(){ vP=position.xy; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+    fragmentShader: 'varying vec2 vP; uniform vec3 uColor; void main(){ float r=length(vP); float t=clamp((r-1.3)/1.05,0.,1.); float bands=.5+.5*sin(t*44.+sin(t*9.)*2.2); float gap=smoothstep(.0,.06,abs(t-.62)-.03);\n float a=(.10+.5*bands)*smoothstep(0.,.07,t)*(1.-smoothstep(.88,1.,t))*gap; vec3 c=mix(uColor,vec3(.85,.8,1.),.35)*(.45+.55*bands); gl_FragColor=vec4(c,a); }',
+  });
+}
+
+/** Four-point starburst (the glare around the black hole in the reference art). */
+function burstTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d')!; g.translate(256, 256);
+  for (const rot of [0, Math.PI / 2]) { g.save(); g.rotate(rot); const gr = g.createLinearGradient(-250, 0, 250, 0); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(.5, 'rgba(255,255,255,.95)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(-250, 0); g.lineTo(0, -2.1); g.lineTo(250, 0); g.lineTo(0, 2.1); g.fill(); g.restore(); }
+  const rg = g.createRadialGradient(0, 0, 0, 0, 0, 90); rg.addColorStop(0, 'rgba(255,255,255,.12)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = rg; g.fillRect(-256, -256, 512, 512);
+  return new THREE.CanvasTexture(c);
 }
 
 function flareTexture() {
@@ -118,30 +164,32 @@ export function Universe(props: Props) {
       const w = el.clientWidth || 1, h = el.clientHeight || 1;
       composer = new EffectComposer(renderer); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h);
       composer.addPass(new RenderPass(scene, camera));
-      composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), q === 'high' ? 0.7 : 0.5, 0.55, 0.62));
+      composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), q === 'high' ? 0.5 : 0.36, 0.32, 0.7));
       composer.addPass(new OutputPass());
     };
 
     // --- deep space: nebula + three layers of twinkling stars (both follow the camera, with a little parallax) ---
     const nebula = new THREE.Mesh(new THREE.SphereGeometry(900, 48, 32), nebulaMaterial()); nebula.renderOrder = -10; nebula.frustumCulled = false; scene.add(nebula);
-    const N = 3200, sp = new Float32Array(N * 3), sS = new Float32Array(N), sPh = new Float32Array(N), sC = new Float32Array(N * 3);
-    const tints = [[0.75, 0.85, 1], [1, 0.92, 0.8], [0.6, 0.78, 1], [1, 0.75, 0.7]];
+    const N = 5600, sp = new Float32Array(N * 3), sS = new Float32Array(N), sPh = new Float32Array(N), sC = new Float32Array(N * 3);
+    const tints = [[0.8, 0.9, 1], [1, 0.93, 0.82], [0.62, 0.78, 1], [1, 0.72, 0.68], [0.82, 0.68, 1], [0.7, 1, 0.9]];
     for (let k = 0; k < N; k++) {
       const r = 800, a = Math.random() * 6.283, b = Math.acos(2 * Math.random() - 1);
       sp.set([r * Math.sin(b) * Math.cos(a), r * Math.sin(b) * Math.sin(a), r * Math.cos(b)], k * 3);
-      const tier = Math.random(); sS[k] = tier > 0.985 ? 4.2 : tier > 0.9 ? 2.4 : 1.3; sPh[k] = Math.random(); sC.set(tints[(Math.random() * tints.length) | 0], k * 3);
+      const tier = Math.random(); sS[k] = tier > 0.9975 ? 22 : tier > 0.985 ? 5 : tier > 0.9 ? 2.6 : 1.4; sPh[k] = Math.random(); sC.set(tints[(Math.random() * tints.length) | 0], k * 3);
     }
     const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(sp, 3)); sg.setAttribute('aS', new THREE.BufferAttribute(sS, 1)); sg.setAttribute('aP', new THREE.BufferAttribute(sPh, 1)); sg.setAttribute('aC', new THREE.BufferAttribute(sC, 3));
     const starU = { uTime: { value: 0 }, uScale: { value: 1 } };
     const stars = new THREE.Points(sg, new THREE.ShaderMaterial({ uniforms: starU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      vertexShader: 'attribute float aS; attribute float aP; attribute vec3 aC; uniform float uTime; uniform float uScale; varying vec3 vC; varying float vA; void main(){ vC=aC; vA=.5+.5*sin(uTime*(.5+aP*1.5)+aP*60.); gl_PointSize=aS*uScale; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-      fragmentShader: 'varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-.5); if(d>.5) discard; float a=pow(1.-d*2.,1.5)*(.35+.65*vA); gl_FragColor=vec4(vC*(1.+a), a); }' }));
+      vertexShader: 'attribute float aS; attribute float aP; attribute vec3 aC; uniform float uTime; uniform float uScale; varying vec3 vC; varying float vA; varying float vBig; void main(){ vC=aC; vBig=step(10.,aS); vA=.5+.5*sin(uTime*(.5+aP*1.5)+aP*60.); gl_PointSize=aS*uScale; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+      fragmentShader: `varying vec3 vC; varying float vA; varying float vBig; void main(){ vec2 q=gl_PointCoord-.5; float d=length(q);
+        if(vBig>.5){ float spike=exp(-abs(q.x)*55.)*exp(-abs(q.y)*5.5)+exp(-abs(q.y)*55.)*exp(-abs(q.x)*5.5); float core=exp(-d*16.); float a=(spike*.9+core*1.3)*(.55+.45*vA); gl_FragColor=vec4(mix(vC,vec3(1.),.5)*a, a); return; }
+        if(d>.5) discard; float a=pow(1.-d*2.,1.5)*(.35+.65*vA); gl_FragColor=vec4(vC*(1.+a), a); }` }));
     stars.frustumCulled = false; scene.add(stars);
 
     // --- Jarvis core ---
     const core = new THREE.Group(); core.scale.setScalar(1.6); scene.add(core);
     core.add(new THREE.Mesh(new THREE.SphereGeometry(3.2, 48, 32), new THREE.MeshBasicMaterial({ color: 0x000000 })));
-    const corona = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: STATE_COLORS.idle, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.42 }));
+    const corona = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: STATE_COLORS.idle, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3 }));
     corona.scale.set(21, 21, 1); core.add(corona);
     const tilt = new THREE.Group(); tilt.rotation.x = TILT; core.add(tilt);
     const ringU = { uTime: { value: 0 }, uColor: { value: new THREE.Color(STATE_COLORS.idle) }, uFine: { value: 0.15 }, uGain: { value: 1 } };
@@ -151,8 +199,9 @@ export function Universe(props: Props) {
       fragmentShader: `varying vec2 vP; uniform float uTime; uniform vec3 uColor; uniform float uFine; uniform float uGain;
         void main(){ float r=length(vP); float t=clamp((r-3.9)/5.6,0.,1.); float a=atan(vP.y,vP.x);
           float sw=0.5+0.5*sin(a*7.+uTime*1.6-r*1.7); float fine=0.5+0.5*sin(a*23.-uTime*2.3+r*5.);
-          float dop=0.55+0.75*max(0.,cos(a-0.6)); float I=pow(1.-t,0.95)*(0.38+0.5*sw+uFine*fine)*smoothstep(0.,0.05,t)*(1.-smoothstep(.7,1.,t))*uGain*dop*1.15;
-          vec3 c=mix(uColor*0.85,vec3(1.,.93,.78),pow(1.-t,3.2)); gl_FragColor=vec4(c*2.0,I*1.0);} `,
+          float dop=0.55+0.75*max(0.,cos(a-0.6)); float st=pow(abs(sin(a*11.+r*2.6-uTime*.8)),14.); float I=pow(1.-t,0.95)*(0.38+0.5*sw+uFine*fine)*smoothstep(0.,0.05,t)*(1.-smoothstep(.7,1.,t))*uGain*dop*1.15; I+=st*(1.-t)*.5*uGain*dop; // spiral streaks (swirling light trails)
+
+          vec3 c=mix(uColor*0.85,vec3(1.,.93,.78),pow(1.-t,3.2)); gl_FragColor=vec4(c*1.55,I*1.0);} `,
     }));
     tilt.add(ring);
     // Gravitational-lens halo: a camera-facing photon ring with a soft glow, like the light bent around the black hole.
@@ -161,6 +210,8 @@ export function Universe(props: Props) {
       vertexShader: 'varying vec2 vP; void main(){ vP=position.xy; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
       fragmentShader: 'varying vec2 vP; uniform vec3 uColor; uniform float uGain; void main(){ float r=length(vP); float ph=exp(-pow((r-3.42)*9.0,2.)); float soft=exp(-(r-3.1)*1.3)*.10; float I=(ph*0.85+soft)*uGain; gl_FragColor=vec4(mix(uColor,vec3(1.),.6)*I, I*.9); }' }));
     halo.renderOrder = 2; core.add(halo);
+    const burst = new THREE.Sprite(new THREE.SpriteMaterial({ map: burstTexture(), color: STATE_COLORS.idle, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.34 }));
+    burst.scale.set(40, 40, 1); core.add(burst);
     for (const r of [13, 18, 24]) {
       const pts = Array.from({ length: 129 }, (_, i) => new THREE.Vector3(Math.cos((i / 128) * 6.2832) * r, Math.sin((i / 128) * 6.2832) * r, 0));
       tilt.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x2f7fb8, transparent: true, opacity: 0.22 })));
@@ -185,7 +236,7 @@ export function Universe(props: Props) {
     };
 
     // --- systems ---
-    type Sys = { id: string; group: THREE.Group; sun: THREE.Mesh; sunU: { uTime: { value: number } }; flare: THREE.Sprite; glow: THREE.Sprite; light: THREE.PointLight; planets: { id: string; mesh: THREE.Mesh; r: number; phase: number; speed: number; ring: THREE.LineLoop; comet: THREE.Sprite }[]; pulse?: THREE.Mesh };
+    type Sys = { id: string; group: THREE.Group; sun: THREE.Mesh; sunU: { uTime: { value: number } }; flare: THREE.Sprite; glow: THREE.Sprite; light: THREE.PointLight; planets: { id: string; mesh: THREE.Object3D; body: THREE.Mesh; r: number; phase: number; speed: number; ring: THREE.LineLoop; comet: THREE.Sprite }[]; pulse?: THREE.Mesh };
     const systems = new Map<string, Sys>(); let builtKey = '';
     const flareTex = flareTexture();
     const links = new Map<string, THREE.Line>();
@@ -206,16 +257,20 @@ export function Universe(props: Props) {
         const emps = agents.filter((a) => a.parent_id === m.id);
         const planets = emps.map((e, j) => {
           const r = 5.6 + j * 2.1, ep = e.status_kind === 'planned';
-          const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.85, 24, 18), new THREE.MeshLambertMaterial({ color: new THREE.Color(color).lerp(new THREE.Color(0x88aaee), 0.35), transparent: ep, opacity: ep ? 0.6 : 1 }));
-          group.add(mesh);
-          const atm = new THREE.Mesh(new THREE.SphereGeometry(0.85 * 1.28, 24, 18), atmosphereMaterial(new THREE.Color(color).lerp(new THREE.Color(0x66ccff), 0.5).getHex(), ep ? 0.45 : 0.8)); mesh.add(atm);
+          const base = new THREE.Color(color), hsl = { h: 0, s: 0, l: 0 }; base.getHSL(hsl);
+          const kind: 'gas' | 'lava' = j % 2 === 0 ? 'gas' : 'lava';
+          const cA = new THREE.Color().setHSL(0.64 + j * 0.03, 0.85, 0.13), cB = new THREE.Color().setHSL(0.58 + j * 0.04, 0.9, 0.52);   // blue-violet storms against the system's ember/neon sun
+          const mesh = new THREE.Group(); group.add(mesh);
+          const body = new THREE.Mesh(new THREE.SphereGeometry(0.85, 48, 36), planetMaterial(kind === 'gas' ? cA : base.clone().multiplyScalar(0.8), kind === 'gas' ? cB : new THREE.Color(0xffa060), kind, ep)); body.rotation.z = 0.35; mesh.add(body);
+          if (j % 2 === 0) { const ringM = new THREE.Mesh(new THREE.RingGeometry(1.3, 2.35, 96, 1), ringMaterial(cB.clone())); ringM.rotation.set(1.2, 0.15, 0.45); mesh.add(ringM); }
+          const atm = new THREE.Mesh(new THREE.SphereGeometry(0.85 * 1.16, 32, 24), atmosphereMaterial(kind === 'gas' ? 0x3a7bff : 0xff7a2a, ep ? 0.28 : 0.5)); mesh.add(atm);
           const comet = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('rgba(255,255,255,1)', 'rgba(0,0,0,0)'), color: 0xcfeaff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: ep ? 0.4 : 0.9 })); comet.scale.set(0.9, 0.9, 1); group.add(comet);
           const pts = Array.from({ length: 97 }, (_, k) => new THREE.Vector3(Math.cos((k / 96) * 6.2832) * r, Math.sin((k / 96) * 6.2832) * r, 0));
           const og = new THREE.BufferGeometry().setFromPoints(pts);
           const rg = new THREE.LineLoop(og, ep ? new THREE.LineDashedMaterial({ color, dashSize: 0.5, gapSize: 0.5, transparent: true, opacity: 0.35 }) : new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.35 }));
           if (ep) rg.computeLineDistances();
           group.add(rg);
-          return { id: e.id, mesh, r, phase: j * 1.7 + i, speed: 0.35 / Math.sqrt(r / 5), ring: rg, comet };
+          return { id: e.id, mesh, body, r, phase: j * 1.7 + i, speed: 0.35 / Math.sqrt(r / 5), ring: rg, comet };
         });
         const pulse = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8), new THREE.MeshBasicMaterial({ color: 0xbfe9ff })); pulse.visible = false; scene.add(pulse);
         systems.set(m.id, { id: m.id, group, sun, sunU: sunMat.uniforms as any, flare, glow, light, planets, pulse });
@@ -253,7 +308,7 @@ export function Universe(props: Props) {
       const speed = reduced ? 0 : 1;
       tAcc += dt * speed * (p.coreState === 'working' ? 1.8 : p.coreState === 'urgent' ? 1.4 : p.coreState === 'thinking' ? 1.2 : p.coreState === 'paused' || p.coreState === 'disconnected' ? 0.25 : 1);
       ringU.uTime.value = tAcc; pu.uTime.value = tAcc;
-      goalC.setHex(STATE_COLORS[p.coreState]); cur.lerp(goalC, 1 - Math.exp(-dt * 4)); ringU.uColor.value.copy(cur); pu.uColor.value.copy(cur); (corona.material as THREE.SpriteMaterial).color.copy(cur);
+      goalC.setHex(STATE_COLORS[p.coreState]); cur.lerp(goalC, 1 - Math.exp(-dt * 4)); ringU.uColor.value.copy(cur); pu.uColor.value.copy(cur); (corona.material as THREE.SpriteMaterial).color.copy(cur); (burst.material as THREE.SpriteMaterial).color.copy(cur).lerp(new THREE.Color(1, 1, 1), 0.4);
       // Per-state motion. Speaking follows REAL speech-synthesis events (start / word boundaries / end), decaying between words.
       const tNow = performance.now(), st = p.coreState; let pulse = 1, gain = 1, fine = 0.15;
       speechState.level *= Math.exp(-dt * 5);
@@ -265,6 +320,7 @@ export function Universe(props: Props) {
       else if (st === 'idle') pulse = 1 + 0.015 * Math.sin(tNow / 1800);                         // gentle, continuous
       if (reduced) { pulse = 1; fine = 0.15; }
       ringU.uFine.value = fine; ringU.uGain.value = gain;
+      burst.scale.setScalar(40 * (0.92 + 0.08 * pulse) * (st === 'urgent' ? 1.25 : 1)); (burst.material as THREE.SpriteMaterial).rotation += dt * 0.02 * speed;
       corona.scale.setScalar(21 * pulse * (st === 'disconnected' ? 0.7 : 1));
       // Background sits at infinity (follows camera) with a hint of parallax; everything shimmers slowly.
       nebula.position.copy(camera.position); stars.position.copy(camera.position);
@@ -295,7 +351,8 @@ export function Universe(props: Props) {
         s.planets.forEach((pl) => {
           pl.phase += dt * pl.speed * slow * speed;
           pl.mesh.position.set(Math.cos(pl.phase) * pl.r, Math.sin(pl.phase) * pl.r, 0);
-          pl.mesh.rotation.y += dt * 0.5 * speed;
+          pl.body.rotation.y += dt * 0.35 * speed; (pl.body.material as THREE.ShaderMaterial).uniforms.uTime.value = tAcc;
+          { const ld = new THREE.Vector3(-pl.mesh.position.x, -pl.mesh.position.y, 0).normalize().transformDirection(camera.matrixWorldInverse); (pl.body.material as THREE.ShaderMaterial).uniforms.uL.value.copy(ld); }   // sun direction in view space
           const ca = pl.phase * 2.6 + 1; pl.comet.position.set(Math.cos(ca) * pl.r, Math.sin(ca) * pl.r, 0);
         });
         const dim = focusedSys && focusedSys !== sid ? 0.25 : 1;

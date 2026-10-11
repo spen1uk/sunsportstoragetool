@@ -1,4 +1,4 @@
-:root { --bg:#02040a; --panel:rgba(10,24,44,.72); --line:rgba(90,190,255,.28); --text:#d9ecff; --muted:#8aa6c4; --cyan:#4db8ff; --amber:#ffb347; --red:#ff6b7a; --green:#5cf0b0; --violet:#b7a6ff; }
+:root { --bg:#03020c; --panel:rgba(20,16,52,.72); --line:rgba(150,140,255,.30); --text:#e4e9ff; --muted:#9aa3d0; --cyan:#59c2ff; --amber:#ffb347; --red:#ff6b86; --green:#5cf0b0; --violet:#b99cff; --magenta:#ff58b8; }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--text); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -102,3 +102,44 @@ button.primary { box-shadow: 0 0 16px rgba(40,140,255,.35); }
 .crumbs { box-shadow: var(--glow); }
 @media (prefers-reduced-motion: reduce) { .stage::after, .node .hit::before { animation: none !important; } }
 @media (max-width: 900px) { .readout { display: none; } }
+
+/* ---------- nebula palette: indigo / violet / magenta with electric-blue light (from the reference art) ---------- */
+:root { --glow: 0 0 26px rgba(120,90,255,.20); }
+body { background: radial-gradient(1200px 700px at 50% 35%, #0d0a2e 0%, #04030f 70%); }
+.glass { background: linear-gradient(145deg, rgba(34,24,86,.58), rgba(7,6,24,.86)); border-color: rgba(150,140,255,.34);
+  box-shadow: var(--glow), inset 0 0 30px rgba(130,90,255,.08), inset 0 1px 0 rgba(210,200,255,.16); }
+.glass::before { background: linear-gradient(90deg, #ff58b8, #8e7bff 55%, transparent); }
+.topbar { background: linear-gradient(180deg, rgba(14,10,40,.97), rgba(5,4,18,.92)); box-shadow: 0 1px 0 rgba(150,140,255,.30), 0 6px 34px rgba(110,70,255,.14); }
+.sidenav { background: linear-gradient(180deg, rgba(10,8,32,.82), rgba(4,3,14,.82)); border-right-color: rgba(150,140,255,.22); }
+.brand { background: linear-gradient(90deg, #6fd6ff, #c38bff 60%, #ff7ac8); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 0 10px rgba(150,120,255,.7)); }
+.sidenav a:hover { background: rgba(130,100,255,.16); }
+.sidenav a[aria-current=page] { background: linear-gradient(90deg, rgba(150,90,255,.38), rgba(90,120,255,.05)); box-shadow: inset 2px 0 #b58cff, 0 0 20px rgba(140,90,255,.16); }
+button, input, select, textarea { background: rgba(30,24,78,.6); border-color: rgba(150,140,255,.34); }
+button:hover:not(:disabled) { border-color: #b99cff; box-shadow: 0 0 16px rgba(160,110,255,.4); }
+button.primary { background: linear-gradient(180deg, #5b5cf0, #3a2bb8); border-color: #9a8cff; box-shadow: 0 0 18px rgba(120,90,255,.45); }
+button.danger { border-color: rgba(255,88,140,.6); color: #ffc3d6; }
+h1, h2 { text-shadow: 0 0 14px rgba(150,110,255,.45); }
+h3 { color: #9aa3d0; }
+.pill { border-color: rgba(150,140,255,.32); }
+.readout { border-color: rgba(150,140,255,.36); background: rgba(8,6,28,.66); color: #aab3e8; box-shadow: var(--glow); }
+.readout b { text-shadow: 0 0 8px rgba(190,160,255,.9); } .readout .state { color: #c9a8ff; }
+.frame i { border-color: rgba(190,160,255,.75); filter: drop-shadow(0 0 5px rgba(150,110,255,.9)); }
+.stage::before { background-image: linear-gradient(rgba(150,130,255,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(150,130,255,.055) 1px, transparent 1px); }
+.stage::after { background: linear-gradient(180deg, transparent, rgba(180,140,255,.07), transparent); }
+.node .hit::before { border-color: rgba(190,170,255,.5); }
+.node:hover .hit, .node:focus-visible .hit { background: rgba(160,110,255,.14); box-shadow: 0 0 0 1px #b99cff; }
+.node .lbl { background: rgba(8,6,26,.62); border-color: rgba(150,140,255,.26); }
+.note { border-left-color: var(--magenta); background: rgba(255,88,184,.08); color: #ffd3ec; }
+.badge.live, .badge.connected { box-shadow: 0 0 10px rgba(92,240,176,.25); }
+.meter div { background: linear-gradient(90deg, #59c2ff, #b58cff); }
+a { color: #8fb9ff; }
+.tray { background: rgba(10,8,34,.97); }
+table th { color: #9aa3d0; } th, td { border-bottom-color: rgba(150,140,255,.16); }
+.doc { background: rgba(6,4,22,.55); }
+/* soft static nebula wash behind every non-universe page */
+.main { background:
+  radial-gradient(900px 520px at 88% 6%, rgba(255,110,60,.13), transparent 62%),
+  radial-gradient(800px 560px at 6% 92%, rgba(60,120,255,.17), transparent 60%),
+  radial-gradient(760px 500px at 62% 78%, rgba(190,70,255,.13), transparent 62%),
+  radial-gradient(520px 360px at 30% 10%, rgba(60,255,190,.06), transparent 60%); }
+.stage { background: transparent; }
