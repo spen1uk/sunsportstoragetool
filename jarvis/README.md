@@ -25,7 +25,7 @@ Optional: `npm run seed:demo` adds clearly-flagged DEMO records (`-- --remove` d
 ## Verify
 
 ```bash
-npm test               # 70 tests: milestones, pulses, model layer, persona, notifications/briefings, contact rules, escalation, DST scheduling, planner, HTTP auth/CSRF/Host, approvals, policy/SSRF, queue recovery, budget, memory, private mode, e2e research workflow, backup restore
+npm test               # 77 tests: launcher, chat context, milestones, pulses, model layer, persona, notifications/briefings, contact rules, escalation, DST scheduling, planner, HTTP auth/CSRF/Host, approvals, policy/SSRF, queue recovery, budget, memory, private mode, e2e research workflow, backup restore
 npm run typecheck
 npm run backup:verify -- data/backups/<snapshot>.db   # restore test: integrity + audit-chain check
 ```

@@ -37,3 +37,5 @@ Expected steady state: **≈ $10–35/mo**, with the $100 cap as the backstop ra
 - **Guards:** every call reserves its worst-case cost first; a **$1.00/day** ceiling (editable; raising it needs your approval); 90% of the monthly cap blocks optional "analysis" calls; the $100 cap blocks everything billable.
 - **Not counted:** thinking tokens are billed as output and can exceed these figures; effort `low` keeps them small. Re-check after a week of real use in Settings → AI models.
 - **Setup cost today: $0.** No key is configured, so nothing can be billed.
+
+- **Chat context snapshot (added 2026-10-11):** every non-private chat message now carries a read-only summary of your tasks, approvals, projects and briefing items (capped at ~4,500 characters ≈ 1,300 tokens). On Haiku 5.5 that is ≈ **$0.00013 extra per message**: 100 messages a day ≈ +$0.40/month. The $1/day ceiling still applies.

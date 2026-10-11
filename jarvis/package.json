@@ -14,6 +14,7 @@
     "web": "vite --config web/vite.config.ts",
     "build": "vite build --config web/vite.config.ts",
     "start": "node server/index.ts",
+    "launch": "bash scripts/launch.sh",
     "secret:set": "node server/secret-set.ts",
     "backup:verify": "node server/backup-verify.ts",
     "test": "node --test server/test/*.test.ts",

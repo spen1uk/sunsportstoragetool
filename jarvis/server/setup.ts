@@ -6,6 +6,7 @@ import { seedStructure } from './seed.ts';
 
 const db = openDb(dbPath());
 seedStructure(db);
+if (process.argv.includes('--check')) process.exit(isConfigured(db) ? 0 : 1);   // used by the launcher: is a passphrase already set?
 if (isConfigured(db) && !process.argv.includes('--reset-passphrase')) {
   console.log('Already set up. Use --reset-passphrase to issue a new one (existing sessions are invalidated).');
 } else {

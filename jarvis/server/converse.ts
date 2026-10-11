@@ -3,6 +3,7 @@ import { now } from './db.ts';
 import { handleChat, type ChatReply } from './chat.ts';
 import { complete, ready, getConfig } from './llm/gateway.ts';
 import { buildSystemPrompt } from './persona.ts';
+import { buildContext } from './context.ts';
 import { keywords } from './extract.ts';
 import { publish } from './events.ts';
 import type { ChatMessage } from './llm/types.ts';
@@ -37,7 +38,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean } 
   const messages: ChatMessage[] = [...(priv ? [] : history(db)), { role: 'user', content: prompt }];
   publish({ type: 'thinking', on: true });
   try {
-    const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt) }), messages, strong });
+    const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt), context: priv ? undefined : buildContext(db) }), messages, strong });
     const reply = r.ok ? r.text.trim() || '…' : `I couldn't reach a language model just now, sir (${r.error}). Command mode is still available: type "help".`;
     if (!priv) {
       db.prepare('INSERT INTO messages(role,content,at) VALUES(?,?,?)').run('luke', text, now());

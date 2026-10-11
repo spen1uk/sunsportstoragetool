@@ -2,7 +2,7 @@ import path from 'node:path';
 
 export const config = {
   host: process.env.JARVIS_HOST ?? '127.0.0.1',
-  port: Number(process.env.JARVIS_PORT ?? 8787),
+  port: Number(process.env.JARVIS_PORT ?? 8788),
   dataDir: path.resolve(process.env.JARVIS_DATA_DIR ?? './data'),
   capMicroUsd: Math.round(Number(process.env.JARVIS_MONTHLY_CAP_USD ?? 100) * 1_000_000),
   timezone: 'America/Chicago',
