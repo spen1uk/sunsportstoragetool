@@ -126,6 +126,14 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               {crumbs.length === 1 && <button onClick={() => { api('/api/layout', 'DELETE').then(() => setLayoutVersion((v) => v + 1)); }}>Reset layout</button>}
             </div>
             {hash !== '#/universe-full' && <Detail st={st} route={route} navigate={navigate} />}
+            <div className="frame" aria-hidden="true"><i /><i /><i /><i /></div>
+            <div className="readout" aria-label="System readout">
+              <span><b>{st.agents.filter((x) => x.status_kind === 'live').length}</b> LIVE</span>
+              <span><b>{st.agents.filter((x) => x.status_kind === 'planned').length}</b> PLANNED</span>
+              <span>TASKS <b>{st.counts.tasksActive}</b></span><span>APPROVALS <b>{st.counts.approvals}</b></span>
+              <span className={connection.up ? 'up' : 'down'}>● {connection.up ? 'LINK NOMINAL' : 'LINK LOST'}</span>
+              <span className="state">CORE · {coreState.toUpperCase()}</span>
+            </div>
             <div className="hint">Drag a system to rearrange · click to zoom in · Esc to zoom out</div>
           </section>
         )}

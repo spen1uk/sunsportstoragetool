@@ -24,6 +24,7 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Private mode (no persistence, no record changes) | ✅ | Server + UI; external-provider retention N/A until a provider exists |
 | Backup snapshot + restore verification | ✅ | Unencrypted local file; encryption before off-box copy is a TODO |
 | Universe UI: hierarchy, zoom, breadcrumbs, drag + saved layout, reset, stable labels/hit targets, quality + reduced-motion | 🟢 | Verified in headless Chromium; no automated visual tests |
+| Visual upgrade: bloom, procedural nebula, twinkling star layers, black hole with lensed photon ring + Doppler-lit accretion disk, plasma suns, atmospheres, flowing data links, HUD frame/grid/readout | 🟢 | three.js post-processing (EffectComposer + UnrealBloom). "Low" quality skips bloom. Verified in headless Chromium with software GL; real-GPU frame rates unmeasured |
 | Planned/demo/live labelling | 🟢 | Everything except Jarvis + Research worker is PLANNED |
 | Chat: deterministic commands first, model for everything else | ✅ | Commands stay instant and free. Model replies are **text only** (no tools), so they cannot act |
 | LLM provider layer (Anthropic via official SDK; routing, fallback, usage + cost tracking, daily ceiling, budget reservation) | ✅ tested / 🟡 live | Tested with fixture servers and fakes (59 tests). **Not yet run against the real API: no key configured** |
