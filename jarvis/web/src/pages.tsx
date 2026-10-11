@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { api, ago, usd, useLive, type AppState } from './api.ts';
 import { PersonaCard, ModelsCard } from './ai.tsx';
+import { ProjectsPanel } from './projects.tsx';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function useAction() {
@@ -17,9 +18,10 @@ export function PlannedPage({ title, text }: { title: string; text: string }) {
 // ---------------- Tasks ----------------
 export function TasksPage() {
   const { data: tasks, reload } = useLive<any[]>(() => api('/api/tasks'), ['tasks']);
-  const { data: projects, reload: reloadP } = useLive<any[]>(() => api('/api/projects'), []);
-  const [title, setTitle] = useState(''), [mins, setMins] = useState('30'), [due, setDue] = useState(''), [q, setQ] = useState(''), [urls, setUrls] = useState(''), [open, setOpen] = useState<string | null>(null);
-  const [events, setEvents] = useState<any[]>([]), [pTitle, setPTitle] = useState('');
+  const { data: projects } = useLive<any[]>(() => api('/api/projects'), ['projects']);
+  const [taskProj, setTaskProj] = useState(''), [taskMs, setTaskMs] = useState(''), [title, setTitle] = useState(''), [mins, setMins] = useState('30'), [due, setDue] = useState(''), [q, setQ] = useState(''), [urls, setUrls] = useState(''), [open, setOpen] = useState<string | null>(null);
+  const { data: pdet } = useLive<any>(() => (taskProj ? api(`/api/projects/${taskProj}`) : Promise.resolve(null)), ['projects'], [taskProj]);
+  const [events, setEvents] = useState<any[]>([]);
   const a = useAction();
   const groups = useMemo(() => {
     const g: Record<string, any[]> = { 'Needs you': [], 'In progress': [], Done: [] };
@@ -35,11 +37,13 @@ export function TasksPage() {
       <h1>Tasks &amp; Projects</h1>
       <Err m={a.err} />
       <div className="grid2">
-        <form className="glass pad" onSubmit={(e) => { e.preventDefault(); void a.run(async () => { await api('/api/tasks', 'POST', { title, minutes: Number(mins) || 30, deadline: due ? new Date(due).getTime() : null }); setTitle(''); setDue(''); reload(); }); }}>
+        <form className="glass pad" onSubmit={(e) => { e.preventDefault(); void a.run(async () => { await api('/api/tasks', 'POST', { title, minutes: Number(mins) || 30, deadline: due ? new Date(due).getTime() : null, projectId: taskProj || null, milestoneId: taskMs || null }); setTitle(''); setDue(''); reload(); }); }}>
           <h2>New task</h2>
           <label>Title<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} /></label>
           <div className="row"><label className="grow">Minutes<input type="number" min={5} max={480} step={5} value={mins} onChange={(e) => setMins(e.target.value)} /></label>
             <label className="grow">Deadline (your local time, optional)<input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></label></div>
+          <div className="row"><label className="grow">Project (optional)<select value={taskProj} onChange={(e) => { setTaskProj(e.target.value); setTaskMs(''); }}><option value="">None</option>{(projects ?? []).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</select></label>
+            <label className="grow">Milestone<select value={taskMs} disabled={!taskProj} onChange={(e) => setTaskMs(e.target.value)}><option value="">None</option>{(pdet?.milestones ?? []).filter((m: any) => m.state === 'open').map((m: any) => <option key={m.id} value={m.id}>{m.title}</option>)}</select></label></div>
           <button className="primary" disabled={!title.trim()}>Add task</button>
         </form>
         <form className="glass pad" onSubmit={(e) => { e.preventDefault(); void a.run(async () => {
@@ -74,14 +78,7 @@ export function TasksPage() {
           </ul>
         </div>
       ))}
-      <div className="glass pad section">
-        <h2>Projects</h2>
-        <ul className="plain">{(projects ?? []).map((p) => <li key={p.id}>{p.title} <span className="muted small">{p.scope}</span> {p.is_demo ? <span className="badge demo sm">DEMO</span> : null}</li>)}{(projects ?? []).length === 0 && <li className="muted">No projects yet.</li>}</ul>
-        <form className="row" onSubmit={(e) => { e.preventDefault(); void a.run(async () => { await api('/api/projects', 'POST', { title: pTitle }); setPTitle(''); reloadP(); }); }}>
-          <input value={pTitle} onChange={(e) => setPTitle(e.target.value)} placeholder="New project" maxLength={200} /><button disabled={!pTitle.trim()}>Add</button>
-        </form>
-        <p className="muted small">Progress will be shown from milestones and evidence, never invented percentages. Milestones arrive with the project model in the next iteration.</p>
-      </div>
+      <ProjectsPanel />
     </section>
   );
 }

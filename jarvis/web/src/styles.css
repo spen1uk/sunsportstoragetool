@@ -153,3 +153,34 @@ table th { color: #9aa3d0; } th, td { border-bottom-color: rgba(150,140,255,.16)
 .tourbar { display: flex; gap: 6px; align-items: center; margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--line); }
 .tourbar button { padding: 4px 10px; }
 @media (prefers-reduced-motion: reduce) { .warp, .lb { display: none; } }
+
+/* ---------- living background ---------- */
+.meteors { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+.meteor { position: absolute; width: 150px; height: 2px; border-radius: 2px; transform-origin: 100% 50%; opacity: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(190,220,255,.9) 70%, #fff); box-shadow: 0 0 10px 1px rgba(160,200,255,.7); animation: shoot 1.15s cubic-bezier(.3,.1,.6,1) forwards; }
+@keyframes shoot { 0% { opacity: 0; transform: translate(0,0) rotate(var(--a)); } 12% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--a)); } }
+.main { background-size: 140% 140%, 140% 140%, 140% 140%, 140% 140%; animation: washdrift 70s ease-in-out infinite alternate; }
+@keyframes washdrift { 0% { background-position: 100% 0, 0 100%, 60% 80%, 30% 0; } 100% { background-position: 60% 40%, 40% 60%, 90% 30%, 0 40%; } }
+@media (prefers-reduced-motion: reduce) { .meteor { display: none; } .main { animation: none; } }
+
+/* ---------- projects & milestones ---------- */
+ul.projects { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 10px; }
+.proj { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: rgba(8,6,28,.4); } .proj.sel { border-color: #b99cff; box-shadow: 0 0 20px rgba(150,110,255,.18); }
+.projhead { display: flex; width: 100%; gap: 10px; align-items: center; background: none; border: 0; padding: 0; text-align: left; color: var(--text); } .projhead:hover:not(:disabled) { box-shadow: none; }
+.projbody { margin-top: 6px; display: grid; gap: 4px; }
+.segs { display: flex; gap: 4px; height: 12px; } .segs.empty { height: auto; color: var(--muted); font-size: 12px; font-style: italic; }
+.seg { flex: 1; border-radius: 4px; background: rgba(150,160,220,.22); border: 1px solid rgba(150,160,220,.3); }
+.seg.done { background: linear-gradient(90deg,#1dff94,#5cf0b0); border-color: transparent; box-shadow: 0 0 8px rgba(40,255,150,.45); }
+.seg.in_progress { background: linear-gradient(90deg, rgba(89,194,255,.8) 40%, rgba(150,160,220,.22) 40%); border-color: rgba(89,194,255,.6); }
+.seg.overdue { background: #ff4d6d; border-color: transparent; box-shadow: 0 0 8px rgba(255,60,100,.5); } .seg.at_risk { background: #ffb347; border-color: transparent; }
+.seg.ready_to_confirm { background: #b99cff; border-color: transparent; animation: breathe 2.2s ease-in-out infinite; } .seg.blocked { background: repeating-linear-gradient(45deg, rgba(150,160,220,.35) 0 4px, transparent 4px 8px); }
+@keyframes breathe { 50% { opacity: .55; } }
+.badge.health.complete, .badge.mstat.done { color: var(--green); border-color: rgba(92,240,176,.5); } .badge.health.on_track, .badge.mstat.in_progress { color: var(--cyan); border-color: rgba(89,194,255,.5); }
+.badge.health.at_risk, .badge.mstat.at_risk { color: var(--amber); border-color: rgba(255,179,71,.55); } .badge.health.overdue, .badge.mstat.overdue { color: var(--red); border-color: rgba(255,107,134,.55); }
+.badge.health.blocked, .badge.mstat.blocked, .badge.health.no_plan, .badge.mstat.not_started, .badge.mstat.canceled { color: var(--muted); } .badge.mstat.ready_to_confirm { color: var(--violet); border-color: rgba(185,156,255,.6); }
+.pdetail { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+ol.mslist { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 10px; counter-reset: ms; }
+.ms { border-left: 3px solid var(--line); padding: 4px 0 4px 12px; } .ms.done { border-left-color: #1dff94; } .ms.overdue { border-left-color: #ff4d6d; } .ms.at_risk { border-left-color: #ffb347; } .ms.ready_to_confirm { border-left-color: #b99cff; } .ms.in_progress { border-left-color: var(--cyan); }
+.mdot { width: 10px; height: 10px; border-radius: 50%; background: rgba(150,160,220,.4); } .mdot.done { background: #1dff94; box-shadow: 0 0 8px #1dff94; } .mdot.overdue { background: #ff4d6d; } .mdot.at_risk { background: #ffb347; } .mdot.ready_to_confirm { background: #b99cff; } .mdot.in_progress { background: var(--cyan); }
+pre.evidence { background: rgba(0,0,0,.3); border-radius: 8px; padding: 8px 10px; font-size: 12px; white-space: pre-wrap; margin: 6px 0; color: #cfe7d8; border: 1px solid rgba(92,240,176,.25); }
+.addms { margin-top: 6px; }

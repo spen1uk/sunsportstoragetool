@@ -5,6 +5,7 @@ import { decideContact } from './contact.ts';
 import { getMode } from './modes.ts';
 import { clients } from './events.ts';
 import { summary as budgetSummary } from './budget.ts';
+import { projectDetail } from './milestones.ts';
 
 const rows = (db: DB, sql: string, ...p: any[]) => db.prepare(sql).all(...p) as any[];
 const MAX_WORDS = 390; // ≈ 2.6 min at 150 wpm: inside the 3-minute ceiling
@@ -33,6 +34,15 @@ export function buildBriefing(db: DB, now = Date.now()) {
   for (const t of rows(db, "SELECT * FROM tasks WHERE state IN ('failed','waiting_input','waiting_approval') AND is_demo=0")) {
     if (t.state === 'waiting_approval') continue; // already shown as an approval
     urgent.push({ text: `${t.state === 'failed' ? 'Failed' : 'Waiting on you'}: ${t.title}${t.waiting_reason ? ` — ${t.waiting_reason}` : t.last_error ? ` — ${t.last_error}` : ''}`, link: '#/tasks', level: t.state === 'failed' ? 'urgent' : 'info' });
+  }
+  // Milestones: facts only (dates, linked tasks, dependencies), grouped under their project.
+  for (const pr of rows(db, "SELECT id,title FROM projects WHERE is_demo=0 AND status='active'")) {
+    const d = projectDetail(db, pr.id, now); if (!d) continue;
+    for (const m of d.milestones) {
+      if (m.status === 'overdue') urgent.push({ text: `Overdue milestone in ${pr.title}: "${m.title}" was due ${fmtDay(m.due)}.`, link: '#/tasks', level: 'urgent' });
+      else if (m.status === 'ready_to_confirm') updates.push({ text: `Ready to confirm: "${m.title}" (${pr.title}) — all linked tasks are done.`, link: '#/tasks', level: 'info' });
+      else if (m.status === 'at_risk') recs.push({ text: `At risk: "${m.title}" (${pr.title}) is due ${fmtDay(m.due)}${m.tasks.total === 0 ? ' with no tasks linked to it' : ` with ${m.tasks.open} task(s) still open`}.`, link: '#/tasks', level: 'urgent' });
+    }
   }
   const b = budgetSummary(db);
   if (b.level !== 'ok') urgent.push({ text: `Budget at ${Math.round(b.pctCommitted * 100)}% of the monthly cap (${b.level}).`, link: '#/settings', level: 'urgent' });

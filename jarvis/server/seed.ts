@@ -1,4 +1,5 @@
 import { type DB, now } from './db.ts';
+import { createMilestone, linkTask, completeMilestone } from './milestones.ts';
 
 /** Structural roster. Everything not actually connected is labelled `planned`; nothing here claims a live integration. */
 export function seedStructure(db: DB) {
@@ -34,10 +35,16 @@ export function seedDemo(db: DB) {
   const t = db.prepare("INSERT INTO tasks(id,project_id,title,kind,state,priority,owner,is_demo,created_at,updated_at) VALUES(?,?,?,'manual','ready',?,'luke',1,?,?)");
   t.run('demo-t1', 'demo-proj', 'Sample task: review the quarterly layout', 2, now(), now());
   t.run('demo-t2', 'demo-proj', 'Sample task: tidy shared notes', 4, now(), now());
+  const DAY = 86400_000, m1 = createMilestone(db, { projectId: 'demo-proj', title: 'Draft layout (demo)', due: Date.now() - 2 * DAY, isDemo: true });
+  const m2 = createMilestone(db, { projectId: 'demo-proj', title: 'Review with team (demo)', due: Date.now() + 2 * DAY, dependsOn: m1, isDemo: true });
+  createMilestone(db, { projectId: 'demo-proj', title: 'Publish (demo)', due: Date.now() + 20 * DAY, dependsOn: m2, isDemo: true });
+  linkTask(db, 'demo-t1', m1); linkTask(db, 'demo-t2', m2);
+  void completeMilestone;
   return true;
 }
 export function removeDemo(db: DB) {
-  db.exec(`DELETE FROM task_events WHERE task_id IN (SELECT id FROM tasks WHERE is_demo=1);
+  db.exec(`UPDATE tasks SET milestone_id=NULL WHERE is_demo=1; UPDATE milestones SET depends_on=NULL WHERE is_demo=1; DELETE FROM milestones WHERE is_demo=1;
+           DELETE FROM task_events WHERE task_id IN (SELECT id FROM tasks WHERE is_demo=1);
            DELETE FROM review_requests WHERE artifact_id IN (SELECT id FROM artifacts WHERE is_demo=1);
            DELETE FROM artifact_versions WHERE artifact_id IN (SELECT id FROM artifacts WHERE is_demo=1);
            DELETE FROM artifacts WHERE is_demo=1; DELETE FROM tasks WHERE is_demo=1; DELETE FROM projects WHERE is_demo=1;`);

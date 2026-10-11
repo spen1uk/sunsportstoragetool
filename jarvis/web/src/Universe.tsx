@@ -43,29 +43,43 @@ float n3(vec3 x){ vec3 i=floor(x), f=fract(x); f=f*f*(3.-2.*f);
 float fbm(vec3 p){ float a=.5, s=0.; for(int i=0;i<5;i++){ s+=a*n3(p); p*=2.02; a*=.5; } return s; }
 `;
 
-/** Deep-space nebula on a huge inverted sphere that follows the camera (reads as infinitely far away). */
-function nebulaMaterial() {
+/**
+ * The nebula is LIVE: a generator shader renders it (flowing domain-warped noise) into a small equirectangular texture every frame,
+ * and the sky sphere just samples that texture. ~10x fewer pixels than evaluating the noise per screen pixel, so it can animate on modest GPUs.
+ */
+function nebulaGenMaterial() {
   return new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } }, side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    vertexShader: 'varying vec3 vD; void main(){ vD=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-    fragmentShader: `varying vec3 vD; uniform float uTime; ${NOISE}
+    uniforms: { uTime: { value: 0 } }, depthTest: false, depthWrite: false,
+    vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.,1.); }',
+    fragmentShader: `varying vec2 vUv; uniform float uTime; ${NOISE}
       void main(){
-        vec3 d=normalize(vD); float t=uTime*0.003;
-        vec3 w=vec3(fbm(d*2.0+t), fbm(d*2.0+vec3(5.2,1.3,8.1)-t), fbm(d*2.0+vec3(2.7,9.2,3.4)+t));   // domain warp = swirling, painterly shapes
-        vec3 q=d*2.3+w*1.9;
-        float body=fbm(q), fil=fbm(q*3.4+w*2.0), ridge=1.-abs(2.*fil-1.);
-        float dens=smoothstep(.47,.86,body)*(.35+1.1*ridge*ridge);
-        float zoneW=smoothstep(.38,.62,fbm(d*1.15+vec3(3.1,.4,2.2)));   // warm side
-        float zoneG=smoothstep(.62,.80,fbm(d*1.7+vec3(20.,4.,9.)));     // green-teal wisps
-        float zoneM=smoothstep(.45,.70,fbm(d*1.4+vec3(7.,11.,1.)));     // magenta bands
+        float lon=(vUv.x-.5)*6.2831853, lat=(vUv.y-.5)*3.1415927; vec3 d=vec3(cos(lat)*cos(lon), sin(lat), cos(lat)*sin(lon));
+        float t=uTime;
+        vec3 flow=vec3(t*.035, -t*.022, t*.015);                                      // the whole medium drifts…
+        vec3 w=vec3(fbm(d*2.0+flow), fbm(d*2.0+vec3(5.2,1.3,8.1)-flow*1.3), fbm(d*2.0+vec3(2.7,9.2,3.4)+flow*.8));   // …while the warp field churns at different rates
+        vec3 q=d*2.3+w*1.9+flow*.6;
+        float body=fbm(q), fil=fbm(q*3.4+w*2.0+flow*.5), ridge=1.-abs(2.*fil-1.);
+        ridge*=.88+.12*sin(t*.7+fil*9.);                                                // filaments shimmer
+        float dens=smoothstep(.47,.86,body)*(.35+1.1*ridge*ridge)*(.93+.07*sin(t*.35+body*6.));   // slow breathing
+        float zoneW=smoothstep(.38,.62,fbm(d*1.15+vec3(3.1,.4,2.2)+flow*.18));         // warm side migrates slowly
+        float zoneG=smoothstep(.62,.80,fbm(d*1.7+vec3(20.,4.,9.)-flow*.22));
+        float zoneM=smoothstep(.45,.70,fbm(d*1.4+vec3(7.,11.,1.)+flow*.15));
         vec3 blue=vec3(.05,.22,.85), cyan=vec3(.08,.65,1.), violet=vec3(.48,.14,.95), magenta=vec3(.95,.18,.58), ember=vec3(1.,.42,.10), gold=vec3(1.,.72,.32), teal=vec3(.10,.95,.62);
         vec3 c=mix(blue, violet, smoothstep(.30,.75,fbm(q*.8+3.)));
         c=mix(c, cyan, smoothstep(.55,.9,ridge)*.55);
         c=mix(c, magenta, zoneM*.75);
         c=mix(c, mix(ember,gold,smoothstep(.7,1.,ridge)*.5), zoneW*.9);
         c=mix(c, teal, zoneG*.7);
-        float stars=pow(max(0.,fbm(d*14.)-.62),2.)*14.;                  // faint dust-lit pinpoints inside the clouds
+        float stars=pow(max(0.,fbm(d*14.+flow*.4)-.62),2.)*14.;
         gl_FragColor=vec4(c*c*dens*.55 + c*stars*dens*.3, 1.); }`,
+  });
+}
+function nebulaSkyMaterial(tex: THREE.Texture) {
+  tex.wrapS = THREE.RepeatWrapping; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+  return new THREE.ShaderMaterial({
+    uniforms: { uTex: { value: tex } }, side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: 'varying vec3 vD; void main(){ vD=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+    fragmentShader: 'varying vec3 vD; uniform sampler2D uTex; void main(){ vec3 d=normalize(vD); vec2 uv=vec2(atan(d.z,d.x)/6.2831853+.5, asin(clamp(d.y,-1.,1.))/3.1415927+.5); gl_FragColor=vec4(texture2D(uTex,uv).rgb,1.); }',
   });
 }
 
@@ -134,6 +148,7 @@ function flareTexture() {
 
 export function Universe(props: Props) {
   const mount = useRef<HTMLDivElement>(null);
+  const meteors = useRef<HTMLDivElement>(null);
   const warpEl = useRef<HTMLDivElement>(null), lbTop = useRef<HTMLDivElement>(null), lbBot = useRef<HTMLDivElement>(null);
   const labels = useRef<HTMLDivElement>(null);
   const P = useRef(props); P.current = props;
@@ -172,7 +187,16 @@ export function Universe(props: Props) {
     };
 
     // --- deep space: nebula + three layers of twinkling stars (both follow the camera, with a little parallax) ---
-    const nebula = new THREE.Mesh(new THREE.SphereGeometry(900, 48, 32), nebulaMaterial()); nebula.renderOrder = -10; nebula.frustumCulled = false; scene.add(nebula);
+    const nebGen = nebulaGenMaterial(), nebScene = new THREE.Scene(), nebCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    nebScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), nebGen));
+    let nebRT: THREE.WebGLRenderTarget | null = null, nebQ = '';
+    const nebula = new THREE.Mesh<THREE.SphereGeometry, THREE.Material>(new THREE.SphereGeometry(900, 48, 32), new THREE.MeshBasicMaterial()); nebula.renderOrder = -10; nebula.frustumCulled = false; scene.add(nebula);
+    const buildNebulaRT = (q: string) => {
+      nebRT?.dispose(); const w = q === 'low' ? 512 : q === 'medium' ? 1024 : 1536;
+      nebRT = new THREE.WebGLRenderTarget(w, w / 2, { depthBuffer: false });
+      (nebula.material as THREE.Material).dispose(); nebula.material = nebulaSkyMaterial(nebRT.texture);
+    };
+    let nebT = 0, nebSpin = 0, starSpin = 0, nebFrame = 0, lastWall = performance.now();
     const N = 5600, sp = new Float32Array(N * 3), sS = new Float32Array(N), sPh = new Float32Array(N), sC = new Float32Array(N * 3);
     const tints = [[0.8, 0.9, 1], [1, 0.93, 0.82], [0.62, 0.78, 1], [1, 0.72, 0.68], [0.82, 0.68, 1], [0.7, 1, 0.9]];
     for (let k = 0; k < N; k++) {
@@ -321,7 +345,7 @@ export function Universe(props: Props) {
       const key = p.agents.map((a) => a.id + a.status_kind).join('|');
       if (key !== builtKey && p.agents.length) { builtKey = key; buildSystems(p.agents); }
       const qn = p.quality === 'low' ? 1200 : p.quality === 'medium' ? 3500 : 8000;
-      if (particleQ !== p.quality) { particleQ = p.quality; buildParticles(qn); renderer.setPixelRatio(Math.min(window.devicePixelRatio, p.quality === 'low' ? 1 : p.quality === 'medium' ? 1.5 : 2)); starU.uScale.value = renderer.getPixelRatio(); resize(); buildComposer(p.quality); }
+      if (particleQ !== p.quality) { particleQ = p.quality; buildParticles(qn); renderer.setPixelRatio(Math.min(window.devicePixelRatio, p.quality === 'low' ? 1 : p.quality === 'medium' ? 1.5 : 2)); starU.uScale.value = renderer.getPixelRatio(); resize(); buildComposer(p.quality); buildNebulaRT(p.quality); }
       pu.uScale.value = renderer.domElement.height / 2.2;
       const speed = reduced ? 0 : 1;
       tAcc += dt * speed * (p.coreState === 'working' ? 1.8 : p.coreState === 'urgent' ? 1.4 : p.coreState === 'thinking' ? 1.2 : p.coreState === 'paused' || p.coreState === 'disconnected' ? 0.25 : 1);
@@ -343,8 +367,15 @@ export function Universe(props: Props) {
       corona.scale.setScalar(21 * pulse * (st === 'disconnected' ? 0.7 : 1));
       // Background sits at infinity (follows camera) with a hint of parallax; everything shimmers slowly.
       nebula.position.copy(camera.position); stars.position.copy(camera.position);
-      nebula.rotation.y = camera.position.x * 0.0004; stars.rotation.y = camera.position.x * 0.0009; stars.rotation.x = camera.position.y * 0.0006;
-      (nebula.material as THREE.ShaderMaterial).uniforms.uTime.value = tAcc; starU.uTime.value = tAcc;
+      // Everything in the sky moves: the nebula flows (re-rendered each frame), the sky sphere and the stars turn at different slow rates (parallax depth), stars twinkle.
+      const wallNow = performance.now(), realDt = Math.min(1, (wallNow - lastWall) / 1000); lastWall = wallNow;   // sky speed uses real elapsed time, so it looks the same at 2 fps or 120 fps
+      nebT += realDt * speed; nebSpin += realDt * 0.0035 * speed; starSpin += realDt * -0.0055 * speed;
+      nebula.rotation.y = camera.position.x * 0.0004 + nebSpin; nebula.rotation.x = Math.sin(nebT * 0.02) * 0.04;
+      stars.rotation.y = camera.position.x * 0.0009 + starSpin; stars.rotation.x = camera.position.y * 0.0006; stars.rotation.z = starSpin * 0.6;
+      starU.uTime.value = tAcc;
+      if (nebRT && (p.quality !== 'low' || (nebFrame++ & 1) === 0) && !(reduced && nebFrame > 2)) {   // low quality: every other frame; reduced motion: render once, then hold still
+        nebGen.uniforms.uTime.value = reduced ? 0 : nebT; renderer.setRenderTarget(nebRT); renderer.render(nebScene, nebCam); renderer.setRenderTarget(null);
+      }
       halo.lookAt(camera.position);
 
       // route → camera goal
@@ -461,8 +492,23 @@ export function Universe(props: Props) {
       if (composer) composer.render(); else renderer.render(scene, camera);
     };
     raf = requestAnimationFrame(frame);
-    return () => { cancelAnimationFrame(raf); unsubPulse(); packets.forEach((pk) => pk.sprites.forEach(retire)); impacts.forEach((im) => retire(im.sprite)); ro.disconnect(); disposeSystems(); composer?.dispose(); renderer.dispose(); renderer.domElement.remove(); };
+    return () => { cancelAnimationFrame(raf); unsubPulse(); packets.forEach((pk) => pk.sprites.forEach(retire)); impacts.forEach((im) => retire(im.sprite)); ro.disconnect(); disposeSystems(); composer?.dispose(); nebRT?.dispose(); renderer.dispose(); renderer.domElement.remove(); };
   }, []);
+
+  // Occasional shooting stars: purely ambient scenery (never tied to operations).
+  useEffect(() => {
+    if (props.reducedMotion) return; let t: number;
+    const spawn = () => {
+      const host = meteors.current; if (host && !document.hidden && host.clientWidth) {
+        const m = document.createElement('i'), ang = 15 + Math.random() * 25, dist = 260 + Math.random() * 240, rad = (ang * Math.PI) / 180;
+        m.className = 'meteor'; m.style.left = `${Math.random() * 70 + 10}%`; m.style.top = `${Math.random() * 40 + 3}%`;
+        m.style.setProperty('--a', `${ang}deg`); m.style.setProperty('--dx', `${Math.cos(rad) * dist}px`); m.style.setProperty('--dy', `${Math.sin(rad) * dist}px`);
+        m.addEventListener('animationend', () => m.remove()); host.appendChild(m);
+      }
+      t = window.setTimeout(spawn, 4000 + Math.random() * 8000);
+    };
+    t = window.setTimeout(spawn, 2500); return () => clearTimeout(t);
+  }, [props.reducedMotion]);
 
   const mgrs = props.agents.filter((a) => a.role === 'manager');
   const emps = props.agents.filter((a) => a.role === 'employee');
@@ -491,7 +537,7 @@ export function Universe(props: Props) {
   return (
     <div className="universe">
       <div ref={mount} className="universe-canvas" />
-      <div ref={warpEl} className="warp" aria-hidden="true" /><div ref={lbTop} className="lb top" aria-hidden="true" /><div ref={lbBot} className="lb bot" aria-hidden="true" />
+      <div ref={meteors} className="meteors" aria-hidden="true" /><div ref={warpEl} className="warp" aria-hidden="true" /><div ref={lbTop} className="lb top" aria-hidden="true" /><div ref={lbBot} className="lb bot" aria-hidden="true" />
       <div ref={labels} className="universe-labels">
         <button className="node core" data-node="jarvis" onClick={() => props.navigate('#/universe')} aria-label="Jarvis core — return to universe">
           <span className="hit" /><span className={`lbl core-lbl state-${props.coreState}`}>JARVIS<small>{props.coreState}</small></span>

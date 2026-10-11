@@ -23,6 +23,7 @@ import { researchInput } from './research.ts';
 import { buildBriefing, buildRecap, overnightPlan, contactNow } from './today.ts';
 import { getMode, setMode, MODES } from './modes.ts';
 import * as notify from './notify.ts';
+import * as ms from './milestones.ts';
 
 type Ctx = { req: http.IncomingMessage; res: http.ServerResponse; db: DB; session: auth.Session | null; params: Record<string, string>; body: any; url: URL };
 type Handler = (c: Ctx) => unknown;
@@ -82,10 +83,10 @@ route('POST', '/api/tasks', ({ db, body }) => {
   const b = parse(z.object({
     title: z.string().min(1).max(200), description: z.string().max(4000).optional(), priority: z.number().int().min(1).max(5).optional(),
     projectId: z.string().nullish(), kind: z.enum(['manual', 'research']).default('manual'), research: researchInput.optional(), idempotencyKey: z.string().max(100).optional(),
-    minutes: z.number().int().min(5).max(480).optional(), deadline: z.number().int().nullish(),
+    minutes: z.number().int().min(5).max(480).optional(), deadline: z.number().int().nullish(), milestoneId: z.string().nullish(),
   }), body);
   if (b.kind === 'research' && !b.research) throw bad('research tasks need a question and at least one URL');
-  return { id: tasks.createTask(db, { title: b.title, description: b.description, priority: b.priority, projectId: b.projectId, kind: b.kind, input: b.research, idempotencyKey: b.idempotencyKey, minutes: b.minutes, deadline: b.deadline }) };
+  return { id: tasks.createTask(db, { title: b.title, description: b.description, priority: b.priority, projectId: b.projectId, kind: b.kind, input: b.research, idempotencyKey: b.idempotencyKey, minutes: b.minutes, deadline: b.deadline, milestoneId: b.milestoneId }) };
 });
 route('POST', '/api/tasks/:id/complete', ({ db, params }) => {
   const t = row(db, 'SELECT kind FROM tasks WHERE id=?', params.id) as any;
@@ -107,7 +108,21 @@ route('POST', '/api/tasks/:id/tonight', ({ db, params, body }) => {
   const r = db.prepare("UPDATE tasks SET tonight=?, priority=CASE WHEN ?=1 THEN 1 ELSE priority END, updated_at=? WHERE id=? AND kind IN ('research','revision')").run(on ? 1 : 0, on ? 1 : 0, now(), params.id);
   if (!r.changes) throw bad('Only Jarvis-owned work can be queued for tonight.'); audit(db, 'luke', 'task.tonight', params.id, { on }); return { ok: true };
 });
-route('GET', '/api/projects', ({ db }) => rows(db, 'SELECT * FROM projects ORDER BY is_demo, created_at DESC'));
+route('GET', '/api/projects', ({ db }) => ms.listProjects(db));
+route('GET', '/api/projects/:id', ({ db, params }) => { const d = ms.projectDetail(db, params.id); if (!d) throw new HttpError(404, 'not found'); return { ...d, tasks: rows(db, "SELECT id,title,state,kind,milestone_id FROM tasks WHERE project_id=? AND state!='canceled' ORDER BY created_at", params.id) }; });
+const guard = <T,>(f: () => T): T => { try { return f(); } catch (e) { throw bad((e as Error).message); } };
+route('POST', '/api/projects/:id/milestones', ({ db, params, body }) => {
+  const b = parse(z.object({ title: z.string().min(1).max(200), description: z.string().max(2000).optional(), due: z.number().int().nullish(), dependsOn: z.string().nullish() }), body);
+  return { id: guard(() => ms.createMilestone(db, { projectId: params.id, title: b.title, description: b.description, due: b.due, dependsOn: b.dependsOn })) };
+});
+route('PATCH', '/api/milestones/:id', ({ db, params, body }) => {
+  const b = parse(z.object({ title: z.string().min(1).max(200).optional(), due: z.number().int().nullable().optional(), dependsOn: z.string().nullable().optional() }), body);
+  guard(() => ms.updateMilestone(db, params.id, b)); return { ok: true };
+});
+route('POST', '/api/milestones/:id/complete', ({ db, params, body }) => { const b = parse(z.object({ evidence: z.string().max(2000).optional() }), body); guard(() => ms.completeMilestone(db, params.id, { evidence: b.evidence })); return { ok: true }; });
+route('POST', '/api/milestones/:id/reopen', ({ db, params }) => ({ ok: ms.reopenMilestone(db, params.id) }));
+route('POST', '/api/milestones/:id/cancel', ({ db, params }) => ({ ok: ms.cancelMilestone(db, params.id) }));
+route('POST', '/api/tasks/:id/milestone', ({ db, params, body }) => { const b = parse(z.object({ milestoneId: z.string().nullable() }), body); guard(() => ms.linkTask(db, params.id, b.milestoneId)); return { ok: true }; });
 route('POST', '/api/projects', ({ db, body }) => {
   const b = parse(z.object({ title: z.string().min(1).max(200), scope: z.enum(['personal', 'business']).default('personal') }), body);
   const pid = crypto.randomUUID();

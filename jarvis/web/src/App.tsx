@@ -74,6 +74,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const [reduced, setReduced] = useState(() => (localStorage.getItem('jv.reduced') ?? String(osReduced)) === 'true');
   const [layoutVersion, setLayoutVersion] = useState(0);
   const [chatOpen, setChatOpen] = useState(true);
+  const onUniverse = hash === '' || hash === '#/universe' || hash === '#/universe-full' || /^#\/(system|dept)\//.test(hash);
+  useEffect(() => { setChatOpen(onUniverse); }, [onUniverse]);   // on content pages the chat folds away so it never covers buttons; one click reopens it
   useEffect(() => { startEvents(); const f = () => { force((n) => n + 1); reload(); }; connection.subs.add(f); return () => { connection.subs.delete(f); }; }, [reload]);
   useEffect(() => localStorage.setItem('jv.quality', quality), [quality]);
   useEffect(() => localStorage.setItem('jv.reduced', String(reduced)), [reduced]);

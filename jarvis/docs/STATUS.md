@@ -28,6 +28,7 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Visual upgrade: bloom, procedural nebula, twinkling star layers, black hole with lensed photon ring + Doppler-lit accretion disk, plasma suns, atmospheres, flowing data links, HUD frame/grid/readout | 🟢 | three.js post-processing (EffectComposer + UnrealBloom). "Low" quality skips bloom. Verified in headless Chromium with software GL; real-GPU frame rates unmeasured |
 | Cinematic flythrough: curved swooping arcs with ease-in/out, widening FOV, banking, hyperspace streaks, bloom surge, letterbox bars, idle camera drift; ←/→ and ◀▶ hop between systems/departments; Guided tour (ends on Esc or any manual navigation); reduced motion = instant cut | 🟢 | Verified in headless Chromium (software GL; real-GPU smoothness unmeasured). Tour is the foundation for the guided briefing (narration deferred with voice) |
 | Energy pulses on links: comet packets fired by REAL events (dispatch out; done/needs-you/failed back to the core), energised link + packet stream while a task is running, arrival flashes and core surge. None when idle. Reduced motion: link lights only | ✅ events tested / 🟢 visuals | Server emits `pulse` only for agent-run work (never Luke's own to-dos); verified end-to-end in the live app. Visual frames verified by freezing packets (software GL ≈ 2 fps) |
+| Living background: nebula re-rendered every frame from flowing domain-warped noise (cheap: small texture), sky + stars turn at different rates, filaments shimmer, occasional shooting stars, content-page wash drifts. Reduced motion = still (measured 0.00 change); speed uses real time so it looks the same at any frame rate | 🟢 | Measured 21/255 mean pixel change in 12 s before easing flow by ~30% |
 | Planned/demo/live labelling | 🟢 | Everything except Jarvis + Research worker is PLANNED |
 | Chat: deterministic commands first, model for everything else | ✅ | Commands stay instant and free. Model replies are **text only** (no tools), so they cannot act |
 | LLM provider layer (Anthropic via official SDK; routing, fallback, usage + cost tracking, daily ceiling, budget reservation) | ✅ tested / 🟡 live | Tested with fixture servers and fakes (59 tests). **Not yet run against the real API: no key configured** |
@@ -55,7 +56,7 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Sandra integration | ⛔ | Needs access to inspect; read-only first |
 | Mac companion, screen observation, wake word | ⚪ | Phase 3 |
 | Investing/trading/health managers, financial feeds | ⚪ | Phase 4; no financial connection exists |
-| Projects with milestones/evidence-based progress | 🟡 | Projects exist; milestones not yet |
+| Projects with milestones and evidence-based progress | ✅ | Milestones with dates, dependencies (no loops/cross-project), linked tasks; status derived from facts; completion needs evidence (all linked tasks done, or written proof ≥ 10 chars); progress shown as "N of M milestones" + segmented bar, **never a percentage**; overdue / at-risk / ready-to-confirm feed the daily briefing; demo data isolated |
 | Ready-for-Review region highlight | 🟡 | Text-selection anchor; image/layout regions later |
 
 ## Acceptance checks (handoff §13)
