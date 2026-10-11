@@ -30,3 +30,10 @@ Scenarios D and E are **shelved**. The plan is:
 5. **Voice, calls, continuous vision, heavy 24/7 research, image generation:** off, and marked gated in the UI.
 
 Expected steady state: **≈ $10–35/mo**, with the $100 cap as the backstop rather than the target. Nothing is purchased or deployed.
+
+## Model layer: what Jarvis will actually spend (estimates, prices unverified)
+- **Chat reply, Haiku 5.5, effort low:** ≈ 1,500 input + ≈ 200 output tokens ≈ **$0.0003**. 100 messages a day ≈ $0.03/day ≈ **$1/month**.
+- **"deep:" reply, Sonnet 5.5:** ≈ 3,000 in + 800 out ≈ **$0.014** each.
+- **Guards:** every call reserves its worst-case cost first; a **$1.00/day** ceiling (editable; raising it needs your approval); 90% of the monthly cap blocks optional "analysis" calls; the $100 cap blocks everything billable.
+- **Not counted:** thinking tokens are billed as output and can exceed these figures; effort `low` keeps them small. Re-check after a week of real use in Settings → AI models.
+- **Setup cost today: $0.** No key is configured, so nothing can be billed.

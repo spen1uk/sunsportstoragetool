@@ -6,7 +6,7 @@ import { researchInput } from './research.ts';
 import { setPaused, pauseStatus } from './pause.ts';
 import { publish } from './events.ts';
 
-export type ChatReply = { text: string; action?: { navigate?: string }; persisted: boolean };
+export type ChatReply = { text: string; action?: { navigate?: string }; persisted: boolean; fallback?: boolean; source?: 'command' | 'model'; model?: string; costMicroUsd?: number };
 
 const NAV: [RegExp, string][] = [
   [/(go back to|back to|return to) the universe|^universe$/i, '#/universe'],
@@ -21,7 +21,7 @@ const NAV: [RegExp, string][] = [
  * Command mode: deterministic intent handling. NO language model is connected yet, and Jarvis says so rather than improvising.
  * Voice navigation is navigation only — nothing here approves a protected action.
  */
-export function handleChat(db: DB, textIn: string, o: { private?: boolean } = {}): ChatReply {
+export function handleChat(db: DB, textIn: string, o: { private?: boolean; deferFallback?: boolean } = {}): ChatReply {
   const text = textIn.trim().slice(0, 2000);
   const priv = !!o.private;
   const persistTurn = (reply: string) => {
@@ -77,6 +77,7 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean } = {}
     const ap = (db.prepare("SELECT COUNT(*) c FROM approvals WHERE status='pending'").get() as { c: number }).c;
     return reply(`${c("state='ready' OR state='running'")} task(s) active, ${c("state='waiting_input'")} awaiting you, ${ap} approval(s) pending.`);
   }
+  if (o.deferFallback) return { text: '', persisted: false, fallback: true }; // not a command: caller may hand it to the model
   return reply(
     "I'm in command mode, sir — no language model is connected yet, so I won't pretend to reason. I can: \"research <question> from <https url>\", \"add task …\", \"complete …\", \"remember …\", \"forget …\", \"status\", \"pause\"/\"resume\", and navigate (\"open Sun Sport Marine\", \"show me Sales\", \"bring up my projects\").");
 }

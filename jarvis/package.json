@@ -14,11 +14,13 @@
     "web": "vite --config web/vite.config.ts",
     "build": "vite build --config web/vite.config.ts",
     "start": "node server/index.ts",
+    "secret:set": "node server/secret-set.ts",
     "backup:verify": "node server/backup-verify.ts",
     "test": "node --test server/test/*.test.ts",
     "typecheck": "tsc -p server/tsconfig.json && tsc -p web/tsconfig.json"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.133.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "three": "0.186.1",

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { api, ago, usd, useLive, type AppState } from './api.ts';
+import { PersonaCard, ModelsCard } from './ai.tsx';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function useAction() {
@@ -271,6 +272,8 @@ export function SettingsPage(p: { st: AppState; reload: () => void; quality: str
           <button onClick={p.resetLayout}>Reset universe layout</button>
         </div>
       </div>
+      <PersonaCard />
+      <ModelsCard />
       <div className="glass pad section"><h2>Budget — {b.period}</h2>
         <div className="meter" role="img" aria-label={`${Math.round(b.pctCommitted * 100)} percent committed`}><div style={{ width: `${Math.min(100, b.pctCommitted * 100)}%` }} className={b.level} /></div>
         <p>{usd(b.committedMicroUsd)} committed of {usd(b.capMicroUsd)} cap ({Math.round(b.pctCommitted * 100)}%) — fixed {usd(b.fixedMicroUsd)}, used {usd(b.usageMicroUsd)}, reserved {usd(b.reservedMicroUsd)}. Level: <b>{b.level}</b>.</p>

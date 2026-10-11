@@ -8,7 +8,10 @@ import { config } from './config.ts';
 import * as auth from './auth.ts';
 import { audit, verifyAuditChain } from './audit.ts';
 import { bus, clients } from './events.ts';
-import { handleChat } from './chat.ts';
+import { converse } from './converse.ts';
+import * as gw from './llm/gateway.ts';
+import { hasSecret } from './llm/secrets.ts';
+import { getPersona, setPersona, personaSchema } from './persona.ts';
 import * as tasks from './tasks.ts';
 import * as arts from './artifacts.ts';
 import * as appr from './approvals.ts';
@@ -65,6 +68,7 @@ route('GET', '/api/state', ({ db }) => ({
     tasksActive: (row(db, "SELECT COUNT(*) c FROM tasks WHERE state IN ('ready','running','verifying')") as any).c,
     review: (row(db, "SELECT COUNT(*) c FROM artifacts WHERE status='in_review'") as any).c,
     approvals: (row(db, "SELECT COUNT(*) c FROM approvals WHERE status='pending'") as any).c,
+    urgent: (row(db, "SELECT COUNT(*) c FROM approvals WHERE status='pending' AND risk='high'") as any).c + (row(db, "SELECT COUNT(*) c FROM notifications WHERE state IN ('pending','delivered') AND urgency!='routine'") as any).c,
     blocked: (row(db, "SELECT COUNT(*) c FROM tasks WHERE state IN ('waiting_input','waiting_approval','failed')") as any).c,
   },
   running: rows(db, "SELECT id,title,kind FROM tasks WHERE state IN ('running','verifying')"),
@@ -194,7 +198,31 @@ route('PUT', '/api/layout', ({ db, body }) => {
 });
 route('DELETE', '/api/layout', ({ db }) => { db.prepare("DELETE FROM layouts WHERE key='universe'").run(); return { ok: true }; });
 route('GET', '/api/chat', ({ db }) => rows(db, 'SELECT * FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 100) ORDER BY id'));
-route('POST', '/api/chat', ({ db, body }) => { const b = parse(z.object({ text: z.string().min(1).max(2000), private: z.boolean().default(false) }), body); return handleChat(db, b.text, { private: b.private }); });
+route('POST', '/api/chat', async ({ db, body }) => { const b = parse(z.object({ text: z.string().min(1).max(2000), private: z.boolean().default(false) }), body); return await converse(db, b.text, { private: b.private }); });
+
+// ---- persona + model layer (keys are never returned; only "configured" flags) ----
+route('GET', '/api/persona', ({ db }) => getPersona(db));
+route('PUT', '/api/persona', ({ db, body }) => { const r = personaSchema.safeParse(body); if (!r.success) throw bad(r.error.issues[0]?.message ?? 'invalid persona'); return setPersona(db, r.data); });
+route('GET', '/api/llm', ({ db }) => ({
+  providers: Object.values(gw.registry.providers).map((p) => ({ id: p.id, configured: p.available() })),
+  anthropicKeyConfigured: hasSecret('anthropic'),
+  config: gw.getConfig(db), routes: gw.DEFAULT_ROUTES, usage: gw.usageSummary(db), spentTodayMicroUsd: gw.spentToday(db),
+  note: 'Keys live server-side only (env var or data/secrets.json, mode 0600). Set with: npm run secret:set -- anthropic',
+}));
+route('PUT', '/api/llm/config', ({ db, body }) => {
+  const b = parse(z.object({ dailyCeilingUsd: z.number().min(0).max(100).optional(), strongEnabled: z.boolean().optional(), allowInPrivate: z.boolean().optional() }), body);
+  const cur = gw.getConfig(db); let approvalId: string | undefined;
+  if (b.dailyCeilingUsd !== undefined) {
+    const next = Math.round(b.dailyCeilingUsd * 1e6);
+    if (next > cur.dailyCeilingMicroUsd) approvalId = appr.requestApproval(db, { actionType: 'raise_daily_ceiling', payload: { newCeilingMicroUsd: next }, requestedBy: 'luke' }); // raising spend needs approval
+    else gw.setConfig(db, { dailyCeilingMicroUsd: next });
+  }
+  // Sending private-session content to a provider is an access/privacy change: enabling needs a deliberate toggle, audited.
+  if (b.strongEnabled !== undefined) gw.setConfig(db, { strongEnabled: b.strongEnabled });
+  if (b.allowInPrivate !== undefined) { gw.setConfig(db, { allowInPrivate: b.allowInPrivate }); audit(db, 'luke', 'llm.allow_in_private', String(b.allowInPrivate)); }
+  return { config: gw.getConfig(db), approvalId };
+});
+route('POST', '/api/llm/test', async ({ db }) => { const r = await gw.complete(db, { task: 'ping', system: 'Reply with the single word: ready.', messages: [{ role: 'user', content: 'ping' }] }); return r.ok ? { ok: true, model: r.model, costMicroUsd: r.costMicroUsd } : { ok: false, error: r.error, kind: r.kind }; });
 route('POST', '/api/backup', ({ db }) => {
   const f = path.join(config.dataDir, 'backups', `jarvis-${new Date().toISOString().replace(/[:.]/g, '-')}.db`);
   backupTo(db, f); audit(db, 'luke', 'backup.created', path.basename(f)); return { file: path.basename(f), note: 'Unencrypted local snapshot. Encrypt before copying off this machine.' };
@@ -251,7 +279,7 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
       }
       const m = r.re.exec(url.pathname)!;
       const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
-      const out = r.h({ req, res, db, session, params, body, url });
+      const out = await r.h({ req, res, db, session, params, body, url });
       send(200, out ?? { ok: true });
     } catch (e) {
       if (e instanceof HttpError) return send(e.status, { error: e.message });

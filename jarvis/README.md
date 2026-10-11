@@ -25,10 +25,13 @@ Optional: `npm run seed:demo` adds clearly-flagged DEMO records (`-- --remove` d
 ## Verify
 
 ```bash
-npm test               # 46 tests: notifications/briefings, contact rules, escalation, DST scheduling, planner, HTTP auth/CSRF/Host, approvals, policy/SSRF, queue recovery, budget, memory, private mode, e2e research workflow, backup restore
+npm test               # 59 tests: model layer, persona, notifications/briefings, contact rules, escalation, DST scheduling, planner, HTTP auth/CSRF/Host, approvals, policy/SSRF, queue recovery, budget, memory, private mode, e2e research workflow, backup restore
 npm run typecheck
 npm run backup:verify -- data/backups/<snapshot>.db   # restore test: integrity + audit-chain check
 ```
+
+## Turning on a model (optional, costs money, only when you decide)
+Chat works without one (free command mode). To enable replies: create an Anthropic API key with a monthly spend limit, then `npm run secret:set -- anthropic` (hidden input). Settings → AI models shows status, usage and the daily ceiling. Default: Haiku 5.5 for chat, `deep:` prefix for Sonnet 5.5. Estimated ≈ $1/month for 100 messages/day (see docs/COST_MODEL.md).
 
 ## Try the first real workflow
 

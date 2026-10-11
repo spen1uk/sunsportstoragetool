@@ -20,7 +20,7 @@ export type Agent = { id: string; name: string; role: 'ceo' | 'manager' | 'emplo
 export type AppState = {
   agents: Agent[]; pause: { paused: boolean; since: string | null; inflight: number };
   budget: { capMicroUsd: number; committedMicroUsd: number; fixedMicroUsd: number; usageMicroUsd: number; reservedMicroUsd: number; pctCommitted: number; level: string; period: string; note: string };
-  counts: { tasksActive: number; review: number; approvals: number; blocked: number };
+  counts: { tasksActive: number; review: number; approvals: number; blocked: number; urgent: number };
   running: { id: string; title: string; kind: string }[];
 };
 
@@ -53,7 +53,7 @@ export function useLive<T>(fetcher: () => Promise<T>, types: string[], deps: unk
   return { data, error, reload: load };
 }
 
-export const usd = (micro: number) => `$${(micro / 1e6).toFixed(micro < 1e6 ? 3 : 2)}`;
+export const usd = (micro: number) => `$${(micro / 1e6).toFixed(micro < 1e4 ? 5 : micro < 1e6 ? 3 : 2)}`;
 export const ago = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 export function subscribe(fn: Listener) { listeners.add(fn); return () => { listeners.delete(fn); }; }

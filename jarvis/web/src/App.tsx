@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, ApiError, connection, setCsrf, startEvents, stopEvents, useLive, usd, type AppState } from './api.ts';
+import { api, ApiError, connection, setCsrf, startEvents, stopEvents, useLive, usd, subscribe, type AppState } from './api.ts';
+import { onSpeech, speechState } from './speech.ts';
 import { Universe, type CoreState, type Route } from './Universe.tsx';
 import { Chat } from './Chat.tsx';
 import { Detail } from './Detail.tsx';
@@ -64,6 +65,10 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const { data: st, reload } = useLive<AppState>(() => api('/api/state'), ['tasks', 'approvals', 'artifacts', 'system', 'budget']);
   const [, force] = useState(0);
   const [thinking, setThinking] = useState(false);
+  const [serverThinking, setServerThinking] = useState(false);
+  const [, setSpeakTick] = useState(0);
+  useEffect(() => subscribe((t, e) => { if (t === 'thinking') setServerThinking(!!e?.on); }), []);
+  useEffect(() => onSpeech(() => setSpeakTick((n) => n + 1)), []);
   const [quality, setQuality] = useState<'low' | 'medium' | 'high'>(() => (localStorage.getItem('jv.quality') as any) || 'medium');
   const osReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const [reduced, setReduced] = useState(() => (localStorage.getItem('jv.reduced') ?? String(osReduced)) === 'true');
@@ -82,7 +87,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   }, [hash, st]);
 
   const isUniverse = hash === '#/universe' || hash === '#/universe-full' || /^#\/(system|dept)\//.test(hash) || hash === '' ;
-  const coreState: CoreState = !connection.up ? 'disconnected' : st?.pause.paused ? 'paused' : thinking ? 'thinking' : (st?.running.length ?? 0) > 0 ? 'working' : (st && (st.counts.approvals > 0 || st.counts.blocked > 0)) ? 'blocked' : 'idle';
+  // Priority: no link > paused > speaking (real playback, momentary) > urgent alert > thinking (awaiting a reply) > executing tasks > waiting on you > idle
+  const coreState: CoreState = !connection.up ? 'disconnected' : st?.pause.paused ? 'paused' : speechState.speaking ? 'speaking' : (st?.counts.urgent ?? 0) > 0 ? 'urgent' : (thinking || serverThinking) ? 'thinking' : (st?.running.length ?? 0) > 0 ? 'working' : (st && (st.counts.approvals > 0 || st.counts.blocked > 0)) ? 'blocked' : 'idle';
   const active = useMemo(() => new Set((st?.running ?? []).length ? ['proj'] : []), [st]);
   const pageNav = NAV.find((n) => n.hash === hash);
   const crumbs: { label: string; hash: string }[] = [{ label: 'Universe', hash: '#/universe' }];

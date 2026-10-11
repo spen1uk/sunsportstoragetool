@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { api, type Agent } from './api.ts';
+import { speechState } from './speech.ts';
 
-export type CoreState = 'idle' | 'working' | 'thinking' | 'blocked' | 'disconnected' | 'paused';
+export type CoreState = 'idle' | 'working' | 'thinking' | 'speaking' | 'urgent' | 'blocked' | 'disconnected' | 'paused';
 export type Route = { level: 'universe' | 'system' | 'dept'; systemId?: string; deptId?: string };
 type Pos = Record<string, { x: number; y: number }>;
 type Props = {
@@ -12,7 +13,7 @@ type Props = {
 
 const DEFAULTS: Pos = { ssm: { x: -40, y: 8 }, proj: { x: 38, y: 10 }, investing: { x: -22, y: -26 }, trading: { x: 22, y: -26 }, health: { x: 2, y: 30 } };
 const SYS_COLORS = [0xffb86b, 0x6bd0ff, 0x9d8bff, 0x6bffb0, 0xff7aa8, 0xf0e26b];
-const STATE_COLORS: Record<CoreState, number> = { idle: 0x4db8ff, working: 0x66e0ff, thinking: 0xb7a6ff, blocked: 0xffb347, disconnected: 0x6a7684, paused: 0xc98a3a };
+const STATE_COLORS: Record<CoreState, number> = { idle: 0x4db8ff, working: 0x44f0d0, thinking: 0xb7a6ff, speaking: 0x9fe8ff, urgent: 0xff5a5f, blocked: 0xffb347, disconnected: 0x6a7684, paused: 0xc98a3a };
 const TILT = -0.95;
 
 function glowTexture(inner = 'rgba(255,255,255,1)', outer = 'rgba(80,160,255,0)') {
@@ -69,14 +70,14 @@ export function Universe(props: Props) {
     const corona = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: STATE_COLORS.idle, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 }));
     corona.scale.set(26, 26, 1); core.add(corona);
     const tilt = new THREE.Group(); tilt.rotation.x = TILT; core.add(tilt);
-    const ringU = { uTime: { value: 0 }, uColor: { value: new THREE.Color(STATE_COLORS.idle) } };
+    const ringU = { uTime: { value: 0 }, uColor: { value: new THREE.Color(STATE_COLORS.idle) }, uFine: { value: 0.15 }, uGain: { value: 1 } };
     const ring = new THREE.Mesh(new THREE.RingGeometry(3.9, 9.5, 160, 1), new THREE.ShaderMaterial({
       uniforms: ringU, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
       vertexShader: 'varying vec2 vP; void main(){ vP=position.xy; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-      fragmentShader: `varying vec2 vP; uniform float uTime; uniform vec3 uColor;
+      fragmentShader: `varying vec2 vP; uniform float uTime; uniform vec3 uColor; uniform float uFine; uniform float uGain;
         void main(){ float r=length(vP); float t=clamp((r-3.9)/5.6,0.,1.); float a=atan(vP.y,vP.x);
           float sw=0.5+0.5*sin(a*7.+uTime*1.6-r*1.7); float fine=0.5+0.5*sin(a*23.-uTime*2.3+r*5.);
-          float I=pow(1.-t,1.7)*(0.45+0.4*sw+0.15*fine)*smoothstep(0.,0.06,t);
+          float I=pow(1.-t,1.7)*(0.45+0.4*sw+uFine*fine)*smoothstep(0.,0.06,t)*uGain;
           vec3 c=mix(uColor*1.1,vec3(.85,.95,1.),pow(1.-t,6.)); gl_FragColor=vec4(c,I*0.9);} `,
     }));
     tilt.add(ring);
@@ -166,11 +167,21 @@ export function Universe(props: Props) {
       if (particleQ !== p.quality) { particleQ = p.quality; buildParticles(qn); renderer.setPixelRatio(Math.min(window.devicePixelRatio, p.quality === 'low' ? 1 : p.quality === 'medium' ? 1.5 : 2)); resize(); }
       pu.uScale.value = renderer.domElement.height / 2.2;
       const speed = reduced ? 0 : 1;
-      tAcc += dt * speed * (p.coreState === 'working' ? 1.6 : p.coreState === 'paused' || p.coreState === 'disconnected' ? 0.25 : 1);
+      tAcc += dt * speed * (p.coreState === 'working' ? 1.8 : p.coreState === 'urgent' ? 1.4 : p.coreState === 'thinking' ? 1.2 : p.coreState === 'paused' || p.coreState === 'disconnected' ? 0.25 : 1);
       ringU.uTime.value = tAcc; pu.uTime.value = tAcc;
       goalC.setHex(STATE_COLORS[p.coreState]); cur.lerp(goalC, 1 - Math.exp(-dt * 4)); ringU.uColor.value.copy(cur); pu.uColor.value.copy(cur); (corona.material as THREE.SpriteMaterial).color.copy(cur);
-      const pulse = p.coreState === 'thinking' || p.coreState === 'blocked' ? 1 + 0.06 * Math.sin(performance.now() / (p.coreState === 'thinking' ? 220 : 600)) : 1;
-      corona.scale.setScalar(26 * pulse * (p.coreState === 'disconnected' ? 0.7 : 1));
+      // Per-state motion. Speaking follows REAL speech-synthesis events (start / word boundaries / end), decaying between words.
+      const tNow = performance.now(), st = p.coreState; let pulse = 1, gain = 1, fine = 0.15;
+      speechState.level *= Math.exp(-dt * 5);
+      if (st === 'thinking') { pulse = 1 + 0.07 * Math.sin(tNow / 220); tilt.rotation.z += dt * 0.5 * speed; gain = 1.05; }
+      else if (st === 'working') { fine = 0.55; gain = 1.15; }                                  // executing: busier, finer energy pattern
+      else if (st === 'speaking') { pulse = 1 + 0.12 * speechState.level; gain = 1 + 0.5 * speechState.level; fine = 0.3; }
+      else if (st === 'urgent') { pulse = 1 + 0.1 * Math.abs(Math.sin(tNow / 170)); gain = 1.25; fine = 0.4; }
+      else if (st === 'blocked') pulse = 1 + 0.05 * Math.sin(tNow / 600);
+      else if (st === 'idle') pulse = 1 + 0.015 * Math.sin(tNow / 1800);                         // gentle, continuous
+      if (reduced) { pulse = 1; fine = 0.15; }
+      ringU.uFine.value = fine; ringU.uGain.value = gain;
+      corona.scale.setScalar(26 * pulse * (st === 'disconnected' ? 0.7 : 1));
       stars.rotation.z += dt * 0.004 * speed;
 
       // route → camera goal

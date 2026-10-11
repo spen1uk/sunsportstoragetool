@@ -25,8 +25,15 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Backup snapshot + restore verification | ✅ | Unencrypted local file; encryption before off-box copy is a TODO |
 | Universe UI: hierarchy, zoom, breadcrumbs, drag + saved layout, reset, stable labels/hit targets, quality + reduced-motion | 🟢 | Verified in headless Chromium; no automated visual tests |
 | Planned/demo/live labelling | 🟢 | Everything except Jarvis + Research worker is PLANNED |
-| Chat | 🟡 | Deterministic command mode, persistent; **no language model** |
-| Voice nav (typed commands only), "yes" never approves | ✅ | Real speech not built |
+| Chat: deterministic commands first, model for everything else | ✅ | Commands stay instant and free. Model replies are **text only** (no tools), so they cannot act |
+| LLM provider layer (Anthropic via official SDK; routing, fallback, usage + cost tracking, daily ceiling, budget reservation) | ✅ tested / 🟡 live | Tested with fixture servers and fakes (59 tests). **Not yet run against the real API: no key configured** |
+| Groq / other providers | ⚪ | Interface is ready; deliberately not added (second key + retention review) |
+| Secure key storage | ✅ | Env var or `data/secrets.json` (0600), set via hidden-input CLI; never returned by any API (tested with a canary key) |
+| Persona + voice config, continuity across sessions | ✅ | Fixed safety preamble first; persona is style-only; injected text can't break out (tested) |
+| British voice | 🟡 | Free on-device browser voices (e.g. Daniel). Premium/streaming voice deferred |
+| Core states: idle, thinking, executing, speaking, urgent, blocked, paused, disconnected | 🟢 | Driven by real events (speaking = real speech-synthesis start/word/end events) |
+| Core "listening" state, mic level visualization | ⏸ deferred | Needs microphone + speech recognition (privacy/cost decisions) |
+| Voice nav (typed commands only), "yes" never approves | ✅ | Spoken input not built; spoken output via browser voices |
 | Contact-hours rules (sleep, gym text-only, church silence, family/personal/meal, away, emergency exception) | ✅ | Pure logic in `contact.ts`; not yet wired to real notifications |
 | Escalation (desktop → text +5 min; urgent call → text → one retry; ack cancels; dedupe) | ✅ | Pure logic; nothing is sent |
 | Chicago DST-correct daily times (8:00 briefing, 12/16/20 reminders, 22:00 recap, 7:30/23:05 collection) | ✅ | `schedule.ts` |

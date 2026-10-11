@@ -1,0 +1,7 @@
+CREATE TABLE llm_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, task TEXT NOT NULL,
+  provider TEXT NOT NULL, model TEXT NOT NULL,
+  input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0, cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  cost_micro_usd INTEGER NOT NULL DEFAULT 0, ok INTEGER NOT NULL, error TEXT, ref TEXT
+);
+CREATE INDEX llm_usage_at ON llm_usage(at);

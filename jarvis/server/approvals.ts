@@ -4,6 +4,7 @@ import { publish } from './events.ts';
 import { hasStepUp, type Session } from './auth.ts';
 import { isPaused } from './pause.ts';
 import { setCap } from './budget.ts';
+import { setConfig } from './llm/gateway.ts';
 
 /** Protected action registry. `handler: null` means no adapter is connected — it can be requested but never executes. */
 export type ActionDef = {
@@ -38,6 +39,10 @@ export const ACTIONS: Record<string, ActionDef> = {
   budget_increase: {
     risk: 'high', describe: (p) => `Raise the monthly cap to $${(p.newCapMicroUsd / 1e6).toFixed(2)}`,
     handler: (db, p) => { setCap(db, p.newCapMicroUsd); return `cap now ${p.newCapMicroUsd}`; },
+  },
+  raise_daily_ceiling: {
+    risk: 'high', describe: (p) => `Raise the daily model-spend ceiling to $${(p.newCeilingMicroUsd / 1e6).toFixed(2)}`,
+    handler: (db, p) => { setConfig(db, { dailyCeilingMicroUsd: p.newCeilingMicroUsd }); return `daily ceiling now ${p.newCeilingMicroUsd}`; },
   },
   send_message: {
     risk: 'high', describe: (p) => `Send ${p.channel} to ${p.recipient}: "${String(p.text).slice(0, 80)}"`,

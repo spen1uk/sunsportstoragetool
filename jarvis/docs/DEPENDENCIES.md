@@ -7,6 +7,7 @@
 | react / react-dom | 19.2.8 | UI | Meta; MIT |
 | three | 0.186.1 | WebGL scene | MIT; large (≈ 650 kB min) — acceptable |
 | zod | 4.6.5 | API/tool argument validation | MIT |
+| @anthropic-ai/sdk | 0.133.0 | Official Anthropic client (model layer) | MIT; no install scripts; `npm audit` clean 2026-10-11; only contacts api.anthropic.com (or `ANTHROPIC_BASE_URL`) when a key is configured |
 | vite, @vitejs/plugin-react, typescript, @types/* | pinned in lockfile | build/typecheck (dev only) | no runtime exposure |
 
 No package uses install scripts that we rely on; nothing downloads binaries. Server has **no** runtime framework dependency. Before each release: `npm audit`, review lockfile diff, secret scan (`git secrets`/gitleaks — not yet wired into CI).
