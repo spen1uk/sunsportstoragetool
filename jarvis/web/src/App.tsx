@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, connection, setCsrf, startEvents, stopEvents, useLive, usd, subscribe, type AppState } from './api.ts';
 import { onSpeech, speechState } from './speech.ts';
 import { Universe, type CoreState, type Route } from './Universe.tsx';
@@ -96,6 +96,25 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   if (st && route.deptId) crumbs.push({ label: st.agents.find((a) => a.id === route.deptId)?.name ?? '', hash: `#/dept/${route.deptId}` });
   const back = () => navigate(crumbs.length > 1 ? crumbs[crumbs.length - 2].hash : '#/universe');
 
+  // ---- flythrough controls: hop to the next/previous system (or department), and a guided tour of every system ----
+  const mgrs = (st?.agents ?? []).filter((a) => a.role === 'manager');
+  const sibs = route.level === 'system' ? mgrs : route.level === 'dept' ? (st?.agents ?? []).filter((a) => a.parent_id === route.systemId) : [];
+  const curId = route.level === 'system' ? route.systemId : route.deptId;
+  const hop = (d: number) => { if (sibs.length < 2) return; const i = sibs.findIndex((a) => a.id === curId); const n = sibs[(i + d + sibs.length) % sibs.length]; navigate(route.level === 'system' ? `#/system/${n.id}` : `#/dept/${n.id}`); };
+  const [tour, setTour] = useState(false);
+  const tourExpected = useRef('');
+  useEffect(() => {
+    if (!tour) return;
+    const seq = ['#/universe', ...mgrs.map((m) => `#/system/${m.id}`), '#/universe']; let i = 0; let timer: number;
+    const step = () => { if (i >= seq.length) { setTour(false); return; } tourExpected.current = seq[i]; navigate(seq[i]); i++; timer = window.setTimeout(step, 7000); };   // ~3s flight + ~4s to read the panel
+    step(); return () => clearTimeout(timer);
+  }, [tour]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (tour && hash !== tourExpected.current && hash !== '#/universe-full') setTour(false); }, [hash]); // eslint-disable-line react-hooks/exhaustive-deps  (any manual navigation ends the tour)
+  useEffect(() => {
+    const f = (e: KeyboardEvent) => { if ((e.target as HTMLElement).matches('input,textarea,select')) return; if (e.key === 'ArrowRight') hop(1); else if (e.key === 'ArrowLeft') hop(-1); };
+    addEventListener('keydown', f); return () => removeEventListener('keydown', f);
+  });
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -123,7 +142,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             <div className="crumbs glass">
               {crumbs.map((c, i) => <span key={c.hash}>{i > 0 && ' → '}{i === crumbs.length - 1 ? <b>{c.label}</b> : <a href={c.hash}>{c.label}</a>}</span>)}
               {crumbs.length > 1 && <button onClick={back} aria-label="Zoom out one level">Zoom out</button>}
+              {sibs.length > 1 && <span className="tourbar"><button onClick={() => hop(-1)} aria-label={`Fly to previous ${route.level === 'system' ? 'system' : 'department'}`} title="Previous (←)">◀</button><button onClick={() => hop(1)} aria-label={`Fly to next ${route.level === 'system' ? 'system' : 'department'}`} title="Next (→)">▶</button></span>}
               {crumbs.length === 1 && <button onClick={() => { api('/api/layout', 'DELETE').then(() => setLayoutVersion((v) => v + 1)); }}>Reset layout</button>}
+              {(crumbs.length === 1 || tour) && mgrs.length > 0 && <span className="tourbar">{tour ? <button className="primary" onClick={() => setTour(false)}>■ Stop tour</button> : <button onClick={() => setTour(true)} title="Fly through every system in turn">▶ Guided tour</button>}</span>}
             </div>
             {hash !== '#/universe-full' && <Detail st={st} route={route} navigate={navigate} />}
             <div className="frame" aria-hidden="true"><i /><i /><i /><i /></div>
@@ -134,7 +155,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
               <span className={connection.up ? 'up' : 'down'}>● {connection.up ? 'LINK NOMINAL' : 'LINK LOST'}</span>
               <span className="state">CORE · {coreState.toUpperCase()}</span>
             </div>
-            <div className="hint">Drag a system to rearrange · click to zoom in · Esc to zoom out</div>
+            <div className="hint">Drag a system to rearrange · click to fly in · ← → hop between systems · Esc to zoom out</div>
           </section>
         )}
         {!isUniverse && pageNav?.planned && <PlannedPage title={pageNav.label} text={pageNav.planned} />}
@@ -149,7 +170,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         {hash === '#/settings' && st && <SettingsPage st={st} reload={reload} quality={quality} setQuality={setQuality} reduced={reduced} setReduced={setReduced} osReduced={osReduced} resetLayout={() => api('/api/layout', 'DELETE').then(() => setLayoutVersion((v) => v + 1))} />}
       </main>
       <Chat open={chatOpen} setOpen={setChatOpen} navigate={navigate} setThinking={setThinking} />
-      <Esc back={back} enabled={isUniverse && crumbs.length > 1} />
+      <Esc back={() => (tour ? setTour(false) : back())} enabled={isUniverse && (crumbs.length > 1 || tour)} />
     </div>
   );
 }

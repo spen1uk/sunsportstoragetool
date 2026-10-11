@@ -143,3 +143,13 @@ table th { color: #9aa3d0; } th, td { border-bottom-color: rgba(150,140,255,.16)
   radial-gradient(760px 500px at 62% 78%, rgba(190,70,255,.13), transparent 62%),
   radial-gradient(520px 360px at 30% 10%, rgba(60,255,190,.06), transparent 60%); }
 .stage { background: transparent; }
+
+/* ---------- cinematic flight overlays ---------- */
+.warp { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; mix-blend-mode: screen;
+  background: repeating-conic-gradient(from 0deg at 50% 52%, rgba(200,180,255,0) 0deg, rgba(200,180,255,.38) .5deg, rgba(120,200,255,0) 1.5deg, rgba(0,0,0,0) 3.4deg);
+  -webkit-mask-image: radial-gradient(circle at 50% 52%, transparent 14%, #000 78%); mask-image: radial-gradient(circle at 50% 52%, transparent 14%, #000 78%); }
+.lb { position: absolute; left: 0; right: 0; height: 0; background: #000; z-index: 3; pointer-events: none; } .lb.top { top: 0; } .lb.bot { bottom: 0; }
+.stage .detail, .stage .readout, .stage .crumbs { transition: opacity .35s; } .stage.flying .detail, .stage.flying .readout { opacity: .22; } .stage.flying .node { opacity: .55; }
+.tourbar { display: flex; gap: 6px; align-items: center; margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--line); }
+.tourbar button { padding: 4px 10px; }
+@media (prefers-reduced-motion: reduce) { .warp, .lb { display: none; } }

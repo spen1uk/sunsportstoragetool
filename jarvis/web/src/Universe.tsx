@@ -134,6 +134,7 @@ function flareTexture() {
 
 export function Universe(props: Props) {
   const mount = useRef<HTMLDivElement>(null);
+  const warpEl = useRef<HTMLDivElement>(null), lbTop = useRef<HTMLDivElement>(null), lbBot = useRef<HTMLDivElement>(null);
   const labels = useRef<HTMLDivElement>(null);
   const P = useRef(props); P.current = props;
   const positions = useRef<Pos>({ ...DEFAULTS });
@@ -154,17 +155,19 @@ export function Universe(props: Props) {
     renderer.domElement.setAttribute('aria-hidden', 'true');
     const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x02040a, 0.0016);
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 2000);
-    const camGoal = new THREE.Vector3(0, -34, 92), lookGoal = new THREE.Vector3(), look = new THREE.Vector3();
+    const camGoal = new THREE.Vector3(0, -34, 92), lookGoal = new THREE.Vector3(), look = new THREE.Vector3(), ctrl = new THREE.Vector3();
+    const flight = { active: false, t0: 0, dur: 2000, p0: new THREE.Vector3(), l0: new THREE.Vector3(), key: '', side: 1 };
+    const stageEl = el.closest('.stage');
     camera.position.copy(camGoal);
     scene.add(new THREE.AmbientLight(0x8fa6d8, 1.25));
     // Bloom makes every additive glow (corona, ring, suns, links) bleed light like a real HDR scene. Off on "low".
-    let composer: EffectComposer | null = null;
+    let composer: EffectComposer | null = null; let bloom: UnrealBloomPass | null = null; let bloomBase = 0.4;
     const buildComposer = (q: string) => {
-      composer?.dispose(); composer = null; if (q === 'low') return;
+      composer?.dispose(); composer = null; bloom = null; if (q === 'low') return;
       const w = el.clientWidth || 1, h = el.clientHeight || 1;
       composer = new EffectComposer(renderer); composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h);
       composer.addPass(new RenderPass(scene, camera));
-      composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), q === 'high' ? 0.5 : 0.36, 0.32, 0.7));
+      bloomBase = q === 'high' ? 0.5 : 0.36; bloom = new UnrealBloomPass(new THREE.Vector2(w, h), bloomBase, 0.32, 0.7); composer.addPass(bloom);
       composer.addPass(new OutputPass());
     };
 
@@ -178,9 +181,9 @@ export function Universe(props: Props) {
       const tier = Math.random(); sS[k] = tier > 0.9975 ? 22 : tier > 0.985 ? 5 : tier > 0.9 ? 2.6 : 1.4; sPh[k] = Math.random(); sC.set(tints[(Math.random() * tints.length) | 0], k * 3);
     }
     const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(sp, 3)); sg.setAttribute('aS', new THREE.BufferAttribute(sS, 1)); sg.setAttribute('aP', new THREE.BufferAttribute(sPh, 1)); sg.setAttribute('aC', new THREE.BufferAttribute(sC, 3));
-    const starU = { uTime: { value: 0 }, uScale: { value: 1 } };
+    const starU = { uTime: { value: 0 }, uScale: { value: 1 }, uWarp: { value: 0 } };
     const stars = new THREE.Points(sg, new THREE.ShaderMaterial({ uniforms: starU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      vertexShader: 'attribute float aS; attribute float aP; attribute vec3 aC; uniform float uTime; uniform float uScale; varying vec3 vC; varying float vA; varying float vBig; void main(){ vC=aC; vBig=step(10.,aS); vA=.5+.5*sin(uTime*(.5+aP*1.5)+aP*60.); gl_PointSize=aS*uScale; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+      vertexShader: 'attribute float aS; attribute float aP; attribute vec3 aC; uniform float uTime; uniform float uScale; uniform float uWarp; varying vec3 vC; varying float vA; varying float vBig; void main(){ vC=aC; vBig=step(10.,aS); vA=.5+.5*sin(uTime*(.5+aP*1.5)+aP*60.)+uWarp*.6; gl_PointSize=aS*uScale*(1.+uWarp*1.6); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
       fragmentShader: `varying vec3 vC; varying float vA; varying float vBig; void main(){ vec2 q=gl_PointCoord-.5; float d=length(q);
         if(vBig>.5){ float spike=exp(-abs(q.x)*55.)*exp(-abs(q.y)*5.5)+exp(-abs(q.y)*55.)*exp(-abs(q.x)*5.5); float core=exp(-d*16.); float a=(spike*.9+core*1.3)*(.55+.45*vA); gl_FragColor=vec4(mix(vC,vec3(1.),.5)*a, a); return; }
         if(d>.5) discard; float a=pow(1.-d*2.,1.5)*(.35+.65*vA); gl_FragColor=vec4(vC*(1.+a), a); }` }));
@@ -338,8 +341,38 @@ export function Universe(props: Props) {
           if (pl) { focusPlanet = pl.mesh; const wp = pl.mesh.getWorldPosition(new THREE.Vector3()); lookGoal.copy(wp); camGoal.set(wp.x - 1.6, wp.y - 3.2, wp.z + 5.2); }
         } else { lookGoal.copy(c); camGoal.set(c.x, c.y - 17, 27); }
       }
-      const k = reduced ? 1 : 1 - Math.exp(-dt * 3.2);
-      camera.position.lerp(camGoal, k); look.lerp(lookGoal, k); camera.lookAt(look);
+      // ---- cinematic flight: a curved swooping arc with ease-in/out, widening FOV, banking, hyperspace streaks and letterbox bars ----
+      const goalKey = `${rt.level}:${rt.systemId ?? ''}:${rt.deptId ?? ''}`, nowMs = performance.now();
+      if (flight.key !== goalKey) {
+        const first = flight.key === ''; flight.key = goalKey;
+        if (first || reduced) { camera.position.copy(camGoal); look.copy(lookGoal); flight.active = false; }
+        else {
+          flight.active = true; flight.t0 = nowMs; flight.p0.copy(camera.position); flight.l0.copy(look);
+          const dist = flight.p0.distanceTo(camGoal) + flight.l0.distanceTo(lookGoal) * 0.6;
+          flight.dur = Math.min(3.8, Math.max(1.5, 1.3 + dist / 55)) * 1000; flight.side = camGoal.x - flight.p0.x >= 0 ? 1 : -1;
+        }
+      }
+      let speedS = 0;
+      if (flight.active) {
+        const u0 = Math.min(1, (nowMs - flight.t0) / flight.dur), u = u0 < 0.5 ? 4 * u0 ** 3 : 1 - (-2 * u0 + 2) ** 3 / 2;   // ease in-out cubic
+        const chord = tmp.subVectors(camGoal, flight.p0), len = Math.max(chord.length(), 0.001);
+        ctrl.copy(flight.p0).add(camGoal).multiplyScalar(0.5); ctrl.z += len * 0.3 + 6; ctrl.x += (-chord.y / len) * len * 0.2; ctrl.y += (chord.x / len) * len * 0.2;   // swoop up and sideways, then settle
+        const a = (1 - u) * (1 - u), b = 2 * (1 - u) * u, c = u * u;
+        camera.position.set(flight.p0.x * a + ctrl.x * b + camGoal.x * c, flight.p0.y * a + ctrl.y * b + camGoal.y * c, flight.p0.z * a + ctrl.z * b + camGoal.z * c);
+        look.copy(flight.l0).lerp(lookGoal, u0 * u0 * (3 - 2 * u0));
+        speedS = Math.sin(Math.PI * u0);                                       // 0 → 1 → 0 across the flight
+        camera.up.set(Math.sin(flight.side * 0.17 * speedS), Math.cos(flight.side * 0.17 * speedS), 0);   // bank into the turn
+        if (u0 >= 1) { flight.active = false; camera.up.set(0, 1, 0); }
+      } else {
+        camera.position.copy(camGoal); look.copy(lookGoal);
+        if (!reduced) { camera.position.x += Math.sin(nowMs / 4200) * 0.45; camera.position.y += Math.cos(nowMs / 5300) * 0.3; }   // slow idle drift
+      }
+      const fovT = 50 + 17 * speedS; if (Math.abs(camera.fov - fovT) > 0.01) { camera.fov = fovT; camera.updateProjectionMatrix(); }
+      camera.lookAt(look);
+      starU.uWarp.value = speedS; if (bloom) bloom.strength = bloomBase * (1 + 0.9 * speedS);
+      if (warpEl.current) warpEl.current.style.opacity = (speedS * 0.6).toFixed(3);
+      if (lbTop.current && lbBot.current) { const h = `${(speedS * 6).toFixed(2)}%`; lbTop.current.style.height = h; lbBot.current.style.height = h; }
+      stageEl?.classList.toggle('flying', speedS > 0.04);
 
       // systems
       const focusedSys = rt.level === 'universe' ? null : rt.systemId;
@@ -410,6 +443,7 @@ export function Universe(props: Props) {
   return (
     <div className="universe">
       <div ref={mount} className="universe-canvas" />
+      <div ref={warpEl} className="warp" aria-hidden="true" /><div ref={lbTop} className="lb top" aria-hidden="true" /><div ref={lbBot} className="lb bot" aria-hidden="true" />
       <div ref={labels} className="universe-labels">
         <button className="node core" data-node="jarvis" onClick={() => props.navigate('#/universe')} aria-label="Jarvis core — return to universe">
           <span className="hit" /><span className={`lbl core-lbl state-${props.coreState}`}>JARVIS<small>{props.coreState}</small></span>
