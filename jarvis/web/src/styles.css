@@ -266,3 +266,4 @@ ul.members li { border: 1px solid var(--line); border-radius: 10px; padding: 8px
 .cc-rings circle.node { fill: #fff; stroke: none; filter: drop-shadow(0 0 7px rgb(var(--c))); } .cc-rings circle.node.o { filter: drop-shadow(0 0 7px rgb(var(--o))); }
 .rg.d { animation: spin 75s linear infinite reverse; } .rg.e { animation: spin 40s linear infinite; }
 .cc.s-thinking .rg.e { animation-duration: 8s; } .cc.s-working .rg.d { animation-duration: 25s; }
+.cc::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 34%; background: linear-gradient(to top, rgba(3,6,20,.82), rgba(3,6,20,0)); z-index: -1; pointer-events: none; }
