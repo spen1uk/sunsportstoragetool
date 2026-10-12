@@ -6,6 +6,7 @@ import { getMode } from './modes.ts';
 import { clients } from './events.ts';
 import { summary as budgetSummary } from './budget.ts';
 import { projectDetail } from './milestones.ts';
+import { busyIntervals, upcoming, calendarConnected, syncState } from './calendar.ts';
 
 const rows = (db: DB, sql: string, ...p: any[]) => db.prepare(sql).all(...p) as any[];
 const MAX_WORDS = 390; // ≈ 2.6 min at 150 wpm: inside the 3-minute ceiling
@@ -18,7 +19,7 @@ function openManual(db: DB) { return rows(db, "SELECT * FROM tasks WHERE kind='m
 export function proposedPlan(db: DB, now: number, week: boolean): { plan: Plan; tasks: Map<string, any> } {
   const tasks = openManual(db);
   const span = briefingSpan(now, week);
-  const plan = planTasks(tasks.map((t) => ({ id: t.id, minutes: t.minutes, priority: t.priority, deadline: t.deadline ?? undefined })), [], now, 14, span?.until ?? 0);
+  const plan = planTasks(tasks.map((t) => ({ id: t.id, minutes: t.minutes, priority: t.priority, deadline: t.deadline ?? undefined })), busyIntervals(db, now - 86_400_000, now + 15 * 86_400_000), now, 14, span?.until ?? 0);
   return { plan, tasks: new Map(tasks.map((t) => [t.id, t])) };
 }
 
@@ -65,15 +66,17 @@ export function buildBriefing(db: DB, now = Date.now()) {
   if (!openManual(db).length && !urgent.length) recs.push({ text: 'Nothing is pending. Good moment to assign research or set tomorrow\'s priorities.', level: 'info' });
 
   // Narration under the cap: urgent first, then updates, schedule, recommendations; overflow stays visible in the dashboard.
-  const lines = [...urgent.map((i) => i.text), ...updates.map((i) => i.text), ...blocks.slice(0, 8).map((b) => `${b.day} ${b.when}: ${b.title}`), ...recs.map((i) => i.text), ...unavailable];
+  const calOn = calendarConnected(db, now), calState = syncState(db, 'calendar', now);
+  const appts = calOn ? upcoming(db, now, now + 2 * 86_400_000).slice(0, 12).map((e) => ({ title: e.title, day: fmtDay(e.start), when: e.allDay ? 'all day' : `${fmtTime(e.start)}–${fmtTime(e.end)}`, location: e.location, allDay: e.allDay, start: e.start, calendar: e.calendar })) : [];
+  const lines = [...urgent.map((i) => i.text), ...updates.map((i) => i.text), ...appts.filter((a) => !a.allDay).slice(0, 5).map((a) => `Appointment ${a.day} ${a.when}: ${a.title}`), ...blocks.slice(0, 8).map((b) => `${b.day} ${b.when}: ${b.title}`), ...recs.map((i) => i.text), ...unavailable];
   let words = 0; const narration: string[] = []; let overflow = 0;
   for (const l of lines) { const w = l.split(/\s+/).length; if (words + w > MAX_WORDS) { overflow++; continue; } words += w; narration.push(l); }
 
   return {
     generatedAt: now, isMonday, weekAhead: isMonday,
     sections: [{ title: 'Urgent issues and decisions', items: urgent }, { title: 'Significant updates', items: updates }, { title: 'Recommended actions', items: recs }] as Section[],
-    schedule: { blocks, risks: plan.deadlineRisk, overcapacity: plan.overcapacity, unscheduled: plan.unscheduled.map((id) => tasks.get(id)?.title),
-      caveat: 'Proposed against Mon–Fri 8:00–18:00 work hours only. No calendar is connected, so existing appointments are unknown and nothing is written anywhere.' },
+    schedule: { appointments: appts, calendar: calState.status, blocks, risks: plan.deadlineRisk, overcapacity: plan.overcapacity, unscheduled: plan.unscheduled.map((id) => tasks.get(id)?.title),
+      caveat: calOn ? `Proposed around your Apple Calendar appointments${calState.status === 'stale' ? ' (the calendar copy is STALE: last sync failed or is old, so new appointments may be missing)' : ''}, within Mon–Fri 8:00–18:00 work hours. Recurring events may be missing. Nothing is written back to your calendar.` : 'Proposed against Mon–Fri 8:00–18:00 work hours only. No calendar is connected, so existing appointments are unknown and nothing is written anywhere.' },
     unavailable, narration: narration.join(' '), narrationWords: words, estimatedSeconds: Math.round((words / 150) * 60), overflow,
   };
 }

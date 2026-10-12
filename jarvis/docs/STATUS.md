@@ -52,7 +52,8 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Contact-mode controls (Available, Personal, Family, Meal, Church, Unavailable, "I'm out for a bit" / "I'm back") | ✅ | In the top bar; timed modes expire on their own |
 | Overnight Plan page ("Do this tonight" overrides priority; holds, owner, desired result, estimate) | ✅ | Executes only while the app runs |
 | Task duration + deadline fields feeding the planner | ✅ | Deadline entered in browser-local time |
-| Apple Calendar / Notes | ⛔ | Needs provider/route verification (see FEASIBILITY) |
+| Apple Calendar (iCloud) — read-only copy from the Mac | ✅ logic+tests with a fake Mac / ⛔ not yet run on a real Mac | macOS scripting (osascript/JXA), no password stored; Luke picks which calendars; 15-min refresh while on the Mac; STALE label; feeds planner (timed events block slots), briefings, chat snapshot. **Known gap: repeating events may be missing** (Calendar scripting returns the first occurrence). Works only while Jarvis runs on a Mac |
+| Apple Notes — read-only copy from the Mac | ✅ logic+tests with a fake Mac / ⛔ not yet run on a real Mac | Only chosen folders; note text never goes to the model or into chat history; same Mac-only limit |
 | British streaming voice, interruption, audio-driven core | ⏸ deferred | Not a priority (cost). Core animation stays state-driven; it will follow real audio only if voice is ever added |
 | SMS/calls on a dedicated number | ⛔ | Needs your approval to buy + registration/pricing verification |
 | Sandra integration | ⛔ | Needs access to inspect; read-only first |
@@ -88,3 +89,7 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 - `#/command` is now the default landing screen: Jarvis himself (greeting, live HUD rings, today/tasks/attention/systems/spend panels, conversation as the main input). All HUD values are real; nothing is simulated.
 - `#/universe` keeps the full Agent Universe; flight between the two uses the existing cinematic camera. Esc or clicking the core returns to the Command Center.
 - Chat commands "go to the command center" / "open the agent universe" navigate between them.
+
+## Calendar & Notes (read-only, via the Mac)
+- Pages: Calendar, Notes. Connections rows update to connected / stale / disconnected from real sync results.
+- **Moving to a server:** macOS scripting does not exist there, so syncs fail and the last copy is shown STALE then disconnected. See README for the options (Mac bridge, or CalDAV for calendar).

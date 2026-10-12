@@ -77,6 +77,7 @@ export function CommandCenter(p: { away: boolean; st: AppState; coreState: CoreS
   const blocks: any[] = today?.briefing.schedule.blocks.slice(0, 3) ?? [];
   const urgent: any[] = today?.briefing.sections[0].items.slice(0, 3) ?? [];
   const contact = today?.contact;
+  const appts: any[] = (today?.briefing?.schedule?.appointments ?? []).filter((a: any) => a.day === today?.briefing?.schedule?.appointments?.[0]?.day);
   const mgrs = st.agents.filter((a) => a.role === 'manager');
   const keyOk = llm?.providers?.some((x: any) => x.configured);
   const labels: Record<string, string> = {
@@ -115,6 +116,7 @@ export function CommandCenter(p: { away: boolean; st: AppState; coreState: CoreS
         <Holo n={1} title="TODAY" delay={150}>
           <div className="clock">{clock(now)}<small> CT</small></div><div className="muted small">{dateLine(now)}</div>
           {contact && <div className="row wrap small"><span className={`pill ${contact.decision.hold ? 'warn' : 'ok'}`}>{contact.decision.hold ? 'interruptions held' : contact.decision.channels.join(' · ')}</span></div>}
+          {appts.length > 0 && <div className="mini">{appts.slice(0, 3).map((a: any) => <div key={a.calendar + a.start + a.title}><b>{a.when === 'all day' ? 'All day' : a.when.split('–')[0]}</b> {a.title}</div>)}</div>}
           <div className="mini">{blocks.length ? blocks.map((b) => <div key={b.taskId}><b>{b.day.split(',')[0]} {b.when.split('–')[0]}</b> {b.title}</div>) : <span className="muted">No work blocks proposed.</span>}</div>
         </Holo>
         <Holo n={2} title="YOUR TASKS" delay={300}>

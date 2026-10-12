@@ -5,6 +5,7 @@ import { Universe, type CoreState, type Route } from './Universe.tsx';
 import { Chat, useConversation } from './Chat.tsx';
 import { CommandCenter } from './CommandCenter.tsx';
 import { Detail } from './Detail.tsx';
+import { CalendarPage, NotesPage } from './mac.tsx';
 import { BriefingsPage, OvernightPage, ModeControl, Notifications } from './today.tsx';
 import { TasksPage, ReviewPage, ApprovalsPage, MemoryPage, ConnectionsPage, ActivityPage, SettingsPage, PlannedPage } from './pages.tsx';
 
@@ -14,7 +15,8 @@ export const NAV: { hash: string; label: string; planned?: string }[] = [
   { hash: '#/workspace', label: 'Modular Workspace', planned: 'Phase 2. Movable, resizable panels (conversation, calendar, previews, reports, files, tasks, charts, approvals) with saved layouts.' },
   { hash: '#/universe', label: 'Agent Universe' },
   { hash: '#/tasks', label: 'Tasks & Projects' },
-  { hash: '#/calendar', label: 'Calendar', planned: 'Needs the Apple Calendar route verified first (provider backing, recurring events, busy/free, write behavior). Until then, the proposed schedule on Briefings is planned against work hours only and nothing is written to any calendar.' },
+  { hash: '#/calendar', label: 'Calendar' },
+  { hash: '#/notes', label: 'Notes' },
   { hash: '#/briefings', label: 'Briefings' },
   { hash: '#/overnight', label: 'Overnight Plan' },
   { hash: '#/review', label: 'Ready for Review' },
@@ -170,6 +172,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           </section>
         )}
         {!isUniverse && pageNav?.planned && <PlannedPage title={pageNav.label} text={pageNav.planned} />}
+        {hash === '#/calendar' && <CalendarPage />}
+        {hash === '#/notes' && <NotesPage />}
         {hash === '#/briefings' && <BriefingsPage />}
         {hash === '#/overnight' && <OvernightPage />}
         {hash === '#/tasks' && <TasksPage />}

@@ -41,6 +41,8 @@ export function buildContext(db: DB, now = Date.now()): string {
   const projs = listProjects(db, now).filter((p: any) => !p.is_demo && p.status === 'active').slice(0, 6);
   if (projs.length) L.push('PROJECTS (progress is counted in milestones, never percentages):\n' + projs.map((p: any) => `- ${clean(p.title, 80)}: ${p.progress.label}; health ${p.progress.health}${p.progress.next ? `; next "${clean(p.progress.next.title, 70)}"` : ''}`).join('\n'));
 
-  if (br.schedule.blocks.length) L.push('PROPOSED NEXT WORK SLOTS (a proposal only; no calendar is connected, so appointments are unknown):\n' + br.schedule.blocks.slice(0, 6).map((x) => `- ${x.day} ${x.when}: ${clean(x.title, 80)}`).join('\n'));
+  const appts = br.schedule.appointments ?? [];
+  if (appts.length) L.push(`APPOINTMENTS from Luke's Apple Calendar, next 2 days (read-only copy${br.schedule.calendar === 'stale' ? ', STALE: may be out of date' : ''}; recurring events may be missing):\n` + appts.slice(0, 8).map((a) => `- ${a.day} ${a.when}: ${clean(a.title, 80)}`).join('\n'));
+  if (br.schedule.blocks.length) L.push(`PROPOSED NEXT WORK SLOTS (a proposal only; ${br.schedule.calendar === 'connected' || br.schedule.calendar === 'stale' ? 'planned around his Apple Calendar, which may miss recurring events' : 'no calendar is connected, so appointments are unknown'}):\n` + br.schedule.blocks.slice(0, 6).map((x) => `- ${x.day} ${x.when}: ${clean(x.title, 80)}`).join('\n'));
   return L.join('\n\n').slice(0, 4500);
 }

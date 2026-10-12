@@ -5,6 +5,9 @@ import * as memory from './memory.ts';
 import { researchInput } from './research.ts';
 import { setPaused, pauseStatus } from './pause.ts';
 import { publish } from './events.ts';
+import { upcoming, syncState } from './calendar.ts';
+import { listNotes } from './notes.ts';
+import { chicagoParts, chicagoInstant, addDays } from './tz.ts';
 
 export type ChatReply = { text: string; action?: { navigate?: string }; persisted: boolean; fallback?: boolean; source?: 'command' | 'model'; model?: string; costMicroUsd?: number };
 
@@ -16,6 +19,8 @@ const NAV: [RegExp, string][] = [
   [/(bring up|show|open) (my )?projects/i, '#/tasks'],
   [/(show|open) (my )?(approvals?)/i, '#/approvals'],
   [/(show|open) (the )?(review|ready for review)/i, '#/review'],
+  [/(show|open|bring up) (my )?(calendar|schedule)\b/i, '#/calendar'],
+  [/(show|open|bring up) (my )?notes\b/i, '#/notes'],
 ];
 
 /**
@@ -70,6 +75,24 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
     if (hits.length > 1) return reply(`${hits.length} memories match; please remove the one you mean from the Memory page.`);
     memory.forget(db, hits[0].id);
     return reply(`Forgotten: "${hits[0].content.slice(0, 80)}".`);
+  }
+  if ((m = text.match(/^(?:what(?:'s| is)(?: on)? (?:my )?(?:calendar|schedule|agenda)|what do i have|what(?:'s| is) next|what(?:'s| is) on (?:today|tomorrow)|my (?:calendar|schedule|agenda))(?:\s+(today|tomorrow))?[?.! ]*$/i)) || /^what do i have (today|tomorrow)[?.! ]*$/i.test(text)) {
+    const cs = syncState(db, 'calendar');
+    if (cs.status === 'planned' || cs.status === 'disconnected') return reply('Your calendar is not connected yet, sir. Choose which calendars I may read on the Calendar page (it reads from this Mac only).');
+    const tomorrow = /tomorrow/i.test(text), t0 = Date.now(), p0 = chicagoParts(t0);
+    const dayStart = (n: number) => { const a = addDays(p0.y, p0.m, p0.d, n); return chicagoInstant(a.y, a.m, a.d, 0, 0); };   // Chicago midnight, DST-safe
+    const from = /next/i.test(text) ? t0 : tomorrow ? dayStart(1) : dayStart(0), to = /next/i.test(text) ? t0 + 3 * 86_400_000 : from + 86_400_000;
+    const ev = upcoming(db, from, to).filter((e) => e.end >= t0).slice(0, 10);
+    const fmt = (e: any) => `${e.allDay ? 'all day' : new Date(e.start).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' })} — ${e.title}`;
+    const stale = cs.status === 'stale' ? ' (My copy is stale, so this may be out of date; recurring events can be missing.)' : ' (Recurring events can be missing from my copy.)';
+    return reply(ev.length ? `${/next/i.test(text) ? 'Coming up' : tomorrow ? 'Tomorrow' : 'Today'}, sir:\n${ev.map(fmt).join('\n')}${stale}` : `Nothing on the calendar ${/next/i.test(text) ? 'in the next three days' : tomorrow ? 'tomorrow' : 'for the rest of today'}, sir.${stale}`);
+  }
+  if ((m = text.match(/^(?:search|find)(?: my)? notes?(?: for| about)?\s+(.+)$/i))) {
+    const ns = syncState(db, 'notes');
+    if (ns.status === 'planned' || ns.status === 'disconnected') return { text: 'Notes are not connected yet, sir. Choose a folder on the Notes page.', persisted: false };
+    const hits = listNotes(db, m[1], 6);
+    // Note contents are never put into chat history (history can reach the language model); titles only, shown here, not saved.
+    return { text: hits.length ? `${hits.length === 6 ? 'At least 6' : hits.length} note(s) match, sir: ${hits.map((h) => `"${h.title}"`).join('; ')}. Open the Notes page to read them. (I keep note text out of our chat history and never send it to the language model.)` : 'Nothing in your connected Notes folders matches that, sir.', persisted: false };
   }
   if (/^pause( jarvis)?$/i.test(text)) { setPaused(db, true); const p = pauseStatus(db); return reply(`Paused. No new automated work will start. ${p.inflight} task(s) already in flight cannot be recalled instantly.`); }
   if (/^resume( jarvis)?$/i.test(text)) { setPaused(db, false); return reply('Resumed, sir.'); }

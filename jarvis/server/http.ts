@@ -24,6 +24,9 @@ import { buildBriefing, buildRecap, overnightPlan, contactNow } from './today.ts
 import { getMode, setMode, MODES } from './modes.ts';
 import * as notify from './notify.ts';
 import * as ms from './milestones.ts';
+import * as cal from './calendar.ts';
+import * as nts from './notes.ts';
+import { MacError, isMac } from './mac.ts';
 
 type Ctx = { req: http.IncomingMessage; res: http.ServerResponse; db: DB; session: auth.Session | null; params: Record<string, string>; body: any; url: URL };
 type Handler = (c: Ctx) => unknown;
@@ -193,6 +196,17 @@ route('POST', '/api/notifications/:id/snooze', ({ db, params, body }) => ({ ok: 
 
 // ---- misc pages ----
 route('GET', '/api/connections', ({ db }) => ({ items: rows(db, 'SELECT * FROM connections ORDER BY status, name'), domains: rows(db, 'SELECT * FROM allowed_domains ORDER BY host') }));
+// ---- Apple Calendar & Notes (read-only, from the Mac Jarvis runs on). Nothing here writes to either app. ----
+const kindOf = (b: any) => parse(z.object({ kind: z.enum(['calendar', 'notes']) }), b).kind;
+const macFail = (e: unknown): never => { if (e instanceof MacError) throw new HttpError(e.kind === 'unavailable' ? 503 : 502, e.message); throw e; };
+route('GET', '/api/mac', ({ db }) => ({ mac: isMac(), calendar: { ...cal.syncState(db, 'calendar'), sources: cal.sources(db, 'calendar') }, notes: { ...cal.syncState(db, 'notes'), sources: cal.sources(db, 'notes') } }));
+route('POST', '/api/mac/detect', async ({ db, body }) => { const k = kindOf(body); try { const names = k === 'calendar' ? await cal.detectCalendars(db) : await nts.detectFolders(db); return { names, sources: cal.sources(db, k) }; } catch (e) { return macFail(e); } });
+route('PUT', '/api/mac/sources', ({ db, body }) => { const b = parse(z.object({ kind: z.enum(['calendar', 'notes']), enabled: z.array(z.string().max(200)).max(100) }), body); const known = new Set(cal.sources(db, b.kind).map((x) => x.name)); cal.setEnabled(db, b.kind, b.enabled.filter((n) => known.has(n))); return { sources: cal.sources(db, b.kind), state: cal.syncState(db, b.kind) }; });
+route('POST', '/api/mac/sync', async ({ db, body }) => { const k = kindOf(body); const r = k === 'calendar' ? await cal.syncCalendar(db) : await nts.syncNotes(db); if (!r.ok) throw new HttpError(502, r.error ?? 'sync failed'); return { ...r, state: cal.syncState(db, k) }; });
+route('POST', '/api/mac/disconnect', ({ db, body }) => { const k = kindOf(body); cal.setEnabled(db, k, []); db.prepare('DELETE FROM mac_sync WHERE kind=?').run(k); cal.setConnection(db, k); audit(db, 'luke', `${k}.disconnect`); return { ok: true }; });
+route('GET', '/api/calendar', ({ db }) => { const t = Date.now(); return { state: cal.syncState(db, 'calendar', t), events: cal.upcoming(db, t - 3_600_000, t + 14 * 86_400_000) }; });
+route('GET', '/api/notes', ({ db, url }) => ({ state: cal.syncState(db, 'notes'), items: nts.listNotes(db, (url.searchParams.get('q') ?? '').slice(0, 100)) }));
+route('GET', '/api/notes/:id', ({ db, params }) => { const n = nts.getNote(db, params.id); if (!n) throw new HttpError(404, 'not found'); return n; });
 route('GET', '/api/budget', ({ db }) => ({ summary: budget.summary(db), ledger: rows(db, 'SELECT * FROM budget_ledger ORDER BY at DESC LIMIT 100') }));
 route('POST', '/api/budget/fixed', ({ db, body }) => {
   const b = parse(z.object({ category: z.string().min(1).max(60), usd: z.number().min(0).max(1000), note: z.string().max(200).default('') }), body);

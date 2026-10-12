@@ -25,8 +25,8 @@ export function seedStructure(db: DB) {
   cn.run('sandra', 'Sandra — Sun Sport Marine manager', 'manager', 'planned', '', 'Not inspected. Phase 3: read-only reports and heartbeat first.');
   cn.run('trading-system', 'Trading system (own server, BloFin)', 'manager', 'planned', '', 'Still being built; will run on its own server. Read-only first: heartbeat, status, reports. Jarvis never holds exchange keys and never places trades; moving money stays a protected action needing your approval.');
   cn.run('investing-system', 'Investing system (daily report)', 'manager', 'planned', '', 'Not connected. Read-only first. You place the trades; Jarvis shows the report and the reconciliation.');
-  cn.run('apple-calendar', 'Apple Calendar', 'calendar', 'planned', '', 'Provider backing (iCloud or other) must be verified first. Phase 2.');
-  cn.run('apple-notes', 'Apple Notes', 'notes', 'planned', '', 'No public cloud API assumed; needs a Mac companion/export route. Phase 3.');
+  cn.run('apple-calendar', 'Apple Calendar', 'calendar', 'planned', '', 'iCloud via this Mac, read-only. Choose calendars on the Calendar page.');
+  cn.run('apple-notes', 'Apple Notes', 'notes', 'planned', '', 'Read from this Mac, read-only, only folders you choose. Choose folders on the Notes page.');
   cn.run('sms-voice', 'Dedicated number (SMS / calls)', 'phone', 'planned', '', 'Provider, country registration and pricing not yet verified. Needs your approval to buy.');
   cn.run('voice', 'British streaming voice', 'voice', 'planned', '', 'Phase 2. Animation will follow real audio only.');
   cn.run('model', 'Language model provider', 'model', 'planned', '', 'Not configured. Chat runs in deterministic command mode.');

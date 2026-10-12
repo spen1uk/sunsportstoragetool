@@ -78,6 +78,7 @@ export function BriefingsPage() {
         </div>))}
       <div className="glass pad section"><h2>Proposed schedule</h2>
         <p className="note small">{b.schedule.caveat}</p>
+        {(b.schedule.appointments ?? []).length > 0 && <><h3>Appointments (next 2 days)</h3><ul className="plain">{b.schedule.appointments.map((a: any) => <li key={a.calendar + a.start + a.title}><span className="mono">{a.day} {a.when}</span> {a.title}</li>)}</ul></>}
         {b.schedule.blocks.length === 0 ? <p className="muted">No open tasks to schedule.</p> :
           <table><thead><tr><th>Day</th><th>Time</th><th>Task</th></tr></thead><tbody>{b.schedule.blocks.map((x: any) => <tr key={x.taskId}><td>{x.day}</td><td>{x.when}</td><td>{x.title}</td></tr>)}</tbody></table>}
         {b.schedule.unscheduled.length > 0 && <p className="warn">Does not fit: {b.schedule.unscheduled.join('; ')}</p>}
