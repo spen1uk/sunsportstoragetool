@@ -2,16 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, connection, setCsrf, startEvents, stopEvents, useLive, usd, subscribe, type AppState } from './api.ts';
 import { onSpeech, speechState } from './speech.ts';
 import { Universe, type CoreState, type Route } from './Universe.tsx';
-import { Chat } from './Chat.tsx';
+import { Chat, useConversation } from './Chat.tsx';
+import { CommandCenter } from './CommandCenter.tsx';
 import { Detail } from './Detail.tsx';
 import { BriefingsPage, OvernightPage, ModeControl, Notifications } from './today.tsx';
 import { TasksPage, ReviewPage, ApprovalsPage, MemoryPage, ConnectionsPage, ActivityPage, SettingsPage, PlannedPage } from './pages.tsx';
 
 export const NAV: { hash: string; label: string; planned?: string }[] = [
-  { hash: '#/universe', label: 'Command Center' },
+  { hash: '#/command', label: 'Command Center' },
   { hash: '#/life', label: 'My Life', planned: 'Phase 2. Personal life command center: habits, health and family context. Nothing is connected yet.' },
   { hash: '#/workspace', label: 'Modular Workspace', planned: 'Phase 2. Movable, resizable panels (conversation, calendar, previews, reports, files, tasks, charts, approvals) with saved layouts.' },
-  { hash: '#/universe-full', label: 'Agent Universe' },
+  { hash: '#/universe', label: 'Agent Universe' },
   { hash: '#/tasks', label: 'Tasks & Projects' },
   { hash: '#/calendar', label: 'Calendar', planned: 'Needs the Apple Calendar route verified first (provider backing, recurring events, busy/free, write behavior). Until then, the proposed schedule on Briefings is planned against work hours only and nothing is written to any calendar.' },
   { hash: '#/briefings', label: 'Briefings' },
@@ -25,8 +26,8 @@ export const NAV: { hash: string; label: string; planned?: string }[] = [
 ];
 
 function useHash() {
-  const [h, setH] = useState(location.hash || '#/universe');
-  useEffect(() => { const f = () => setH(location.hash || '#/universe'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
+  const [h, setH] = useState(location.hash || '#/command');
+  useEffect(() => { const f = () => setH(location.hash || '#/command'); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f); }, []);
   return h;
 }
 
@@ -74,7 +75,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const [reduced, setReduced] = useState(() => (localStorage.getItem('jv.reduced') ?? String(osReduced)) === 'true');
   const [layoutVersion, setLayoutVersion] = useState(0);
   const [chatOpen, setChatOpen] = useState(true);
-  const onUniverse = hash === '' || hash === '#/universe' || hash === '#/universe-full' || /^#\/(system|dept)\//.test(hash);
+  const onUniverse = hash === '#/universe' || hash === '#/universe-full' || /^#\/(system|dept)\//.test(hash);
   useEffect(() => { setChatOpen(onUniverse); }, [onUniverse]);   // on content pages the chat folds away so it never covers buttons; one click reopens it
   useEffect(() => { startEvents(); const f = () => { force((n) => n + 1); reload(); }; connection.subs.add(f); return () => { connection.subs.delete(f); }; }, [reload]);
   useEffect(() => localStorage.setItem('jv.quality', quality), [quality]);
@@ -82,13 +83,16 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const navigate = useCallback((h: string) => { location.hash = h; }, []);
 
   const route: Route = useMemo(() => {
+    if (hash === '#/command') return { level: 'core' };
     const m = hash.match(/^#\/(system|dept)\/([\w-]+)/);
     if (!m || !st) return { level: 'universe' };
     if (m[1] === 'system') return { level: 'system', systemId: m[2] };
     const a = st.agents.find((x) => x.id === m[2]); return a?.parent_id ? { level: 'dept', systemId: a.parent_id, deptId: a.id } : { level: 'universe' };
   }, [hash, st]);
 
-  const isUniverse = hash === '#/universe' || hash === '#/universe-full' || /^#\/(system|dept)\//.test(hash) || hash === '' ;
+  const isUniverse = hash === '#/command' || hash === '#/universe' || hash === '#/universe-full' || /^#\/(system|dept)\//.test(hash);   // pages that show the 3D stage
+  const isCore = route.level === 'core';
+  const convo = useConversation(navigate, setThinking);
   // Priority: no link > paused > speaking (real playback, momentary) > urgent alert > thinking (awaiting a reply) > executing tasks > waiting on you > idle
   const coreState: CoreState = !connection.up ? 'disconnected' : st?.pause.paused ? 'paused' : speechState.speaking ? 'speaking' : (st?.counts.urgent ?? 0) > 0 ? 'urgent' : (thinking || serverThinking) ? 'thinking' : (st?.running.length ?? 0) > 0 ? 'working' : (st && (st.counts.approvals > 0 || st.counts.blocked > 0)) ? 'blocked' : 'idle';
   const active = useMemo(() => new Set((st?.running ?? []).length ? ['proj'] : []), [st]);
@@ -96,7 +100,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const crumbs: { label: string; hash: string }[] = [{ label: 'Universe', hash: '#/universe' }];
   if (st && route.systemId) crumbs.push({ label: st.agents.find((a) => a.id === route.systemId)?.name ?? '', hash: `#/system/${route.systemId}` });
   if (st && route.deptId) crumbs.push({ label: st.agents.find((a) => a.id === route.deptId)?.name ?? '', hash: `#/dept/${route.deptId}` });
-  const back = () => navigate(crumbs.length > 1 ? crumbs[crumbs.length - 2].hash : '#/universe');
+  const back = () => navigate(crumbs.length > 1 ? crumbs[crumbs.length - 2].hash : '#/command');   // out of the universe = back into Jarvis
 
   // ---- flythrough controls: hop to the next/previous system (or department), and a guided tour of every system ----
   const mgrs = (st?.agents ?? []).filter((a) => a.role === 'manager');
@@ -111,7 +115,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
     const step = () => { if (i >= seq.length) { setTour(false); return; } tourExpected.current = seq[i]; navigate(seq[i]); i++; timer = window.setTimeout(step, 7000); };   // ~3s flight + ~4s to read the panel
     step(); return () => clearTimeout(timer);
   }, [tour]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (tour && hash !== tourExpected.current && hash !== '#/universe-full') setTour(false); }, [hash]); // eslint-disable-line react-hooks/exhaustive-deps  (any manual navigation ends the tour)
+  useEffect(() => { if (tour && hash !== tourExpected.current) setTour(false); }, [hash]); // eslint-disable-line react-hooks/exhaustive-deps  (any manual navigation ends the tour)
   useEffect(() => {
     const f = (e: KeyboardEvent) => { if ((e.target as HTMLElement).matches('input,textarea,select')) return; if (e.key === 'ArrowRight') hop(1); else if (e.key === 'ArrowLeft') hop(-1); };
     addEventListener('keydown', f); return () => removeEventListener('keydown', f);
@@ -133,31 +137,32 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       </header>
       <nav className="sidenav" aria-label="Main">
         {NAV.map((n) => {
-          const cur = n.hash === hash || (n.hash === '#/universe' && isUniverse && hash !== '#/universe-full') || (n.hash === '#/universe-full' && hash === '#/universe-full');
+          const cur = n.hash === hash || (n.hash === '#/universe' && isUniverse && !isCore);
           return <a key={n.hash} href={n.hash} aria-current={cur ? 'page' : undefined} className={n.planned ? 'planned' : ''}>{n.label}{n.planned && <small>planned</small>}</a>;
         })}
       </nav>
       <main className="main">
         {isUniverse && st && (
-          <section className="stage" aria-label="Agent universe">
+          <section className={`stage ${isCore ? 'core-mode' : ''}`} aria-label={isCore ? 'Jarvis command center' : 'Agent universe'}>
             <Universe agents={st.agents} coreState={coreState} quality={quality} reducedMotion={reduced} route={route} active={active} navigate={navigate} layoutVersion={layoutVersion} />
-            <div className="crumbs glass">
+            {isCore && <CommandCenter st={st} coreState={coreState} convo={convo} navigate={navigate} reduced={reduced} linkUp={connection.up} />}
+            {!isCore && <div className="crumbs glass">
               {crumbs.map((c, i) => <span key={c.hash}>{i > 0 && ' → '}{i === crumbs.length - 1 ? <b>{c.label}</b> : <a href={c.hash}>{c.label}</a>}</span>)}
               {crumbs.length > 1 && <button onClick={back} aria-label="Zoom out one level">Zoom out</button>}
               {sibs.length > 1 && <span className="tourbar"><button onClick={() => hop(-1)} aria-label={`Fly to previous ${route.level === 'system' ? 'system' : 'department'}`} title="Previous (←)">◀</button><button onClick={() => hop(1)} aria-label={`Fly to next ${route.level === 'system' ? 'system' : 'department'}`} title="Next (→)">▶</button></span>}
               {crumbs.length === 1 && <button onClick={() => { api('/api/layout', 'DELETE').then(() => setLayoutVersion((v) => v + 1)); }}>Reset layout</button>}
               {(crumbs.length === 1 || tour) && mgrs.length > 0 && <span className="tourbar">{tour ? <button className="primary" onClick={() => setTour(false)}>■ Stop tour</button> : <button onClick={() => setTour(true)} title="Fly through every system in turn">▶ Guided tour</button>}</span>}
-            </div>
-            {hash !== '#/universe-full' && <Detail st={st} route={route} navigate={navigate} />}
+            </div>}
+            {(route.level === 'system' || route.level === 'dept') && <Detail st={st} route={route} navigate={navigate} />}
             <div className="frame" aria-hidden="true"><i /><i /><i /><i /></div>
-            <div className="readout" aria-label="System readout">
+            {!isCore && <div className="readout" aria-label="System readout">
               <span><b>{st.agents.filter((x) => x.status_kind === 'live').length}</b> LIVE</span>
               <span><b>{st.agents.filter((x) => x.status_kind === 'planned').length}</b> PLANNED</span>
               <span>TASKS <b>{st.counts.tasksActive}</b></span><span>APPROVALS <b>{st.counts.approvals}</b></span>
               <span className={connection.up ? 'up' : 'down'}>● {connection.up ? 'LINK NOMINAL' : 'LINK LOST'}</span>
               <span className="state">CORE · {coreState.toUpperCase()}</span>
-            </div>
-            <div className="hint">Drag a system to rearrange · click to fly in · ← → hop between systems · Esc to zoom out</div>
+            </div>}
+            {!isCore && <div className="hint">Drag a system to rearrange · click to fly in · ← → hop between systems · Esc back to Jarvis</div>}
           </section>
         )}
         {!isUniverse && pageNav?.planned && <PlannedPage title={pageNav.label} text={pageNav.planned} />}
@@ -171,8 +176,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         {hash === '#/activity' && <ActivityPage />}
         {hash === '#/settings' && st && <SettingsPage st={st} reload={reload} quality={quality} setQuality={setQuality} reduced={reduced} setReduced={setReduced} osReduced={osReduced} resetLayout={() => api('/api/layout', 'DELETE').then(() => setLayoutVersion((v) => v + 1))} />}
       </main>
-      <Chat open={chatOpen} setOpen={setChatOpen} navigate={navigate} setThinking={setThinking} />
-      <Esc back={() => (tour ? setTour(false) : back())} enabled={isUniverse && (crumbs.length > 1 || tour)} />
+      <Chat open={chatOpen} setOpen={setChatOpen} convo={convo} hidden={isCore} />
+      <Esc back={() => (tour ? setTour(false) : back())} enabled={isUniverse && !isCore} />
     </div>
   );
 }

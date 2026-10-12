@@ -8,7 +8,8 @@ import { api, subscribe, type Agent } from './api.ts';
 import { speechState } from './speech.ts';
 
 export type CoreState = 'idle' | 'working' | 'thinking' | 'speaking' | 'urgent' | 'blocked' | 'disconnected' | 'paused';
-export type Route = { level: 'universe' | 'system' | 'dept'; systemId?: string; deptId?: string };
+/** 'core' = the Command Center: camera sits close on Jarvis himself and the systems are hidden. */
+export type Route = { level: 'core' | 'universe' | 'system' | 'dept'; systemId?: string; deptId?: string };
 type Pos = Record<string, { x: number; y: number }>;
 type Props = {
   agents: Agent[]; coreState: CoreState; quality: 'low' | 'medium' | 'high'; reducedMotion: boolean; route: Route;
@@ -380,7 +381,8 @@ export function Universe(props: Props) {
 
       // route → camera goal
       const rt = p.route; let focusPlanet: THREE.Object3D | null = null;
-      if (rt.level === 'universe') { camGoal.set(0, -34, 92); lookGoal.set(0, 0, 0); }
+      if (rt.level === 'core') { camGoal.set(0, -14, 38); lookGoal.set(0, -1.5, 0); }
+      else if (rt.level === 'universe') { camGoal.set(0, -34, 92); lookGoal.set(0, 0, 0); }
       else if (rt.systemId && systems.has(rt.systemId)) {
         const c = sysWorld(rt.systemId);
         if (rt.level === 'dept' && rt.deptId) {
@@ -422,7 +424,8 @@ export function Universe(props: Props) {
       stageEl?.classList.toggle('flying', speedS > 0.04);
 
       // systems
-      const focusedSys = rt.level === 'universe' ? null : rt.systemId;
+      const focusedSys = rt.level === 'universe' || rt.level === 'core' ? null : rt.systemId;
+      const showSystems = rt.level !== 'core' || flight.active;
       for (const [sid, s] of systems) {
         const base = positions.current[sid] ?? { x: 0, y: 0 };
         s.group.position.lerp(tmp.set(base.x, base.y, 0), reduced ? 1 : 1 - Math.exp(-dt * 12));
@@ -437,7 +440,7 @@ export function Universe(props: Props) {
         });
         const dim = focusedSys && focusedSys !== sid ? 0.25 : 1;
         (s.glow.material as THREE.SpriteMaterial).opacity = (p.agents.find((a) => a.id === sid)?.status_kind === 'planned' ? 0.22 : 0.5) * dim;
-        const ln = links.get(sid)!; const pa = ln.geometry.attributes.position as THREE.BufferAttribute;
+        s.group.visible = showSystems; const ln = links.get(sid)!; ln.visible = showSystems; const pa = ln.geometry.attributes.position as THREE.BufferAttribute;
         pa.setXYZ(0, 0, 0, 0); pa.setXYZ(1, s.group.position.x, s.group.position.y, 0); pa.needsUpdate = true;
         ln.computeLineDistances(); { const ld = ln.geometry.attributes.lineDistance as THREE.BufferAttribute, off = s.flow % 2.3; ld.setX(0, -off); ld.setX(1, ld.getX(1) - off); ld.needsUpdate = true; } // light flowing along the data link
         // Link energy follows REAL running work: brighter, faster flow, and a stream of small packets while a task executes.
@@ -450,6 +453,7 @@ export function Universe(props: Props) {
       // drain real events → packets (reduced motion: no packets, the link just lights)
       while (queue.length) {
         const ev = queue.shift(); const sys = ev.system as string; if (!systems.has(sys)) continue;
+        if (!showSystems) { coreBoost = Math.max(coreBoost, ev.kind === 'dispatch' ? 0.55 : 1); continue; }   // Command Center: the systems are out of view, so the event shows as the core itself reacting
         if (reduced) { systems.get(sys)!.boost = 1; continue; }
         const tn = p.quality === 'low' ? 5 : 10;
         if (ev.kind === 'dispatch') spawn(sys, 1, 'dispatch', true, tn); else spawn(sys, -1, ev.kind, true, tn);
@@ -464,7 +468,7 @@ export function Universe(props: Props) {
           const lag = idx * (pk.big ? 0.026 : 0.034), uu = pk.dir === 1 ? e - lag : 1 - e + lag; const q = Math.min(1, Math.max(0, uu));
           const weave = pk.big ? Math.sin(q * 20 + pk.phase) * 0.42 * (1 - Math.abs(q - 0.5) * 1.2) : 0;
           sp.position.set(end.x * q + (px / pl) * weave, end.y * q + (py / pl) * weave, 0.4);
-          const fade = idx === 0 ? 1 : Math.pow(1 - idx / pk.sprites.length, 1.5) * 0.75, vis = u < 1 && uu > 0 && uu < 1 ? 1 : 0;
+          const fade = idx === 0 ? 1 : Math.pow(1 - idx / pk.sprites.length, 1.5) * 0.75, vis = showSystems && u < 1 && uu > 0 && uu < 1 ? 1 : 0;
           (sp.material as THREE.SpriteMaterial).opacity = fade * vis * (pk.big ? 1 : 0.8);
           sp.scale.setScalar(idx === 0 ? (pk.big ? 5.4 : 2.7) : (pk.big ? 3.9 : 2.0) * (1 - idx / (pk.sprites.length * 1.3)));
         });
@@ -472,7 +476,7 @@ export function Universe(props: Props) {
       for (let k = impacts.length - 1; k >= 0; k--) {
         const im = impacts[k], a = (performance.now() - im.t0) / 800;
         if (a >= 1) { retire(im.sprite); impacts.splice(k, 1); continue; }
-        im.sprite.scale.setScalar(2 + a * 9); (im.sprite.material as THREE.SpriteMaterial).opacity = (1 - a) * (1 - a) * 0.85;
+        im.sprite.scale.setScalar(2 + a * 9); (im.sprite.material as THREE.SpriteMaterial).opacity = showSystems ? (1 - a) * (1 - a) * 0.85 : 0;
       }
       coreBoost *= Math.exp(-dt * 3);
 
@@ -483,7 +487,7 @@ export function Universe(props: Props) {
         const vis = show && v.z < 1 && Math.abs(v.x) < 1.15 && Math.abs(v.y) < 1.15;
         e.style.visibility = vis ? 'visible' : 'hidden'; if (vis) e.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * h}px) translate(-50%, -50%)`;
       };
-      place('jarvis', new THREE.Vector3(0, 0, 0), true);
+      place('jarvis', new THREE.Vector3(0, 0, 0), rt.level !== 'core');
       for (const [sid, s] of systems) {
         place(sid, s.group.position, rt.level === 'universe');
         s.planets.forEach((pl) => place(pl.id, pl.mesh.getWorldPosition(new THREE.Vector3()), rt.level !== 'universe' && rt.systemId === sid));
@@ -539,7 +543,7 @@ export function Universe(props: Props) {
       <div ref={mount} className="universe-canvas" />
       <div ref={meteors} className="meteors" aria-hidden="true" /><div ref={warpEl} className="warp" aria-hidden="true" /><div ref={lbTop} className="lb top" aria-hidden="true" /><div ref={lbBot} className="lb bot" aria-hidden="true" />
       <div ref={labels} className="universe-labels">
-        <button className="node core" data-node="jarvis" onClick={() => props.navigate('#/universe')} aria-label="Jarvis core — return to universe">
+        <button className="node core" data-node="jarvis" onClick={() => props.navigate('#/command')} aria-label="Jarvis core — enter the Command Center">
           <span className="hit" /><span className={`lbl core-lbl state-${props.coreState}`}>JARVIS<small>{props.coreState}</small></span>
         </button>
         {mgrs.map((m) => (

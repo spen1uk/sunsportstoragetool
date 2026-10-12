@@ -83,3 +83,8 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 ## Not verified in this environment
 - Live research against the real internet (sandbox has no outbound DNS; the fixture-server test and the browser flow exercised everything up to and including honest failure/retry).
 - GPU performance (rendered with software GL). Quality/reduced-motion controls exist but frame rates are unmeasured.
+
+## Command Center home (Jarvis-only interface)
+- `#/command` is now the default landing screen: Jarvis himself (greeting, live HUD rings, today/tasks/attention/systems/spend panels, conversation as the main input). All HUD values are real; nothing is simulated.
+- `#/universe` keeps the full Agent Universe; flight between the two uses the existing cinematic camera. Esc or clicking the core returns to the Command Center.
+- Chat commands "go to the command center" / "open the agent universe" navigate between them.

@@ -9,7 +9,8 @@ import { publish } from './events.ts';
 export type ChatReply = { text: string; action?: { navigate?: string }; persisted: boolean; fallback?: boolean; source?: 'command' | 'model'; model?: string; costMicroUsd?: number };
 
 const NAV: [RegExp, string][] = [
-  [/(go back to|back to|return to) the universe|^universe$/i, '#/universe'],
+  [/(go (back )?to|back to|open|show( me)?|return to) (the )?(command center|jarvis( home)?|home)\b/i, '#/command'],
+  [/(open|show( me)?|go to|bring up) (the )?(agent )?universe\b/i, '#/universe'],
   [/(open|show( me)?|bring up) sun sport marine/i, '#/system/ssm'],
   [/(show( me)?|open) sales/i, '#/dept/ssm-sales'],
   [/(bring up|show|open) (my )?projects/i, '#/tasks'],
