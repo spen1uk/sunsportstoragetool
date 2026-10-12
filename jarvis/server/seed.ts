@@ -1,5 +1,6 @@
 import { type DB, now } from './db.ts';
 import { createMilestone, linkTask, completeMilestone } from './milestones.ts';
+import { TRADING, INVESTING, type SystemDef } from './roster.ts';
 
 /** Structural roster. Everything not actually connected is labelled `planned`; nothing here claims a live integration. */
 export function seedStructure(db: DB) {
@@ -10,13 +11,20 @@ export function seedStructure(db: DB) {
     ag.run(`ssm-${n.toLowerCase()}`, n, 'employee', 'ssm', 'planned', `Planned department view. No data source is connected for ${n}.`, i);
   ag.run('proj', 'My Projects', 'manager', 'jarvis', 'live', 'Personal projects and research run directly by Jarvis.', 2);
   ag.run('proj-research', 'Research', 'employee', 'proj', 'live', 'Policy-gated research worker (extractive provider, no language model).', 0);
-  ag.run('investing', 'Investing', 'manager', 'jarvis', 'planned', 'Planned. No financial connection exists; no data is shown.', 3);
-  ag.run('trading', 'Trading', 'manager', 'jarvis', 'planned', 'Planned. No trading automation is implied or enabled.', 4);
   ag.run('health', 'Health', 'manager', 'jarvis', 'planned', 'Planned. No health data source is connected.', 5);
+
+  // Trading + Investing: description/members are refreshed on every start, but ONLY while the agent is still `planned`. Once a real connection
+  // moves it to connected/stale/etc., seeding never overwrites its status or text.
+  const up = db.prepare(`INSERT INTO agents(id,name,role,parent_id,status_kind,description,sort,members) VALUES(?,?,?,?, 'planned',?,?,?)
+    ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, sort=excluded.sort, members=excluded.members, parent_id=excluded.parent_id WHERE agents.status_kind='planned'`);
+  const sys = (d: SystemDef, sort: number) => { up.run(d.id, d.name, 'manager', 'jarvis', d.description, sort, '[]'); d.depts.forEach((x, i) => up.run(x.id, x.name, 'employee', d.id, x.blurb, i, JSON.stringify(x.members))); };
+  sys(INVESTING, 3); sys(TRADING, 4);
 
   const cn = db.prepare('INSERT OR IGNORE INTO connections(id,name,kind,status,scopes,note) VALUES(?,?,?,?,?,?)');
   cn.run('web-research', 'Web research (allow-listed https)', 'research', 'connected', 'fetch: allow-listed hosts only', 'Each new domain requires your approval. SSRF-protected.');
   cn.run('sandra', 'Sandra — Sun Sport Marine manager', 'manager', 'planned', '', 'Not inspected. Phase 3: read-only reports and heartbeat first.');
+  cn.run('trading-system', 'Trading system (own server, BloFin)', 'manager', 'planned', '', 'Still being built; will run on its own server. Read-only first: heartbeat, status, reports. Jarvis never holds exchange keys and never places trades; moving money stays a protected action needing your approval.');
+  cn.run('investing-system', 'Investing system (daily report)', 'manager', 'planned', '', 'Not connected. Read-only first. You place the trades; Jarvis shows the report and the reconciliation.');
   cn.run('apple-calendar', 'Apple Calendar', 'calendar', 'planned', '', 'Provider backing (iCloud or other) must be verified first. Phase 2.');
   cn.run('apple-notes', 'Apple Notes', 'notes', 'planned', '', 'No public cloud API assumed; needs a Mac companion/export route. Phase 3.');
   cn.run('sms-voice', 'Dedicated number (SMS / calls)', 'phone', 'planned', '', 'Provider, country registration and pricing not yet verified. Needs your approval to buy.');

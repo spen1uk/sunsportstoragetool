@@ -36,6 +36,31 @@ export function Detail({ st, route, navigate }: { st: AppState; route: Route; na
   return <Dept dept={dept} sys={sys} navigate={navigate} />;
 }
 
+const CLAIM: Record<string, [string, string]> = {
+  built: ['Claimed built', 'claim-built'], partial: ['Claimed partial', 'claim-partial'], not_built: ['Claimed not built', 'claim-not'],
+  new: ['Proposed (new)', 'claim-new'], later: ['Later', 'claim-later'], jarvis: ['Done by Jarvis', 'claim-jarvis'], unstated: ['Status not stated', 'claim-later'],
+};
+type Member = { name: string; does: string; claimed: string; note?: string };
+
+function Members({ raw }: { raw?: string }) {
+  let list: Member[] = []; try { list = JSON.parse(raw ?? '[]'); } catch { /* none */ }
+  if (!list.length) return null;
+  return (
+    <>
+      <h3>Agents in this group</h3>
+      <ul className="members">
+        {list.map((m) => { const [label, cls] = CLAIM[m.claimed] ?? ['', '']; return (
+          <li key={m.name}>
+            <div className="row wrap"><strong className="grow">{m.name}</strong><span className={`badge sm ${cls}`}>{label}</span></div>
+            <div className="small">{m.does}</div>
+            {m.note && <div className="muted small">{m.note}</div>}
+          </li>); })}
+      </ul>
+      <p className="muted small">Statuses are what you told me about your own system. Jarvis has not verified any of them: nothing is connected yet.</p>
+    </>
+  );
+}
+
 function Badge({ a, small }: { a: Agent; small?: boolean }) {
   return <span className={`badge ${a.status_kind} ${small ? 'sm' : ''}`}>{BADGE[a.status_kind] ?? a.status_kind}</span>;
 }
@@ -50,7 +75,7 @@ function Dept({ dept, sys }: { dept: Agent; sys: Agent; navigate: (h: string) =>
     <div className="detail glass">
       <h2>{dept.name} <small className="muted">in {sys.name}</small></h2><Badge a={dept} />
       <p>{dept.description}</p>
-      {!live ? <p className="note">No data source is connected, so there is no performance, activity, deadline or report data to show. This view is a placeholder for the planned department.</p> : (
+      {!live ? <><Members raw={dept.members} /><p className="note">No data source is connected, so there is no performance, activity, deadline or report data to show. This view is a placeholder for the planned department.</p></> : (
         <>
           <h3>Current activity</h3>
           {open.length === 0 ? <p className="muted">Idle.</p> : <ul className="plain">{open.map((t) => <li key={t.id}><span className={`state ${t.state}`}>{t.state.replace('_', ' ')}</span> {t.title}{t.waiting_reason && <div className="muted small">{t.waiting_reason}</div>}</li>)}</ul>}

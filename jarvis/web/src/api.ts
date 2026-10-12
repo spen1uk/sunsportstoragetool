@@ -16,7 +16,7 @@ export async function api<T = any>(path: string, method = 'GET', body?: unknown)
   return data as T;
 }
 
-export type Agent = { id: string; name: string; role: 'ceo' | 'manager' | 'employee'; parent_id: string | null; status_kind: string; description: string; sort: number };
+export type Agent = { id: string; name: string; role: 'ceo' | 'manager' | 'employee'; parent_id: string | null; status_kind: string; description: string; sort: number; members?: string };
 export type AppState = {
   agents: Agent[]; pause: { paused: boolean; since: string | null; inflight: number };
   budget: { capMicroUsd: number; committedMicroUsd: number; fixedMicroUsd: number; usageMicroUsd: number; reservedMicroUsd: number; pctCommitted: number; level: string; period: string; note: string };

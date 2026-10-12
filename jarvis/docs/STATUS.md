@@ -57,7 +57,8 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | SMS/calls on a dedicated number | ⛔ | Needs your approval to buy + registration/pricing verification |
 | Sandra integration | ⛔ | Needs access to inspect; read-only first |
 | Mac companion, screen observation, wake word | ⚪ | Phase 3 |
-| Investing/trading/health managers, financial feeds | ⚪ | Phase 4; no financial connection exists |
+| Trading and Investing on the dashboard: reviewed rosters, grouped departments, per-agent claimed status + review notes, shared-engine plan | ✅ display / ⛔ connection | Everything is **planned**; statuses are Luke's claims, unverified. See docs/TRADING_INVESTING.md. Their systems are being built on a server; read-only heartbeat/report connection comes after |
+| Health manager, financial data feeds | ⚪ | No financial connection exists |
 | Projects with milestones and evidence-based progress | ✅ | Milestones with dates, dependencies (no loops/cross-project), linked tasks; status derived from facts; completion needs evidence (all linked tasks done, or written proof ≥ 10 chars); progress shown as "N of M milestones" + segmented bar, **never a percentage**; overdue / at-risk / ready-to-confirm feed the daily briefing; demo data isolated |
 | Ready-for-Review region highlight | 🟡 | Text-selection anchor; image/layout regions later |
 
