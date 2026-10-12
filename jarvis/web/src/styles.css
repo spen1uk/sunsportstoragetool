@@ -253,3 +253,16 @@ ul.members li { border: 1px solid var(--line); border-radius: 10px; padding: 8px
 @media (prefers-reduced-motion: reduce) { .rg, .holo, .caret, .cc-rings svg { animation: none !important; } }
 @media (max-height: 800px) { .cc-name { display: none; } }
 .cc-name { display: none; }
+
+/* Command Center v2: reference-style layered HUD (cyan + orange accents), camera pulled in tight on the core */
+.cc { --o: 255,150,70; }
+.cc-rings { top: 47%; height: 76%; }
+.cc-rings .spokes line { stroke: rgba(var(--c),.22); stroke-width: .8; } .cc-rings .spokes line.o { stroke: rgba(var(--o),.55); stroke-width: 1.2; }
+.cc-rings circle.o1, .cc-rings circle.o2, .cc-rings circle.o3 { stroke: rgb(var(--o)); filter: drop-shadow(0 0 5px rgba(var(--o),.9)); }
+.cc-rings .o1 { stroke-width: 4; stroke-dasharray: 330 1254; } .cc-rings .o2 { stroke-width: 2; stroke-dasharray: 60 1524; stroke-dashoffset: -700; }
+.cc-rings .o3 { stroke-width: 3; stroke-dasharray: 150 1019; stroke-dashoffset: -500; }
+.cc-rings .dash { stroke-width: 1; stroke-dasharray: 14 6; opacity: .45; }
+.cc-rings .tick2 { stroke-width: 9; stroke-dasharray: 1.4 4.6; opacity: .5; }
+.cc-rings circle.node { fill: #fff; stroke: none; filter: drop-shadow(0 0 7px rgb(var(--c))); } .cc-rings circle.node.o { filter: drop-shadow(0 0 7px rgb(var(--o))); }
+.rg.d { animation: spin 75s linear infinite reverse; } .rg.e { animation: spin 40s linear infinite; }
+.cc.s-thinking .rg.e { animation-duration: 8s; } .cc.s-working .rg.d { animation-duration: 25s; }

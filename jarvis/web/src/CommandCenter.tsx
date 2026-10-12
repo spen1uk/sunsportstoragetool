@@ -38,7 +38,7 @@ function Typed({ text, animate }: { text: string; animate: boolean }) {
   return <>{text.slice(0, n)}{n < text.length && <span className="caret">▌</span>}</>;
 }
 
-const RING_LABELS: { a: number; key: string }[] = [{ a: -38, key: 'core' }, { a: -8, key: 'link' }, { a: 22, key: 'tasks' }, { a: 62, key: 'model' }, { a: 118, key: 'approvals' }, { a: 242, key: 'mode' }];
+const RING_LABELS: { a: number; key: string }[] = [{ a: -30, key: 'core' }, { a: -2, key: 'link' }, { a: 26, key: 'tasks' }, { a: 128, key: 'approvals' }, { a: 235, key: 'mode' }];
 
 export function CommandCenter(p: { st: AppState; coreState: CoreState; convo: Conversation; navigate: (h: string) => void; reduced: boolean; linkUp: boolean }) {
   const { st, coreState, convo, navigate, reduced, linkUp } = p;
@@ -78,10 +78,14 @@ export function CommandCenter(p: { st: AppState; coreState: CoreState; convo: Co
 
       <div className="cc-rings" aria-hidden="true">
         <svg viewBox="-300 -300 600 600">
-          <g className="rg a"><circle r="288" className="tick" /><circle r="288" className="thin" /></g>
-          <g className="rg b"><circle r="262" className="arc a1" /><circle r="262" className="arc a2" /><circle r="262" className="arc a3" /></g>
-          <g className="rg c"><circle r="236" className="dots" /></g>
-          <circle r="214" className="thin" /><circle r="168" className="thin faint" />
+          <g className="spokes"><line x1="150.0" y1="0.0" x2="298.0" y2="0.0" /><line x1="129.9" y1="75.0" x2="258.1" y2="149.0" /><line x1="75.0" y1="129.9" x2="149.0" y2="258.1" /><line x1="0.0" y1="150.0" x2="0.0" y2="298.0" /><line x1="-75.0" y1="129.9" x2="-149.0" y2="258.1" /><line x1="-129.9" y1="75.0" x2="-258.1" y2="149.0" /><line x1="-150.0" y1="0.0" x2="-298.0" y2="0.0" /><line x1="-129.9" y1="-75.0" x2="-258.1" y2="-149.0" /><line x1="-75.0" y1="-129.9" x2="-149.0" y2="-258.1" /><line x1="-0.0" y1="-150.0" x2="-0.0" y2="-298.0" /><line x1="75.0" y1="-129.9" x2="149.0" y2="-258.1" /><line x1="129.9" y1="-75.0" x2="258.1" y2="-149.0" /><line x1="-300" y1="0" x2="-130" y2="0" className="o" /><line x1="130" y1="0" x2="300" y2="0" className="o" /></g>
+          <g className="rg a"><circle r="292" className="tick" /><circle r="286" className="thin" /></g>
+          <g className="rg b"><circle r="270" className="arc a1" /><circle r="270" className="arc a2" /><circle r="270" className="arc a3" /></g>
+          <g className="rg d"><circle r="252" className="arc o1" /><circle r="252" className="arc o2" /><circle r="252" className="dash" /></g>
+          <g className="rg c"><circle r="228" className="dots" /><circle r="205" className="tick2" /></g>
+          <g className="rg e"><circle r="186" className="arc a2" /><circle r="186" className="arc o3" /></g>
+          <circle r="160" className="thin" /><circle r="132" className="thin faint" />
+          <g className="rg b"><circle cx="0" cy="-270" r="4" className="node" /><circle cx="270" cy="0" r="3" className="node o" /><circle cx="-190" cy="190" r="3.5" className="node" /></g>
         </svg>
         {RING_LABELS.map((l) => <span key={l.key} className="rl" style={{ ['--a' as any]: `${l.a}deg` }}><b>{labels[l.key]}</b></span>)}
         <div className="cc-name">J.A.R.V.I.S.</div>

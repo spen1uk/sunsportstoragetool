@@ -381,7 +381,7 @@ export function Universe(props: Props) {
 
       // route → camera goal
       const rt = p.route; let focusPlanet: THREE.Object3D | null = null;
-      if (rt.level === 'core') { camGoal.set(0, -14, 38); lookGoal.set(0, -1.5, 0); }
+      if (rt.level === 'core') { camGoal.set(0, -10, 27); lookGoal.set(0, -0.5, 0); }
       else if (rt.level === 'universe') { camGoal.set(0, -34, 92); lookGoal.set(0, 0, 0); }
       else if (rt.systemId && systems.has(rt.systemId)) {
         const c = sysWorld(rt.systemId);
