@@ -78,9 +78,9 @@ function nebulaGenMaterial() {
 function nebulaSkyMaterial(tex: THREE.Texture) {
   tex.wrapS = THREE.RepeatWrapping; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false;
   return new THREE.ShaderMaterial({
-    uniforms: { uTex: { value: tex } }, side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: { uTex: { value: tex }, uDim: { value: 1 } }, side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     vertexShader: 'varying vec3 vD; void main(){ vD=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-    fragmentShader: 'varying vec3 vD; uniform sampler2D uTex; void main(){ vec3 d=normalize(vD); vec2 uv=vec2(atan(d.z,d.x)/6.2831853+.5, asin(clamp(d.y,-1.,1.))/3.1415927+.5); gl_FragColor=vec4(texture2D(uTex,uv).rgb,1.); }',
+    fragmentShader: 'varying vec3 vD; uniform sampler2D uTex; uniform float uDim; void main(){ vec3 d=normalize(vD); vec2 uv=vec2(atan(d.z,d.x)/6.2831853+.5, asin(clamp(d.y,-1.,1.))/3.1415927+.5); gl_FragColor=vec4(texture2D(uTex,uv).rgb*uDim,1.); }',
   });
 }
 
@@ -215,7 +215,7 @@ export function Universe(props: Props) {
     stars.frustumCulled = false; scene.add(stars);
 
     // --- Jarvis core ---
-    const core = new THREE.Group(); core.scale.setScalar(1.6); scene.add(core);
+    let insideK = 0; const core = new THREE.Group(); core.scale.setScalar(1.6); scene.add(core);
     core.add(new THREE.Mesh(new THREE.SphereGeometry(3.2, 48, 32), new THREE.MeshBasicMaterial({ color: 0x000000 })));
     const corona = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: STATE_COLORS.idle, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.3 }));
     corona.scale.set(21, 21, 1); core.add(corona);
@@ -381,7 +381,7 @@ export function Universe(props: Props) {
 
       // route → camera goal
       const rt = p.route; let focusPlanet: THREE.Object3D | null = null;
-      if (rt.level === 'core') { camGoal.set(0, -7, 19); lookGoal.set(0, 1.2, 0); }
+      if (rt.level === 'core') { camGoal.set(0, 0, 0.6); lookGoal.set(0, 6, -30); }   // inside the black hole
       else if (rt.level === 'universe') { camGoal.set(0, -34, 92); lookGoal.set(0, 0, 0); }
       else if (rt.systemId && systems.has(rt.systemId)) {
         const c = sysWorld(rt.systemId);
@@ -418,7 +418,10 @@ export function Universe(props: Props) {
       }
       const fovT = 50 + 17 * speedS; if (Math.abs(camera.fov - fovT) > 0.01) { camera.fov = fovT; camera.updateProjectionMatrix(); }
       camera.lookAt(look);
-      starU.uWarp.value = speedS; if (bloom) bloom.strength = bloomBase * (1 + 0.9 * speedS);
+      // Inside the black hole: once the camera crosses the horizon the core's own scenery is gone (it is all around us, not in front of us); the sky dims to a deep, calm glow.
+      { const inside = rt.level === 'core' ? 1 : 0; insideK += (inside - insideK) * (reduced ? 1 : Math.min(1, dt * 2.2));
+        core.visible = camera.position.length() > 5.2; const nm = nebula.material as THREE.ShaderMaterial; if (nm.uniforms?.uDim) nm.uniforms.uDim.value = 1 - 0.62 * insideK; }
+      starU.uWarp.value = Math.max(speedS, insideK * (reduced ? 0 : 0.22)); if (bloom) bloom.strength = bloomBase * (1 + 0.9 * speedS);
       if (warpEl.current) warpEl.current.style.opacity = (speedS * 0.6).toFixed(3);
       if (lbTop.current && lbBot.current) { const h = `${(speedS * 6).toFixed(2)}%`; lbTop.current.style.height = h; lbBot.current.style.height = h; }
       stageEl?.classList.toggle('flying', speedS > 0.04);
