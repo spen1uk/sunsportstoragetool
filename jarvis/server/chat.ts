@@ -84,7 +84,7 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
     const from = /next/i.test(text) ? t0 : tomorrow ? dayStart(1) : dayStart(0), to = /next/i.test(text) ? t0 + 3 * 86_400_000 : from + 86_400_000;
     const ev = upcoming(db, from, to).filter((e) => e.end >= t0).slice(0, 10);
     const fmt = (e: any) => `${e.allDay ? 'all day' : new Date(e.start).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' })} — ${e.title}`;
-    const stale = cs.status === 'stale' ? ' (My copy is stale, so this may be out of date; recurring events can be missing.)' : ' (Recurring events can be missing from my copy.)';
+    const stale = cs.status === 'stale' ? ' (My copy is stale, so this may be out of date; recurring events can be missing.)' : ' (Unusual repeat patterns can be missing from my copy.)';
     return reply(ev.length ? `${/next/i.test(text) ? 'Coming up' : tomorrow ? 'Tomorrow' : 'Today'}, sir:\n${ev.map(fmt).join('\n')}${stale}` : `Nothing on the calendar ${/next/i.test(text) ? 'in the next three days' : tomorrow ? 'tomorrow' : 'for the rest of today'}, sir.${stale}`);
   }
   if ((m = text.match(/^(?:search|find)(?: my)? notes?(?: for| about)?\s+(.+)$/i))) {

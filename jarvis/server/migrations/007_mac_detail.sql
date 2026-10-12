@@ -1,0 +1,1 @@
+ALTER TABLE mac_sync ADD COLUMN detail TEXT;

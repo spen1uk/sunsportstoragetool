@@ -37,7 +37,7 @@ function SourcePicker({ kind, noun }: { kind: 'calendar' | 'notes'; noun: string
 
 function Status({ st }: { st: any }) {
   const label = ({ connected: 'connected', stale: 'STALE', disconnected: 'disconnected', planned: 'not connected' } as any)[st.status];
-  return <p><span className={`badge ${st.status}`}>{label}</span> <span className="muted small">last successful sync: {ago(st.lastOk)}{st.status === 'stale' ? ' — newer items may be missing' : ''}</span></p>;
+  return <p><span className={`badge ${st.status}`}>{label}</span> <span className="muted small">last successful sync: {ago(st.lastOk)}{st.status === 'stale' ? ' — newer items may be missing' : ''}</span>{st.detail && <span className="muted small"> · scanned {st.detail.scanned} events{st.detail.repeatingSeries !== undefined ? `, ${st.detail.repeatingSeries} repeating series` : ''}{st.detail.unsupportedRules ? `, ${st.detail.unsupportedRules} with a repeat pattern I can't read yet` : ''}</span>}</p>;
 }
 
 export function CalendarPage() {
@@ -46,7 +46,7 @@ export function CalendarPage() {
   return (
     <section className="page"><h1>Calendar</h1>
       {data && <Status st={data.state} />}
-      <p className="muted small">A read-only copy of your Apple Calendar for the next two weeks. Jarvis plans work around these appointments but never changes your calendar. <b>Known limit:</b> repeating events (a weekly meeting, say) can be missing from this copy, so don't treat free time here as certain.</p>
+      <p className="muted small">A read-only copy of your Apple Calendar for the next two weeks. Jarvis plans work around these appointments but never changes your calendar. Repeating events are worked out from their repeat rule; a few unusual patterns may still be missed, so don't treat free time here as certain.</p>
       <div className="glass pad">
         {data && data.state.status === 'planned' ? <p className="muted">No calendar connected yet. Choose one below.</p>
           : groups.size === 0 ? <p className="muted">Nothing in the next two weeks.</p>

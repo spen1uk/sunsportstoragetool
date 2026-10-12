@@ -76,7 +76,7 @@ export function buildBriefing(db: DB, now = Date.now()) {
     generatedAt: now, isMonday, weekAhead: isMonday,
     sections: [{ title: 'Urgent issues and decisions', items: urgent }, { title: 'Significant updates', items: updates }, { title: 'Recommended actions', items: recs }] as Section[],
     schedule: { appointments: appts, calendar: calState.status, blocks, risks: plan.deadlineRisk, overcapacity: plan.overcapacity, unscheduled: plan.unscheduled.map((id) => tasks.get(id)?.title),
-      caveat: calOn ? `Proposed around your Apple Calendar appointments${calState.status === 'stale' ? ' (the calendar copy is STALE: last sync failed or is old, so new appointments may be missing)' : ''}, within Mon–Fri 8:00–18:00 work hours. Recurring events may be missing. Nothing is written back to your calendar.` : 'Proposed against Mon–Fri 8:00–18:00 work hours only. No calendar is connected, so existing appointments are unknown and nothing is written anywhere.' },
+      caveat: calOn ? `Proposed around your Apple Calendar appointments${calState.status === 'stale' ? ' (the calendar copy is STALE: last sync failed or is old, so new appointments may be missing)' : ''}, within Mon–Fri 8:00–18:00 work hours. Unusual repeat patterns may be missing. Nothing is written back to your calendar.` : 'Proposed against Mon–Fri 8:00–18:00 work hours only. No calendar is connected, so existing appointments are unknown and nothing is written anywhere.' },
     unavailable, narration: narration.join(' '), narrationWords: words, estimatedSeconds: Math.round((words / 150) * 60), overflow,
   };
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { makeDb } from './helpers.ts';
 import { chicagoInstant as ci } from '../tz.ts';
 import { setRunner, classify, MacError } from '../mac.ts';
-import { detectCalendars, syncCalendar, setEnabled, syncState, busyIntervals, upcoming, parseEvents } from '../calendar.ts';
+import { detectCalendars, syncCalendar, setEnabled, syncState, busyIntervals, upcoming, parseScan, occurrences } from '../calendar.ts';
 import { detectFolders, syncNotes, listNotes, getNote, parseNotes } from '../notes.ts';
 import { buildBriefing, proposedPlan } from '../today.ts';
 import { buildContext } from '../context.ts';
@@ -17,7 +17,7 @@ const fakeMac = (handlers: { calendars?: string[]; events?: any[]; folders?: str
   setRunner(async (script, args) => {
     calls.push(args); if (handlers.fail) throw handlers.fail;
     if (script.includes('C.calendars().map')) return JSON.stringify(handlers.calendars ?? []);
-    if (script.includes("Application('Calendar'), out")) { const want = JSON.parse(args[2]); return JSON.stringify((handlers.events ?? []).filter((e) => want.includes(e.calendar))); }
+    if (script.includes("Application('Calendar'), out")) { const want = JSON.parse(args[2]); const evs = (handlers.events ?? []).filter((e) => want.includes(e.calendar)); return JSON.stringify({ events: evs, stats: Object.fromEntries(want.map((w: string) => [w, { total: evs.filter((e) => e.calendar === w).length, inWindow: evs.length, repeating: 0 }])) }); }
     if (script.includes('N.folders().map')) return JSON.stringify(handlers.folders ?? []);
     const want = JSON.parse(args[0]); return JSON.stringify((handlers.notes ?? []).filter((n) => want.includes(n.folder)));
   });
@@ -67,9 +67,9 @@ test('calendar: never connected + failing is "disconnected", not connected', asy
 });
 
 test('malformed or hostile rows are skipped or cleaned instead of breaking the sync', () => {
-  const rows = parseEvents(JSON.stringify([ev('Home', 'a', 'Fine\u0000\n title', 1, 2), { nope: 1 }, ev('Home', 'b', '', 5, 3)]));
+  const rows = parseScan(JSON.stringify({ events: [ev('Home', 'a', 'Fine\u0000\n title', 1, 2), { nope: 1 }, ev('Home', 'b', '', 5, 3)], stats: {} })).events;
   assert.equal(rows.length, 2); assert.equal(rows[0].title, 'Fine title'); assert.equal(rows[1].title, '(no title)'); assert.ok(rows[1].end >= rows[1].start);
-  assert.throws(() => parseEvents('not json'));
+  assert.throws(() => parseScan('not json'));
 });
 
 test('planner: appointments block work slots (with buffers); all-day events do not', async () => {
@@ -116,4 +116,39 @@ test('notes: only chosen folders are read; search works; note text never enters 
 
 test('classify: timeouts and permission denials get distinct, actionable messages', () => {
   assert.equal(classify('', true).kind, 'timeout'); assert.equal(classify('... (-1743)', false).kind, 'permission'); assert.equal(classify('boom', false).kind, 'failed');
+});
+
+test('calendar: a successful sync records what was scanned, so an empty result can be diagnosed', async () => {
+  const db = makeDb(); fakeMac({ calendars: ['Home'], events: [ev('Home', 'a', 'Dentist', NOW + H, NOW + 2 * H)] });
+  await detectCalendars(db); setEnabled(db, 'calendar', ['Home']); await syncCalendar(db, NOW);
+  const st = syncState(db, 'calendar', NOW + 1000); assert.equal(st.detail.scanned, 1); assert.equal(st.detail.calendars.Home.total, 1);
+});
+
+test('repeating events are expanded from their rule (weekly, interval, monthly ordinal, count, until, excluded dates)', () => {
+  const local = (y: number, m: number, d: number, h = 0, mi = 0) => new Date(y, m - 1, d, h, mi).getTime();
+  const run = (rule: string, start: number, exclude: number[] = [], from = local(2026, 10, 12), to = local(2026, 10, 26, 23, 59)) =>
+    occurrences({ events: [{ calendar: 'C', uid: 'u', title: 'Gym', start, end: start + H, allDay: false, location: '', rule, exclude }], stats: {} }, from, to);
+  const days = (r: ReturnType<typeof run>) => r.events.map((e) => new Date(e.start).getDate() + '@' + new Date(e.start).getHours());
+  // weekly Mon/Wed at 6am, started months ago → Oct 12 (Mon) .. Oct 26
+  assert.deepEqual(days(run('FREQ=WEEKLY;BYDAY=MO,WE', local(2026, 3, 2, 6))), ['12@6', '14@6', '19@6', '21@6', '26@6']);
+  // every 2 weeks on Tuesday, anchored Sep 29 → Oct 13, Oct 27 (outside) 
+  assert.deepEqual(days(run('FREQ=WEEKLY;INTERVAL=2;BYDAY=TU', local(2026, 9, 29, 9))), ['13@9']);
+  // daily with COUNT: 5 occurrences from Oct 10 → 10,11,12,13,14; window starts Oct 12
+  assert.deepEqual(days(run('FREQ=DAILY;COUNT=5', local(2026, 10, 10, 7))), ['12@7', '13@7', '14@7']);
+  // until stops the series
+  assert.deepEqual(days(run('FREQ=DAILY;UNTIL=20261014T235959Z', local(2026, 10, 10, 7))).length >= 3, true);
+  assert.deepEqual(days(run('FREQ=DAILY;UNTIL=20261013', local(2026, 10, 10, 7))), ['12@7', '13@7']);
+  // monthly: first Monday and last Friday
+  assert.deepEqual(days(run('FREQ=MONTHLY;BYDAY=1MO', local(2026, 1, 5, 8), [], local(2026, 11, 1), local(2026, 11, 30, 23))), ['2@8']);
+  assert.deepEqual(days(run('FREQ=MONTHLY;BYDAY=-1FR', local(2026, 1, 30, 8), [], local(2026, 10, 1), local(2026, 10, 31, 23))), ['30@8']);
+  assert.deepEqual(days(run('FREQ=MONTHLY;BYMONTHDAY=15', local(2026, 1, 15, 12), [], local(2026, 10, 1), local(2026, 10, 31, 23))), ['15@12']);
+  // yearly
+  assert.deepEqual(days(run('FREQ=YEARLY', local(2020, 10, 20, 0))), ['20@0']);
+  // an excluded date is skipped; wall-clock hour is kept across a daylight-saving change (Nov 1 2026)
+  assert.deepEqual(days(run('FREQ=WEEKLY;BYDAY=MO', local(2026, 3, 2, 6), [local(2026, 10, 19, 6)])), ['12@6', '26@6']);
+  assert.deepEqual(days(run('FREQ=WEEKLY;BYDAY=SU', local(2026, 3, 1, 6), [], local(2026, 10, 25), local(2026, 11, 9, 23))), ['25@6', '1@6', '8@6']);
+  // unknown rule: reported, not guessed
+  const bad = run('FREQ=HOURLY', local(2026, 10, 13, 6)); assert.equal(bad.unsupported, 1);
+  // end of an ongoing event still counts
+  assert.equal(run('FREQ=DAILY', local(2026, 10, 1, 23), [], local(2026, 10, 12, 23, 30), local(2026, 10, 12, 23, 59)).events.length >= 1, true);
 });
