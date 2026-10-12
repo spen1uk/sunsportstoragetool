@@ -13,7 +13,7 @@ export type Route = { level: 'core' | 'universe' | 'system' | 'dept'; systemId?:
 type Pos = Record<string, { x: number; y: number }>;
 type Props = {
   agents: Agent[]; coreState: CoreState; quality: 'low' | 'medium' | 'high'; reducedMotion: boolean; route: Route;
-  active: Set<string>; navigate: (hash: string) => void; layoutVersion: number;
+  active: Set<string>; navigate: (hash: string) => void; layoutVersion: number; onFlightEnd?: () => void;
 };
 
 const DEFAULTS: Pos = { ssm: { x: -40, y: 8 }, proj: { x: 38, y: 10 }, investing: { x: -22, y: -26 }, trading: { x: 22, y: -26 }, health: { x: 2, y: 30 } };
@@ -394,7 +394,7 @@ export function Universe(props: Props) {
       const goalKey = `${rt.level}:${rt.systemId ?? ''}:${rt.deptId ?? ''}`, nowMs = performance.now();
       if (flight.key !== goalKey) {
         const first = flight.key === ''; flight.key = goalKey;
-        if (first || reduced) { camera.position.copy(camGoal); look.copy(lookGoal); flight.active = false; }
+        if (first || reduced) { camera.position.copy(camGoal); look.copy(lookGoal); flight.active = false; p.onFlightEnd?.(); }
         else {
           flight.active = true; flight.t0 = nowMs; flight.p0.copy(camera.position); flight.l0.copy(look);
           const dist = flight.p0.distanceTo(camGoal) + flight.l0.distanceTo(lookGoal) * 0.6;
@@ -411,7 +411,7 @@ export function Universe(props: Props) {
         look.copy(flight.l0).lerp(lookGoal, u0 * u0 * (3 - 2 * u0));
         speedS = Math.sin(Math.PI * u0);                                       // 0 → 1 → 0 across the flight
         camera.up.set(Math.sin(flight.side * 0.17 * speedS), Math.cos(flight.side * 0.17 * speedS), 0);   // bank into the turn
-        if (u0 >= 1) { flight.active = false; camera.up.set(0, 1, 0); }
+        if (u0 >= 1) { flight.active = false; camera.up.set(0, 1, 0); p.onFlightEnd?.(); }
       } else {
         camera.position.copy(camGoal); look.copy(lookGoal);
         if (!reduced) { camera.position.x += Math.sin(nowMs / 4200) * 0.45; camera.position.y += Math.cos(nowMs / 5300) * 0.3; }   // slow idle drift

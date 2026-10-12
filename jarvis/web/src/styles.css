@@ -272,5 +272,12 @@ ul.members li { border: 1px solid var(--line); border-radius: 10px; padding: 8px
 .cc-rings::before { content: ''; position: absolute; inset: 14%; border-radius: 50%; background: radial-gradient(circle, rgba(var(--c),.5), rgba(var(--c),.16) 40%, rgba(var(--c),0) 68%); animation: breathe 5s ease-in-out infinite alternate; }
 @keyframes breathe { from { opacity: .55; transform: scale(.94); } to { opacity: 1; transform: scale(1.04); } }
 @media (prefers-reduced-motion: reduce) { .cc-rings::before { animation: none; } }
-.cc-rings, .cc-col, .cc-convo, .cc-chips, .cc-input, .cc-top { transition: opacity .7s ease .15s; }
-.stage.flying .cc-rings, .stage.flying .cc-col, .stage.flying .cc-convo, .stage.flying .cc-chips, .stage.flying .cc-input { opacity: 0; transition-delay: 0s; transition-duration: .35s; }
+
+.cc { transition: opacity .7s ease .1s, visibility 0s; }
+.cc.away { opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility 0s .3s; }
+.cc.away * { pointer-events: none !important; }
+.cc-rings .wave line { stroke: rgb(var(--c)); stroke-width: 2.4; stroke-linecap: round; filter: drop-shadow(0 0 4px rgba(var(--c),.95)); }
+.cc-rings .wave { opacity: 0; transition: opacity .25s; }
+.cc.s-speaking .cc-rings::before { animation: speak-glow .55s ease-in-out infinite alternate; background: radial-gradient(circle, rgba(var(--c),.75), rgba(var(--c),.25) 42%, rgba(var(--c),0) 70%); }
+@keyframes speak-glow { from { transform: scale(.9); opacity: .7; } to { transform: scale(1.12); opacity: 1; } }
+.cc.s-speaking .rg.a { animation-duration: 30s; } .cc.s-speaking .rg.e { animation-duration: 6s; } .cc.s-speaking .rg.d { animation-duration: 18s; }

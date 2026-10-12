@@ -2,13 +2,15 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, useLive, usd, type AppState } from './api.ts';
 import { greeting, statusLine } from './greeting.ts';
 import type { Conversation } from './Chat.tsx';
-import { supported } from './speech.ts';
+import { supported, speechState, emitSpeech } from './speech.ts';
 import type { CoreState } from './Universe.tsx';
 
 const TZ = 'America/Chicago';
 const clock = (d: Date) => d.toLocaleTimeString('en-US', { timeZone: TZ, hour12: false });
 const dateLine = (d: Date) => d.toLocaleDateString('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' });
 const due = (t: number) => new Date(t).toLocaleDateString('en-US', { timeZone: TZ, month: 'short', day: 'numeric' });
+
+const WAVE = <><line key="0" x1="104.0" y1="0.0" x2="110.0" y2="0.0" /><line key="1" x1="103.4" y1="10.9" x2="109.4" y2="11.5" /><line key="2" x1="101.7" y1="21.6" x2="107.6" y2="22.9" /><line key="3" x1="98.9" y1="32.1" x2="104.6" y2="34.0" /><line key="4" x1="95.0" y1="42.3" x2="100.5" y2="44.7" /><line key="5" x1="90.1" y1="52.0" x2="95.3" y2="55.0" /><line key="6" x1="84.1" y1="61.1" x2="89.0" y2="64.7" /><line key="7" x1="77.3" y1="69.6" x2="81.7" y2="73.6" /><line key="8" x1="69.6" y1="77.3" x2="73.6" y2="81.7" /><line key="9" x1="61.1" y1="84.1" x2="64.7" y2="89.0" /><line key="10" x1="52.0" y1="90.1" x2="55.0" y2="95.3" /><line key="11" x1="42.3" y1="95.0" x2="44.7" y2="100.5" /><line key="12" x1="32.1" y1="98.9" x2="34.0" y2="104.6" /><line key="13" x1="21.6" y1="101.7" x2="22.9" y2="107.6" /><line key="14" x1="10.9" y1="103.4" x2="11.5" y2="109.4" /><line key="15" x1="0.0" y1="104.0" x2="0.0" y2="110.0" /><line key="16" x1="-10.9" y1="103.4" x2="-11.5" y2="109.4" /><line key="17" x1="-21.6" y1="101.7" x2="-22.9" y2="107.6" /><line key="18" x1="-32.1" y1="98.9" x2="-34.0" y2="104.6" /><line key="19" x1="-42.3" y1="95.0" x2="-44.7" y2="100.5" /><line key="20" x1="-52.0" y1="90.1" x2="-55.0" y2="95.3" /><line key="21" x1="-61.1" y1="84.1" x2="-64.7" y2="89.0" /><line key="22" x1="-69.6" y1="77.3" x2="-73.6" y2="81.7" /><line key="23" x1="-77.3" y1="69.6" x2="-81.7" y2="73.6" /><line key="24" x1="-84.1" y1="61.1" x2="-89.0" y2="64.7" /><line key="25" x1="-90.1" y1="52.0" x2="-95.3" y2="55.0" /><line key="26" x1="-95.0" y1="42.3" x2="-100.5" y2="44.7" /><line key="27" x1="-98.9" y1="32.1" x2="-104.6" y2="34.0" /><line key="28" x1="-101.7" y1="21.6" x2="-107.6" y2="22.9" /><line key="29" x1="-103.4" y1="10.9" x2="-109.4" y2="11.5" /><line key="30" x1="-104.0" y1="0.0" x2="-110.0" y2="0.0" /><line key="31" x1="-103.4" y1="-10.9" x2="-109.4" y2="-11.5" /><line key="32" x1="-101.7" y1="-21.6" x2="-107.6" y2="-22.9" /><line key="33" x1="-98.9" y1="-32.1" x2="-104.6" y2="-34.0" /><line key="34" x1="-95.0" y1="-42.3" x2="-100.5" y2="-44.7" /><line key="35" x1="-90.1" y1="-52.0" x2="-95.3" y2="-55.0" /><line key="36" x1="-84.1" y1="-61.1" x2="-89.0" y2="-64.7" /><line key="37" x1="-77.3" y1="-69.6" x2="-81.7" y2="-73.6" /><line key="38" x1="-69.6" y1="-77.3" x2="-73.6" y2="-81.7" /><line key="39" x1="-61.1" y1="-84.1" x2="-64.7" y2="-89.0" /><line key="40" x1="-52.0" y1="-90.1" x2="-55.0" y2="-95.3" /><line key="41" x1="-42.3" y1="-95.0" x2="-44.7" y2="-100.5" /><line key="42" x1="-32.1" y1="-98.9" x2="-34.0" y2="-104.6" /><line key="43" x1="-21.6" y1="-101.7" x2="-22.9" y2="-107.6" /><line key="44" x1="-10.9" y1="-103.4" x2="-11.5" y2="-109.4" /><line key="45" x1="-0.0" y1="-104.0" x2="-0.0" y2="-110.0" /><line key="46" x1="10.9" y1="-103.4" x2="11.5" y2="-109.4" /><line key="47" x1="21.6" y1="-101.7" x2="22.9" y2="-107.6" /><line key="48" x1="32.1" y1="-98.9" x2="34.0" y2="-104.6" /><line key="49" x1="42.3" y1="-95.0" x2="44.7" y2="-100.5" /><line key="50" x1="52.0" y1="-90.1" x2="55.0" y2="-95.3" /><line key="51" x1="61.1" y1="-84.1" x2="64.7" y2="-89.0" /><line key="52" x1="69.6" y1="-77.3" x2="73.6" y2="-81.7" /><line key="53" x1="77.3" y1="-69.6" x2="81.7" y2="-73.6" /><line key="54" x1="84.1" y1="-61.1" x2="89.0" y2="-64.7" /><line key="55" x1="90.1" y1="-52.0" x2="95.3" y2="-55.0" /><line key="56" x1="95.0" y1="-42.3" x2="100.5" y2="-44.7" /><line key="57" x1="98.9" y1="-32.1" x2="104.6" y2="-34.0" /><line key="58" x1="101.7" y1="-21.6" x2="107.6" y2="-22.9" /><line key="59" x1="103.4" y1="-10.9" x2="109.4" y2="-11.5" /></>;   // 60 voice bars around the core; lengths are driven live while Jarvis speaks
 
 function useClock() {
   const [t, setT] = useState(new Date());
@@ -27,22 +29,39 @@ function Holo({ n, title, delay, children, className = '' }: { n: number; title:
 }
 
 /** Reveals text like a terminal readout, for replies that arrive while you are looking. Instant when reduced motion is on. */
-function Typed({ text, animate }: { text: string; animate: boolean }) {
+const played = new Set<string | number>();   // replies already written out once are never replayed (e.g. when you come back to this screen)
+function Typed({ id, text, animate0 }: { id: string | number; text: string; animate0: boolean }) {
+  const animate = animate0 && !played.has(id);
   const [n, setN] = useState(animate ? 0 : text.length);
   useEffect(() => {
     if (!animate) { setN(text.length); return; }
-    let raf = 0; const t0 = performance.now();
-    const f = (t: number) => { const k = Math.min(text.length, Math.floor(((t - t0) / 1000) * 110)); setN(k); if (k < text.length) raf = requestAnimationFrame(f); };
-    raf = requestAnimationFrame(f); return () => cancelAnimationFrame(raf);
-  }, [text, animate]);
+    let raf = 0; const t0 = performance.now(); speechState.typing = true; emitSpeech();   // Jarvis is "talking" for as long as his reply is being written out
+    const f = (t: number) => { const k = Math.min(text.length, Math.floor(((t - t0) / 1000) * 110)); setN(k); if (k < text.length) { speechState.level = Math.max(speechState.level, 0.35 + Math.random() * 0.65); raf = requestAnimationFrame(f); } else { played.add(id); speechState.typing = false; emitSpeech(); } };
+    raf = requestAnimationFrame(f); return () => { cancelAnimationFrame(raf); if (speechState.typing) { speechState.typing = false; emitSpeech(); } };
+  }, [text, animate, id]);
   return <>{text.slice(0, n)}{n < text.length && <span className="caret">▌</span>}</>;
 }
 
 const RING_LABELS: { a: number; key: string }[] = [{ a: -30, key: 'core' }, { a: -2, key: 'link' }, { a: 26, key: 'tasks' }, { a: 128, key: 'approvals' }, { a: 235, key: 'mode' }];
 
-export function CommandCenter(p: { st: AppState; coreState: CoreState; convo: Conversation; navigate: (h: string) => void; reduced: boolean; linkUp: boolean }) {
-  const { st, coreState, convo, navigate, reduced, linkUp } = p;
+export function CommandCenter(p: { away: boolean; st: AppState; coreState: CoreState; convo: Conversation; navigate: (h: string) => void; reduced: boolean; linkUp: boolean }) {
+  const { st, coreState, convo, navigate, reduced, linkUp, away } = p;
   const now = useClock();
+  const wave = useRef<SVGGElement>(null);
+  // Voice ring: while Jarvis is speaking (real playback, or his reply being written out) the bars dance to the live speech level; otherwise they rest flat.
+  useEffect(() => {
+    const g = wave.current; if (!g) return; const bars = Array.from(g.children) as SVGLineElement[]; let raf = 0;
+    const tick = (t: number) => {
+      const on = speechState.speaking || speechState.typing, lvl = on ? Math.max(0.25, speechState.level) : 0;
+      speechState.level *= 0.9;
+      bars.forEach((b, i) => {
+        const a = (i * 6 * Math.PI) / 180, n = 0.5 + 0.5 * Math.sin(t / 90 + i * 1.7) * Math.sin(t / 230 - i * 0.6), len = 6 + lvl * 34 * (0.25 + 0.75 * n);
+        b.setAttribute('x2', (Math.cos(a) * (104 + len)).toFixed(1)); b.setAttribute('y2', (Math.sin(a) * (104 + len)).toFixed(1));
+      });
+      g.style.opacity = on ? '1' : '0'; if (!reduced || on) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf);
+  }, [reduced, coreState]);
   const { data: today } = useLive<any>(() => api('/api/today'), ['tasks', 'approvals', 'artifacts', 'system', 'mode']);
   const { data: tasks } = useLive<any[]>(() => api('/api/tasks'), ['tasks']);
   const { data: llm } = useLive<any>(() => api('/api/llm'), ['chat', 'budget']);
@@ -70,7 +89,7 @@ export function CommandCenter(p: { st: AppState; coreState: CoreState; convo: Co
   ];
 
   return (
-    <div className={`cc s-${coreState}`}>
+    <div className={`cc s-${coreState}${away ? ' away' : ''}`} aria-hidden={away}>
       <div className="cc-top">
         <div className="cc-greet"><h1>{greeting(now, sir)}</h1><p>{statusLine({ approvals: st.counts.approvals, review: st.counts.review, blocked: st.counts.blocked, running: st.running.length, paused: st.pause.paused })}</p></div>
         <div className="cc-actions"><button className="primary" onClick={() => navigate('#/universe')}>Agent Universe ›</button><button onClick={() => navigate('#/briefings')}>Full briefing</button></div>
@@ -79,6 +98,7 @@ export function CommandCenter(p: { st: AppState; coreState: CoreState; convo: Co
       <div className="cc-rings" aria-hidden="true">
         <svg viewBox="-300 -300 600 600">
           <g className="spokes"><line x1="150.0" y1="0.0" x2="298.0" y2="0.0" /><line x1="129.9" y1="75.0" x2="258.1" y2="149.0" /><line x1="75.0" y1="129.9" x2="149.0" y2="258.1" /><line x1="0.0" y1="150.0" x2="0.0" y2="298.0" /><line x1="-75.0" y1="129.9" x2="-149.0" y2="258.1" /><line x1="-129.9" y1="75.0" x2="-258.1" y2="149.0" /><line x1="-150.0" y1="0.0" x2="-298.0" y2="0.0" /><line x1="-129.9" y1="-75.0" x2="-258.1" y2="-149.0" /><line x1="-75.0" y1="-129.9" x2="-149.0" y2="-258.1" /><line x1="-0.0" y1="-150.0" x2="-0.0" y2="-298.0" /><line x1="75.0" y1="-129.9" x2="149.0" y2="-258.1" /><line x1="129.9" y1="-75.0" x2="258.1" y2="-149.0" /><line x1="-300" y1="0" x2="-130" y2="0" className="o" /><line x1="130" y1="0" x2="300" y2="0" className="o" /></g>
+          <g ref={wave} className="wave">{WAVE}</g>
           <g className="rg a"><circle r="292" className="tick" /><circle r="286" className="thin" /></g>
           <g className="rg b"><circle r="270" className="arc a1" /><circle r="270" className="arc a2" /><circle r="270" className="arc a3" /></g>
           <g className="rg d"><circle r="252" className="arc o1" /><circle r="252" className="arc o2" /><circle r="252" className="dash" /></g>
@@ -121,7 +141,7 @@ export function CommandCenter(p: { st: AppState; coreState: CoreState; convo: Co
 
       <div className="cc-convo">
         {lines.length > 0 && <div className="cc-lines" role="log" aria-live="polite">
-          {lines.map((m) => <div key={m.id} className={`cl ${m.role}`}><b>{m.role === 'jarvis' ? 'JARVIS' : 'YOU'}</b><span><Typed text={m.content} animate={!reduced && m.role === 'jarvis' && m.id === lastJarvis?.id && seen.current !== null && !seen.current.has(m.id)} /></span></div>)}
+          {lines.map((m) => <div key={m.id} className={`cl ${m.role}`}><b>{m.role === 'jarvis' ? 'JARVIS' : 'YOU'}</b><span><Typed id={m.id} text={m.content} animate0={!reduced && m.role === 'jarvis' && m.id === lastJarvis?.id && !away && seen.current !== null && !seen.current.has(m.id)} /></span></div>)}
         </div>}
         <div className="cc-chips">{chips.map(([l, f]) => <button key={l} className="chip" disabled={convo.busy && l !== 'Open the Agent Universe'} onClick={f}>{l}</button>)}</div>
         <form className={`cc-input ${convo.priv ? 'private' : ''}`} onSubmit={(e) => { e.preventDefault(); void convo.send(); }}>

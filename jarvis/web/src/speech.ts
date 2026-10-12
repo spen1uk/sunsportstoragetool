@@ -4,9 +4,10 @@
  * utterance's start event, each word boundary adds a pulse, and it clears on end/cancel/error. It is not an audio-amplitude
  * analysis (the Web Speech API doesn't expose one); the docs say so.
  */
-export const speechState = { speaking: false, level: 0 };
+export const speechState = { speaking: false, level: 0, typing: false };   // typing: a reply is being written out on the Command Center screen
 const subs = new Set<() => void>();
 export const onSpeech = (f: () => void) => { subs.add(f); return () => { subs.delete(f); }; };
+export const emitSpeech = () => subs.forEach((f) => f());
 const emit = () => subs.forEach((f) => f());
 
 export type VoiceCfg = { lang: string; voiceName: string; rate: number; pitch: number };

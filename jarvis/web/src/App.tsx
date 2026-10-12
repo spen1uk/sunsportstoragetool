@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, connection, setCsrf, startEvents, stopEvents, useLive, usd, subscribe, type AppState } from './api.ts';
 import { onSpeech, speechState } from './speech.ts';
 import { Universe, type CoreState, type Route } from './Universe.tsx';
@@ -93,8 +93,12 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const isUniverse = hash === '#/command' || hash === '#/universe' || hash === '#/universe-full' || /^#\/(system|dept)\//.test(hash);   // pages that show the 3D stage
   const isCore = route.level === 'core';
   const convo = useConversation(navigate, setThinking);
+  // Travelling between Jarvis and the universe: the HUD fades out the moment the route changes and returns only after the camera has landed (no flash of it over the wrong scene).
+  const [transit, setTransit] = useState(false); const prevCore = useRef(isCore);
+  useLayoutEffect(() => { if (prevCore.current !== isCore) { prevCore.current = isCore; if (!reduced) setTransit(true); } }, [isCore, reduced]);
+  useEffect(() => { if (!transit) return; const t = setTimeout(() => setTransit(false), 4600); return () => clearTimeout(t); }, [transit]);
   // Priority: no link > paused > speaking (real playback, momentary) > urgent alert > thinking (awaiting a reply) > executing tasks > waiting on you > idle
-  const coreState: CoreState = !connection.up ? 'disconnected' : st?.pause.paused ? 'paused' : speechState.speaking ? 'speaking' : (st?.counts.urgent ?? 0) > 0 ? 'urgent' : (thinking || serverThinking) ? 'thinking' : (st?.running.length ?? 0) > 0 ? 'working' : (st && (st.counts.approvals > 0 || st.counts.blocked > 0)) ? 'blocked' : 'idle';
+  const coreState: CoreState = !connection.up ? 'disconnected' : st?.pause.paused ? 'paused' : (speechState.speaking || speechState.typing) ? 'speaking' : (st?.counts.urgent ?? 0) > 0 ? 'urgent' : (thinking || serverThinking) ? 'thinking' : (st?.running.length ?? 0) > 0 ? 'working' : (st && (st.counts.approvals > 0 || st.counts.blocked > 0)) ? 'blocked' : 'idle';
   const active = useMemo(() => new Set((st?.running ?? []).length ? ['proj'] : []), [st]);
   const pageNav = NAV.find((n) => n.hash === hash);
   const crumbs: { label: string; hash: string }[] = [{ label: 'Universe', hash: '#/universe' }];
@@ -144,9 +148,9 @@ function Shell({ onLogout }: { onLogout: () => void }) {
       <main className="main">
         {isUniverse && st && (
           <section className={`stage ${isCore ? 'core-mode' : ''}`} aria-label={isCore ? 'Jarvis command center' : 'Agent universe'}>
-            <Universe agents={st.agents} coreState={coreState} quality={quality} reducedMotion={reduced} route={route} active={active} navigate={navigate} layoutVersion={layoutVersion} />
-            {isCore && <CommandCenter st={st} coreState={coreState} convo={convo} navigate={navigate} reduced={reduced} linkUp={connection.up} />}
-            {!isCore && <div className="crumbs glass">
+            <Universe onFlightEnd={() => setTransit(false)} agents={st.agents} coreState={coreState} quality={quality} reducedMotion={reduced} route={route} active={active} navigate={navigate} layoutVersion={layoutVersion} />
+            <CommandCenter away={!isCore || transit} st={st} coreState={coreState} convo={convo} navigate={navigate} reduced={reduced} linkUp={connection.up} />
+            {!isCore && !transit && <div className="crumbs glass">
               {crumbs.map((c, i) => <span key={c.hash}>{i > 0 && ' → '}{i === crumbs.length - 1 ? <b>{c.label}</b> : <a href={c.hash}>{c.label}</a>}</span>)}
               {crumbs.length > 1 && <button onClick={back} aria-label="Zoom out one level">Zoom out</button>}
               {sibs.length > 1 && <span className="tourbar"><button onClick={() => hop(-1)} aria-label={`Fly to previous ${route.level === 'system' ? 'system' : 'department'}`} title="Previous (←)">◀</button><button onClick={() => hop(1)} aria-label={`Fly to next ${route.level === 'system' ? 'system' : 'department'}`} title="Next (→)">▶</button></span>}
@@ -155,14 +159,14 @@ function Shell({ onLogout }: { onLogout: () => void }) {
             </div>}
             {(route.level === 'system' || route.level === 'dept') && <Detail st={st} route={route} navigate={navigate} />}
             <div className="frame" aria-hidden="true"><i /><i /><i /><i /></div>
-            {!isCore && <div className="readout" aria-label="System readout">
+            {!isCore && !transit && <div className="readout" aria-label="System readout">
               <span><b>{st.agents.filter((x) => x.status_kind === 'live').length}</b> LIVE</span>
               <span><b>{st.agents.filter((x) => x.status_kind === 'planned').length}</b> PLANNED</span>
               <span>TASKS <b>{st.counts.tasksActive}</b></span><span>APPROVALS <b>{st.counts.approvals}</b></span>
               <span className={connection.up ? 'up' : 'down'}>● {connection.up ? 'LINK NOMINAL' : 'LINK LOST'}</span>
               <span className="state">CORE · {coreState.toUpperCase()}</span>
             </div>}
-            {!isCore && <div className="hint">Drag a system to rearrange · click to fly in · ← → hop between systems · Esc back to Jarvis</div>}
+            {!isCore && !transit && <div className="hint">Drag a system to rearrange · click to fly in · ← → hop between systems · Esc back to Jarvis</div>}
           </section>
         )}
         {!isUniverse && pageNav?.planned && <PlannedPage title={pageNav.label} text={pageNav.planned} />}
