@@ -5,6 +5,7 @@ import { isConfigured } from './auth.ts';
 import { seedStructure } from './seed.ts';
 import { startWorker } from './worker.ts';
 import { tickNotifications } from './notify.ts';
+import { maybeAutoSuggest } from './memsuggest.ts';
 import { syncCalendar, sources } from './calendar.ts';
 import { syncNotes } from './notes.ts';
 import { isMac } from './mac.ts';
@@ -18,7 +19,7 @@ createServer(db).listen(config.port, config.host, () => console.log(`Jarvis API 
 if (process.env.JARVIS_EMBEDDED_WORKER !== '0') { startWorker(db); console.log('Embedded worker started (set JARVIS_EMBEDDED_WORKER=0 and run `npm run worker` separately to split).'); }
 
 // Local, cheap: a 30-second tick decides what is due. No model calls, no polling of external services.
-const tick = () => { try { tickNotifications(db); } catch (e) { console.error('[notify]', (e as Error).message); } };
+const tick = () => { try { tickNotifications(db); } catch (e) { console.error('[notify]', (e as Error).message); } void maybeAutoSuggest(db).catch((e) => console.error('[memory]', (e as Error).message)); };
 setInterval(tick, 30_000); tick();
 // Read-only copy of the chosen Apple Calendar / Notes, refreshed every 15 minutes while Jarvis runs on the Mac (no network, no model calls).
 const macSync = async () => { for (const [k, f] of [['calendar', syncCalendar], ['notes', syncNotes]] as const) { if (sources(db, k).some((x) => x.enabled)) await f(db).catch((e) => console.error(`[${k}]`, (e as Error).message)); } };

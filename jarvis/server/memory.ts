@@ -4,6 +4,8 @@ import { publish } from './events.ts';
 
 const SECRETISH = /(sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.|-----BEGIN|\b(password|passcode|passphrase|pin|api[_ -]?key|secret|token|2fa|verification code)\b\s*(is|=|:)?\s*\S+|\b\d{13,19}\b)/i;
 
+export const looksSecret = (t: string) => SECRETISH.test(t);
+
 export function remember(db: DB, content: string, o: { source: string; scope?: string; kind?: string; confidence?: number }) {
   const text = content.trim().slice(0, 1000);
   if (!text) return { ok: false as const, error: 'nothing to remember' };

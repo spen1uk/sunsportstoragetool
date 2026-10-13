@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { api, ago, usd, useLive, type AppState } from './api.ts';
 import { PersonaCard, ModelsCard } from './ai.tsx';
 import { ProjectsPanel } from './projects.tsx';
+import { MemorySuggestions } from './memsug.tsx';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function useAction() {
@@ -211,7 +212,8 @@ export function MemoryPage() {
       <form className="glass pad row" onSubmit={(e) => { e.preventDefault(); void a.run(async () => { await api('/api/memory', 'POST', { content: text }); setText(''); reload(); }); }}>
         <input className="grow" value={text} onChange={(e) => setText(e.target.value)} placeholder="Remember…" maxLength={1000} /><button className="primary" disabled={!text.trim()}>Remember</button>
       </form>
-      <p className="muted small">Secrets, passwords and codes are refused. “Forget” deletes the record outright; database backups age out per the retention note in docs/THREAT_MODEL.md. Conversation archive and derived-memory extraction arrive with the language-model provider.</p>
+      <p className="muted small">Secrets, passwords and codes are refused. “Forget” deletes the record outright; database backups age out per the retention note in docs/THREAT_MODEL.md. Suggested memories below come from your saved chats and only become memories when you accept them.</p>
+      <MemorySuggestions />
       <div className="glass pad section"><ul className="plain">
         {(data ?? []).map((m) => (
           <li key={m.id} className={m.superseded_by ? 'dim' : ''}>
