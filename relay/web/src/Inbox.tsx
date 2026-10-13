@@ -93,7 +93,7 @@ function Thread({ id, tz, compose, onComposeUsed, tick, typing, onBack, onInfo, 
   const [sched, setSched] = useState<any[]>([]); const [when, setWhen] = useState(''); const [tplMissing, setTplMissing] = useState<string[]>([]);
   const [packageId, setPackageId] = useState<string | null>(null); const [showVoice, setShowVoice] = useState(false);
   const keyRef = useRef(uuid());
-  useEffect(() => { if (compose) { setDraft(compose.body); setPackageId(compose.packageId); setFiles([]); onComposeUsed?.(); } }, [compose]);
+  useEffect(() => { if (compose) { setDraft(compose.body); setPackageId(compose.packageId || null); setFiles([]); onComposeUsed?.(); } }, [compose]);
   const endRef = useRef<HTMLDivElement>(null); const typingTimer = useRef<number>(0);
   const load = useCallback(() => get(`/api/conversations/${id}`).then((d) => { setData(d); post(`/api/conversations/${id}/read`).catch(() => {}); }).catch((e) => setLoadErr(e.message)), [id]);
   const loadSched = useCallback(() => get(`/api/conversations/${id}/scheduled`).then(setSched).catch(() => {}), [id]);
@@ -105,7 +105,7 @@ function Thread({ id, tz, compose, onComposeUsed, tick, typing, onBack, onInfo, 
   const c = data.conversation; const lastSeq = data.messages.length ? data.messages[data.messages.length - 1].seq : 0;
   const send = async (force = false) => {
     setErr(''); setWarn(null);
-    try { await post(`/api/conversations/${id}/messages`, { body: draft, idempotencyKey: keyRef.current, ifLastSeq: lastSeq, force, mediaIds: [...files.map((f) => f.id), ...(packageId && compose?.mediaIds ? compose.mediaIds : [])], packageId: packageId ?? undefined }); setDraft(''); setFiles([]); setTplMissing([]); setPackageId(null); keyRef.current = uuid(); load(); onChanged(); }
+    try { await post(`/api/conversations/${id}/messages`, { body: draft, idempotencyKey: keyRef.current, ifLastSeq: lastSeq, force, mediaIds: [...files.map((f) => f.id), ...(packageId && compose?.mediaIds ? compose.mediaIds : [])], packageId: packageId || undefined }); setDraft(''); setFiles([]); setTplMissing([]); setPackageId(null); keyRef.current = uuid(); load(); onChanged(); }
     catch (e) {
       if (e instanceof ApiError && e.status === 409) setWarn('New activity arrived in this conversation while you were typing. Review it, then send anyway if still appropriate.');
       else if (e instanceof ApiError && e.status === 422) { setErr(`Not sent: ${REASON[e.body?.error] ?? e.body?.error}.`); keyRef.current = uuid(); load(); }

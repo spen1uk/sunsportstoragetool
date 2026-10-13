@@ -1,7 +1,7 @@
 # Build status
 Last updated: 2026-10-13
 
-**Verification summary:** `npm run check` = typecheck ✓ · eslint ✓ · 145 tests ✓ (real Postgres). Browser-verified (Chromium, desktop 1400px + mobile 390px, real server+worker processes). Nothing real has been sent: SMS is a DEMO simulator.
+**Verification summary:** `npm run check` = typecheck ✓ · eslint ✓ · 277 tests ✓ (real Postgres). Browser-verified (Chromium, desktop 1400px + mobile 390px, real server+worker processes). Nothing real has been sent: SMS is a DEMO simulator.
 
 ## Phase 0 — done (cost model TODO)
 ## Phase 1 — COMPLETE ✔ (see git history / earlier notes): auth, roles, dept-scoped access, contacts, inbox, assignment, notes, responsibility vs handling states, durable messages, SSE realtime, responsive UI, restart retention.
@@ -46,12 +46,29 @@ Limitations specific to Phase 4:
 - Analytics has no appointment, review or payment data yet and never computes sales attribution; response times are wall-clock.
 - Quiet hours do not delay replies to a customer who just texted (auto-responses).
 
+## Phase 5 — framework COMPLETE; provider-backed validation BLOCKED (no credentials, no real adapters)
+`npm run check`: typecheck ✓ · eslint ✓ · **277 tests ✓** (15 files); browser-verified desktop + 390px. **No real provider is connected or tested.** Everything below ran against sandbox adapters (in-process fakes that go through the real framework code) — that proves the framework, NOT any vendor.
+Gate items and evidence:
+- **Honest blocked statuses:** every requested integration is listed in-app (Connections) with evidence state, scopes, account requirements, cost, tests, blockers and sources; entries with no adapter cannot be connected and say why. Tests assert: no capability is "production-tested", only adapter-backed entries are connectable, "sandbox-tested" appears only where true, personal Facebook Marketplace and RingCentral SMS routing are marked unsupported. Official-docs research (2026-10-13) found real gates: Google Business Profile API needs an approved application; Gmail restricted scopes need a third-party security assessment; Meta Advanced Access needs App Review + Business Verification; TikTok Business Messaging needs security reviews and isn't offered in EEA/CH/UK; Twilio/Telnyx Hosted SMS exclude mobile numbers and need an LOA.
+- **Signed payment events:** payment status changes only on a signature-verified webhook (timestamped HMAC, 5-min tolerance) or an authenticated provider-totals fetch. Tests: unsigned/tampered/wrong-secret/stale/replayed webhooks change nothing; duplicates are no-ops; refund-before-payment doesn't corrupt state; any event order gives the same result; reconciliation fills a missed webhook and a late webhook can't double-count (mutation-verified: removing verification and removing the no-double-count rule each fail tests); opening the success URL changes nothing; lower provider totals are flagged MISMATCH, not auto-fixed; paid-in-Relay never touches accounting fields.
+- **Failed-token recovery:** refresh before expiry; transient refresh failure → stays connected with backoff; permanent refusal/revocation → `needs_reauth`, admins notified, queued syncs cancelled, no retry storm, secrets masked in errors; **re-authorization resumes from the saved cursor with no duplicates**; writes get one forced refresh then flag the connection. Resumable paged sync, one-pending-job-per-sync, idempotent upserts via external mappings with content hashes (our own reply echoing back is not treated as a change).
+- **No unauthorized review publication or customer outreach:** the only code path that publishes to a review platform is `postReply` (static test). It requires: manager role, an approval bound to the exact text (any edit voids it; tampering detected), admin-enabled write permission, a claim so concurrent clicks publish once. Ambiguous outcome → `unknown`, never auto-retried, confirmed by the next sync. Audit trail records who approved what (hash). Drafts are rule-based and labelled "no AI". Review requests are sentiment-blind (strict schema; exclusions only consent/90-day re-ask), reuse broadcast approval/opt-out/quiet-hours safeguards, and replies are tagged private feedback. Inbound webhooks can create contacts/notes only — never send messages — and record consent only with explicit evidence.
+- **Security:** credentials AES-256-GCM, bound to their row, key-versioned with rotation, never returned or logged; read and write permissions separate (write off by default); SSRF guard for webhook destinations (https/443 only, public addresses only incl. IPv4-mapped IPv6 and numeric-host tricks, connects to the validated address to defeat DNS rebinding, no redirects, re-checked each delivery; real-transport test proves loopback is unreachable); outbound events are metadata-only unless an admin opts a subscription into content; sandbox adapters refused in production.
+What was built: connections framework (adapter contract, encrypted credentials, OAuth refresh, sync runner, mappings, scan, rotation, disconnect/revoke), generic webhooks (outbound with retries/backoff/dead-letter/redeliver; inbound signed lead endpoints), payments (requests, idempotent hosted-link creation, signed webhooks, reconciliation, refunds, manager-only), reviews (sync, summary with source-reported vs computed rating, manual import, reply workflow, review requests), Connections/Payments/Reviews screens.
+Limitations specific to Phase 5:
+- **No real adapters.** Stripe: only the signature scheme is implemented. Google/QuickBooks/Meta/TikTok/RingCentral/Zoho/OpenAI/Anthropic/SMS providers are documented, not built; their API request shapes are unverified because the docs sites could not be fetched here.
+- Sandbox adapters hold state in the server process; run the worker with `SANDBOX_WORKER_SYNC=0` for demos.
+- Outbound webhook delivery is tested with an injected transport; real network egress is untested.
+- Review "AI drafts" are rule-based templates (no model); review responses to manually imported reviews must be posted on the platform by hand.
+- Payments are manager-only to create; staff see statuses for customers they can access. Payment amounts capped at $250,000 per request (our own limit).
+- No accounting integration: Relay cannot verify or change invoice balances.
+
 ## Honest limitations
 - Summaries use a regex extractor, not an LLM: good at budgets/boats/dates/questions, weak at nuance; "unanswered" means no staff message followed at all. LLM adapters pending API key (docs/AI_DATA_SHARING.md).
 - Inventory has no live source; import/manual only. "Source of truth" = the imported list, marked stale after 24h unless re-confirmed.
 - No push notifications; PWA installable manifest + minimal service worker only.
 - Local-disk media store (needs object storage for production); no malware scanner.
-- Not built: presence, bulk actions, contact merge tool, Phases 5–7, cost model, deployment package. ("Groups" are tags.)
+- Not built: presence, bulk actions, contact merge tool, Phases 6–7, cost model, deployment package. ("Groups" are tags.)
 
 ## Blocked / needs owner
 1. SMS test-number provider choice + account + spend approval (and answers to the live-number questions in INTEGRATION_CAPABILITIES.md).
@@ -59,4 +76,4 @@ Limitations specific to Phase 4:
 3. Inventory system access/API details (or approval to treat manual CSV import as source of truth).
 
 ## Next
-Phase 5: reviews, payments, connections framework (adapters, encrypted credentials, webhooks, SSRF guard), external sync. Most items need credentials — building the framework and honest 'setup required' states first.
+Phase 6: Sandra API (service identity, scoped access, events, fencing, idempotency, fake client, docs), operational hardening (backup/restore into a fresh environment, worker/realtime recovery demos), deployment package. Then Phase 7 migration preparation.

@@ -10,6 +10,9 @@ import { Matches } from './Matches';
 import { Automations } from './Automations';
 import { Broadcasts } from './Broadcasts';
 import { Analytics } from './Analytics';
+import { Connections } from './Connections';
+import { Payments } from './Payments';
+import { Reviews } from './Reviews';
 
 export interface Me { user: { id: string; name: string; role: string; departmentIds: string[] }; workspace: { name: string; timezone: string }; channels: any[]; simulated: boolean }
 
@@ -17,13 +20,13 @@ const NAV: { key: string; label: string; icon: string; setup?: { phase: string; 
   { key: 'inbox', label: 'Inbox', icon: '✉' }, { key: 'customers', label: 'Customers', icon: '☺' },
   { key: 'team', label: 'Team Chat', icon: '☷' },
   { key: 'matches', label: 'Inventory Matches', icon: '⚓' },
-  { key: 'reviews', label: 'Reviews', icon: '★', setup: { phase: 'Phase 5', needs: 'Requires Google Business Profile API access (to be verified) and owner approval before any review request is sent.' } },
-  { key: 'payments', label: 'Payments', icon: '$', setup: { phase: 'Phase 5', needs: 'Requires a payment provider account with signed webhooks. Relay never stores card details.' } },
+  { key: 'reviews', label: 'Reviews', icon: '★' },
+  { key: 'payments', label: 'Payments', icon: '$' },
   { key: 'automations', label: 'Automations', icon: '⚙' },
   { key: 'broadcasts', label: 'Broadcasts', icon: '📣' },
   { key: 'media', label: 'Media', icon: '▣' },
   { key: 'analytics', label: 'Analytics', icon: '▥' },
-  { key: 'connections', label: 'Connections', icon: '⇄', setup: { phase: 'Phase 5', needs: 'See INTEGRATION_CAPABILITIES.md: every provider is pending until credentials exist and capabilities are verified.' } },
+  { key: 'connections', label: 'Connections', icon: '⇄' },
   { key: 'settings', label: 'Settings', icon: '☰' },
 ];
 
@@ -64,6 +67,9 @@ export function App() {
           {tab === 'automations' && <Automations me={me} onOpenConversation={(cid) => { setFocus(cid); setTab('inbox'); }} />}
           {tab === 'broadcasts' && <Broadcasts me={me} />}
           {tab === 'analytics' && <Analytics me={me} />}
+          {tab === 'reviews' && <Reviews me={me} />}
+          {tab === 'payments' && <Payments me={me} onCompose={(c) => { setCompose(c); setFocus(c.conversationId); setTab('inbox'); }} />}
+          {tab === 'connections' && <Connections me={me} />}
           {tab === 'media' && <MediaLibrary />}
           {tab === 'settings' && <Settings me={me} />}
           {tab === 'customers' && <Customers me={me} />}
