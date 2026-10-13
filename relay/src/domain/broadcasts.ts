@@ -20,11 +20,11 @@ const input = z.object({ name: z.string().min(1).max(100), purpose: z.enum(['mar
 const manager = (a: Actor) => { if (!atLeastManager(a)) throw new HttpError(403, 'manager role required to manage broadcasts'); };
 async function load(a: Actor, id: string) { const b = (await pool.query('SELECT * FROM broadcasts WHERE id=$1 AND workspace_id=$2', [id, a.workspaceId])).rows[0]; if (!b) throw new HttpError(404, 'broadcast not found'); return b; }
 
-export async function createBroadcast(a: Actor, i: unknown) {
+export async function createBroadcast(a: Actor, i: unknown, kind: 'broadcast' | 'review_request' = 'broadcast') {
   manager(a); const b = input.parse(i);
   if (!b.audience.tags.length && !b.audience.contactIds.length) throw new HttpError(400, 'choose an audience (tags or specific customers)');
   if (b.mediaIds.length) { const c = await pool.connect(); try { const bad = await validateAttachments(c, a.workspaceId, b.mediaIds); if (bad) throw new HttpError(400, bad); } finally { c.release(); } }
-  const r = await pool.query(`INSERT INTO broadcasts (workspace_id, name, purpose, body, media_ids, audience, batch_size, interval_seconds, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, [a.workspaceId, b.name, b.purpose, b.body, b.mediaIds, JSON.stringify(b.audience), b.batchSize, b.intervalSeconds, a.userId]);
+  const r = await pool.query(`INSERT INTO broadcasts (workspace_id, name, purpose, body, media_ids, audience, batch_size, interval_seconds, created_by, kind) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`, [a.workspaceId, b.name, b.purpose, b.body, b.mediaIds, JSON.stringify(b.audience), b.batchSize, b.intervalSeconds, a.userId, kind]);
   return r.rows[0].id as string;
 }
 export async function updateBroadcast(a: Actor, id: string, i: unknown) {
@@ -35,7 +35,8 @@ export async function updateBroadcast(a: Actor, id: string, i: unknown) {
 
 export interface Plan { eligible: { contactId: string; name: string; text: string; segments: number; phone: string }[]; excluded: { contactId: string; name: string; reason: string }[] }
 /** Resolve the audience NOW: tag/explicit selection → exclusions (consent, no phone, duplicate number, missing details) → personalized text. */
-export async function planAudience(workspaceId: string, b: { purpose: Purpose; body: string; audience: Audience }): Promise<Plan> {
+export const REVIEW_REASK_DAYS = 90;
+export async function planAudience(workspaceId: string, b: { purpose: Purpose; body: string; audience: Audience; kind?: string }): Promise<Plan> {
   const au = audienceSchema.parse(b.audience);
   const rows = (await pool.query(
     `SELECT ct.*, (SELECT ci.normalized FROM contact_identities ci WHERE ci.contact_id=ct.id AND ci.kind='phone' ORDER BY ci.is_primary DESC, ci.created_at LIMIT 1) AS phone
@@ -48,6 +49,8 @@ export async function planAudience(workspaceId: string, b: { purpose: Purpose; b
     if (!c.phone) { ex('no_phone'); continue; }
     const v = checkSmsAllowed(c, b.purpose); if (!v.allowed) { ex(v.reason); continue; }
     if (seenPhones.has(c.phone)) { ex('duplicate_number'); continue; }
+    // Review requests are SENTIMENT-BLIND: the only exclusions are consent/contactability and "already asked recently".
+    if (b.kind === 'review_request' && (await pool.query(`SELECT 1 FROM review_request_log WHERE contact_id=$1 AND requested_at > now() - ($2||' days')::interval`, [c.id, String(REVIEW_REASK_DAYS)])).rowCount) { ex('recently_asked'); continue; }
     const { text, missing } = render(b.body, await automationVars(workspaceId, c.id));
     if (missing.length) { ex(`missing_details:${missing.join(',')}`); continue; }
     seenPhones.add(c.phone); plan.eligible.push({ contactId: c.id, name, text, segments: smsSegments(text).segments, phone: c.phone });
@@ -57,7 +60,7 @@ export async function planAudience(workspaceId: string, b: { purpose: Purpose; b
 }
 
 export async function previewBroadcast(a: Actor, id: string) {
-  const b = await load(a, id); const plan = await planAudience(a.workspaceId, { purpose: b.purpose, body: b.body, audience: b.audience });
+  const b = await load(a, id); const plan = await planAudience(a.workspaceId, { purpose: b.purpose, body: b.body, audience: b.audience, kind: b.kind });
   const reasons: Record<string, number> = {}; for (const e of plan.excluded) reasons[e.reason.split(':')[0]] = (reasons[e.reason.split(':')[0]] ?? 0) + 1;
   const segs = plan.eligible.reduce((n, r) => n + r.segments, 0);
   const rate = (await pool.query(`SELECT value FROM workspace_settings WHERE workspace_id=$1 AND key='sms_cost_per_segment'`, [a.workspaceId])).rows[0]?.value;
@@ -78,7 +81,7 @@ export async function approveBroadcast(a: Actor, id: string, when: { sendNow: tr
     try { assertTimezone(tz!); at = zonedToUtc(when.localTime, tz!).utc; } catch (e) { throw new HttpError(400, (e as Error).message); }
     if (at.getTime() < Date.now() + 30_000) throw new HttpError(400, 'scheduled time must be in the future'); local = when.localTime;
   }
-  const plan = await planAudience(a.workspaceId, { purpose: b.purpose, body: b.body, audience: b.audience });
+  const plan = await planAudience(a.workspaceId, { purpose: b.purpose, body: b.body, audience: b.audience, kind: b.kind });
   if (!plan.eligible.length) throw new HttpError(409, 'no eligible recipients');
   await tx(async (c) => {
     for (const r of plan.eligible) await c.query(`INSERT INTO broadcast_recipients (broadcast_id, contact_id) VALUES ($1,$2)`, [id, r.contactId]);
@@ -131,7 +134,7 @@ export async function runBroadcastTick(broadcastId: string) {
       const cv = (await c.query(`INSERT INTO conversations (workspace_id, contact_id, channel_id, contact_identity_id, status, responsibility) VALUES ($1,$2,$3,$4,'closed','closed')
         ON CONFLICT (workspace_id, contact_id, channel_id) DO UPDATE SET contact_identity_id=COALESCE(conversations.contact_identity_id, EXCLUDED.contact_identity_id) RETURNING id`, [b.workspace_id, ct.id, ch.id, ct.ident])).rows[0];
       const res = await queueOutboundTx(c, { workspaceId: b.workspace_id, conversationId: cv.id, body: text, senderType: 'staff', senderUserId: b.approved_by, purpose: b.purpose, idempotencyKey: `bc:${broadcastId}:${ct.id}`, mediaIds: b.media_ids, autoKind: 'broadcast', passive: true });
-      if (res.ok) await mark('queued', null, res.messageId); else await mark('suppressed', res.reason, res.messageId);
+      if (res.ok) { await mark('queued', null, res.messageId); if (b.kind === 'review_request') await c.query('INSERT INTO review_request_log (contact_id, broadcast_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [ct.id, broadcastId]); } else await mark('suppressed', res.reason, res.messageId);
     });
   }
   const left = (await pool.query(`SELECT count(*)::int n FROM broadcast_recipients WHERE broadcast_id=$1 AND status='pending'`, [broadcastId])).rows[0].n;
@@ -157,7 +160,7 @@ export async function getBroadcast(a: Actor, id: string) {
   // Delivery states are reported exactly as known: provider acceptance is NOT delivery.
   const counts: Record<string, number> = {};
   for (const r of rows) { const k = r.message_status ?? r.recipient_status; counts[k] = (counts[k] ?? 0) + 1; }
-  return { broadcast: { id: b.id, name: b.name, purpose: b.purpose, body: b.body, status: b.status, scheduledFor: b.scheduled_for, startedAt: b.started_at, completedAt: b.completed_at, batchSize: b.batch_size, intervalSeconds: b.interval_seconds, audience: b.audience },
+  return { broadcast: { id: b.id, kind: b.kind, name: b.name, purpose: b.purpose, body: b.body, status: b.status, scheduledFor: b.scheduled_for, startedAt: b.started_at, completedAt: b.completed_at, batchSize: b.batch_size, intervalSeconds: b.interval_seconds, audience: b.audience },
     progress: { total: rows.length, counts, replies48h: rows.filter((r) => r.replied_48h).length },
     recipients: rows.map((r) => ({ contactId: r.contact_id, name: [r.first_name, r.last_name].filter(Boolean).join(' ') || r.phone, phone: r.phone, status: r.message_status ?? r.recipient_status, detail: r.status_detail ?? r.reason, replied: r.replied_48h })) };
 }

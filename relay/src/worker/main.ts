@@ -3,11 +3,16 @@ import { handlers } from './handlers.js';
 import { migrate } from '../db/migrate.js';
 import { scheduleMaintenance } from '../domain/voice.js';
 import { scheduleWorkflowScan } from '../domain/workflows.js';
+import { scheduleConnectionScan } from '../integrations/connections.js';
+import { schedulePaymentReconcile } from '../domain/payments.js';
 
 /** Poll loop. Safe to run multiple workers (SKIP LOCKED); crashed workers' jobs are reclaimed after the lease expires. */
+process.env.RELAY_PROCESS = 'worker';
 await migrate();
 await scheduleMaintenance();   // idempotent (dedupe key)
 await scheduleWorkflowScan();
+await scheduleConnectionScan();
+await schedulePaymentReconcile();
 console.log('relay worker started');
 let running = true;
 process.on('SIGTERM', () => { running = false; }); process.on('SIGINT', () => { running = false; });

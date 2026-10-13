@@ -10,6 +10,7 @@ import { notify, recipientsForConversation } from './notifications.js';
 import { HttpError } from './authz.js';
 import { touchSummary } from './summary.js';
 import { enqueue } from './queue.js';
+import { emitEvent } from './outbound-events.js';
 
 const RANK: Record<string, number> = { queued: 0, sending: 1, unknown: 1, provider_accepted: 2, delivered: 3, failed: 3 };
 
@@ -43,6 +44,7 @@ async function handleStatus(c: PoolClient, provider: string, ev: Extract<Normali
   if (!terminal && (RANK[ev.status] ?? 0) > (RANK[m.status] ?? 0)) {
     await c.query(`UPDATE messages SET status=$2, status_detail=$3 WHERE id=$1`, [m.id, ev.status, ev.error ?? null]);
     await publish(c, m.workspace_id, 'message.updated', { conversationId: m.conversation_id, messageId: m.id });
+    await emitEvent(c, m.workspace_id, 'message.status_changed', { messageId: m.id, conversationId: m.conversation_id, status: ev.status });
   }
 }
 
@@ -98,6 +100,9 @@ async function handleInbound(c: PoolClient, provider: string, ev: Extract<Normal
   const who = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || e164;
   await notify(c, { workspaceId: ws, userIds: await recipientsForConversation(c, conv.id), type: 'inbound_message', title: `New text from ${who}`, conversationId: conv.id });
 
+  // A reply to a review request is PRIVATE FEEDBACK: tag it so staff handle it as such (it is never auto-published or filtered).
+  const rr = await c.query(`SELECT 1 FROM messages m JOIN broadcast_recipients r ON r.message_id=m.id JOIN broadcasts b ON b.id=r.broadcast_id WHERE m.conversation_id=$1 AND b.kind='review_request' AND m.created_at > now() - interval '7 days' LIMIT 1`, [conv.id]);
+  if (rr.rowCount) { await c.query(`UPDATE conversations SET tags = CASE WHEN 'review-feedback' = ANY(tags) THEN tags ELSE array_append(tags,'review-feedback') END WHERE id=$1`, [conv.id]); await c.query(`INSERT INTO timeline_events (workspace_id, contact_id, conversation_id, type, summary) VALUES ($1,$2,$3,'message','Reply to a review request (private feedback)')`, [ws, contact.id, conv.id]); }
   const kw = classifyKeyword(ev.body);
   if (!kw) {   // automation reacts only to real conversation, never to STOP/START/HELP
     await enqueue(c, 'auto_respond', { conversationId: conv.id, messageId: msg.rows[0].id }, { workspaceId: ws, dedupeKey: msg.rows[0].id });
@@ -123,5 +128,6 @@ async function handleInbound(c: PoolClient, provider: string, ev: Extract<Normal
   }
   await c.query(`INSERT INTO timeline_events (workspace_id, contact_id, conversation_id, type, summary, origin_table, origin_id, occurred_at) VALUES ($1,$2,$3,'message','Inbound text received','messages',$4,$5)`,
     [ws, contact.id, conv.id, msg.rows[0].id, ev.occurredAt]);
+  await emitEvent(c, ws, 'message.received', { conversationId: conv.id, messageId: msg.rows[0].id, contactId: contact.id, channel: 'sms' }, { body: ev.body, from: e164 });
   await publish(c, ws, 'message.created', { conversationId: conv.id, inbound: true });
 }
