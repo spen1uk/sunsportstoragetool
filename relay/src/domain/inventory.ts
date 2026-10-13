@@ -3,6 +3,7 @@ import { pool, tx, type Db } from '../db/pool.js';
 import { HttpError, atLeastManager, canSeeContact, type Actor } from './authz.js';
 import { enqueue } from './queue.js';
 import { publish } from './events.js';
+import { emitInventoryChanges } from './workflows.js';
 
 export const boatSchema = z.object({
   externalId: z.string().min(1).max(100),
@@ -24,9 +25,10 @@ const isFresh = (src: { last_success_sync_at: Date | null; stale_after_hours: nu
 export async function upsertBoats(a: Actor, sourceKey: string, boats: BoatInput[], opts: { fullSync?: boolean; kind?: 'manual' | 'import' } = {}) {
   if (!atLeastManager(a)) throw new HttpError(403, 'manager role required to change inventory');
   const parsed = boats.map((b) => boatSchema.parse(b));
-  const touched: string[] = [];
+  const touched: string[] = []; const changes: { boatId: string; change: 'price_drop' | 'back_available' | 'new' }[] = [];
   await tx(async (c) => {
     const src = await ensureSource(c, a.workspaceId, sourceKey, opts.kind ?? 'manual');
+    const prior = new Map((await c.query('SELECT external_id, price, status FROM inventory_boats WHERE source_id=$1', [src.id])).rows.map((r) => [r.external_id, r]));
     for (const b of parsed) {
       const r = await c.query(
         `INSERT INTO inventory_boats (workspace_id, source_id, external_id, status, year, make, model, boat_type, length_ft, price, engine, capacity, engine_hours, features, listing_url, media_ids)
@@ -36,6 +38,10 @@ export async function upsertBoats(a: Actor, sourceKey: string, boats: BoatInput[
          RETURNING id`,
         [a.workspaceId, src.id, b.externalId, b.status, b.year ?? null, b.make ?? null, b.model ?? null, b.boatType ?? null, b.lengthFt ?? null, b.price ?? null, b.engine ?? null, b.capacity ?? null, b.engineHours ?? null, b.features, b.listingUrl ?? null, b.mediaIds]);
       touched.push(r.rows[0].id);
+      const before = prior.get(b.externalId);
+      if (!before) changes.push({ boatId: r.rows[0].id, change: 'new' });
+      else if (before.price != null && b.price != null && b.price < Number(before.price)) changes.push({ boatId: r.rows[0].id, change: 'price_drop' });
+      else if (before.status !== 'available' && b.status === 'available') changes.push({ boatId: r.rows[0].id, change: 'back_available' });
     }
     // A full sync that no longer lists a boat does NOT prove it sold; it becomes 'unknown' (excluded from confident matches).
     if (opts.fullSync) await c.query(`UPDATE inventory_boats SET status='unknown', updated_at=now() WHERE source_id=$1 AND external_id <> ALL($2::text[]) AND status<>'sold'`, [src.id, parsed.map((b) => b.externalId)]);
@@ -43,6 +49,7 @@ export async function upsertBoats(a: Actor, sourceKey: string, boats: BoatInput[
     await enqueue(c, 'recompute_matches', { all: true }, { workspaceId: a.workspaceId, dedupeKey: `all:${a.workspaceId}` });
     await publish(c, a.workspaceId, 'inventory.updated', {});
   });
+  await emitInventoryChanges(a.workspaceId, changes);
   return { upserted: touched.length };
 }
 

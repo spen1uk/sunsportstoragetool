@@ -2,10 +2,12 @@ import { runOne } from '../domain/queue.js';
 import { handlers } from './handlers.js';
 import { migrate } from '../db/migrate.js';
 import { scheduleMaintenance } from '../domain/voice.js';
+import { scheduleWorkflowScan } from '../domain/workflows.js';
 
 /** Poll loop. Safe to run multiple workers (SKIP LOCKED); crashed workers' jobs are reclaimed after the lease expires. */
 await migrate();
 await scheduleMaintenance();   // idempotent (dedupe key)
+await scheduleWorkflowScan();
 console.log('relay worker started');
 let running = true;
 process.on('SIGTERM', () => { running = false; }); process.on('SIGINT', () => { running = false; });

@@ -19,6 +19,10 @@ export interface OutboundRequest {
   /** Human concurrent-reply guard: reject if messages newer than this seq exist from someone else, unless force. */
   ifLastSeq?: number; force?: boolean;
   mediaIds?: string[];
+  /** Marks automation-originated traffic for analytics and cadence rules. */
+  autoKind?: 'first_contact' | 'after_hours' | 'holiday' | 'follow_up' | 'workflow' | 'broadcast';
+  /** Passive sends (auto-acknowledgments, broadcasts) don't change who owes the next move, don't bump the fence, and don't reopen closed threads. */
+  passive?: boolean;
   /** Outreach package snapshot id: boat price/availability are re-verified immediately before queueing. */
   packageId?: string;
 }
@@ -88,19 +92,21 @@ export async function queueOutboundTx(c: PoolClient, req: OutboundRequest): Prom
     }
 
     const m = await c.query(
-      `INSERT INTO messages (workspace_id, conversation_id, direction, sender_type, sender_user_id, purpose, body, status, idempotency_key, fence_revision, from_original, to_original)
-       VALUES ($1,$2,'outbound',$3,$4,$5,$6,'queued',$7,$8,$9,$10) RETURNING id, seq`,
-      [req.workspaceId, req.conversationId, req.senderType, req.senderUserId ?? null, purpose, req.body, req.idempotencyKey, conv.revision, conv.from_addr, conv.to_e164]);
+      `INSERT INTO messages (workspace_id, conversation_id, direction, sender_type, sender_user_id, purpose, body, status, idempotency_key, fence_revision, from_original, to_original, auto_kind)
+       VALUES ($1,$2,'outbound',$3,$4,$5,$6,'queued',$7,$8,$9,$10,$11) RETURNING id, seq`,
+      [req.workspaceId, req.conversationId, req.senderType, req.senderUserId ?? null, purpose, req.body, req.idempotencyKey, req.passive ? conv.revision : conv.revision + 1, conv.from_addr, conv.to_e164, req.autoKind ?? null]);
     const msgId = m.rows[0].id as string;
     for (const mid of req.mediaIds ?? []) await c.query('INSERT INTO message_attachments (message_id, media_id) VALUES ($1,$2)', [msgId, mid]);
     if (req.packageId) await recordPackageSent(c, req.packageId, msgId);
 
-    const nextResp = purpose === 'compliance' ? conv.responsibility : 'waiting_on_customer';
+    const nextResp = purpose === 'compliance' || req.passive ? conv.responsibility : 'waiting_on_customer';
     // A human/automation/Sandra send changes the context → bump revision so other stale pending sends are fenced out.
+    // Passive sends (acknowledgments, broadcasts) leave the fence, responsibility and open/closed state alone.
+    // fence_revision on the message stores the revision EXPECTED at send time (after our own bump), re-checked by the worker.
     await c.query(
       `UPDATE conversations SET last_outbound_at=now(), last_message_at=now(), last_preview=$2, responsibility=$3,
-         revision=revision+1, status=CASE WHEN status='closed' AND $4 THEN 'open' ELSE status END WHERE id=$1`,
-      [req.conversationId, req.body.slice(0, 140), nextResp, req.senderType === 'staff']);
+         revision=revision+CASE WHEN $5 THEN 0 ELSE 1 END, status=CASE WHEN status='closed' AND $4 AND NOT $5 THEN 'open' ELSE status END WHERE id=$1`,
+      [req.conversationId, req.body.slice(0, 140), nextResp, req.senderType === 'staff', !!req.passive]);
     await touchSummary(c, req.workspaceId, conv.contact_id);
     await enqueue(c, 'send_message', { messageId: msgId }, { workspaceId: req.workspaceId, dedupeKey: msgId });
     await publish(c, req.workspaceId, 'message.created', { conversationId: req.conversationId });
@@ -130,8 +136,8 @@ export async function handleSendMessageJob(messageId: string) {
   if (!verdict.allowed) return setStatus(messageId, 'suppressed', verdict.reason);
   if ((row.sender_type === 'sandra' || row.sender_type === 'automation')) {
     if (row.handling_mode === 'paused' || row.handling_mode === 'draft_only') return setStatus(messageId, 'suppressed', 'handling_mode_changed');
-    // The enqueue itself bumped revision by exactly 1; anything beyond that means new context (inbound/takeover/other send).
-    if (row.revision !== row.fence_revision + 1) return setStatus(messageId, 'suppressed', 'stale_revision');
+    // fence_revision is the revision expected after our own enqueue; anything else means new context (inbound/takeover/other send).
+    if (row.revision !== row.fence_revision) return setStatus(messageId, 'suppressed', 'stale_revision');
   }
   if (!row.is_simulated && !row.is_live_enabled) return setStatus(messageId, 'failed', 'live sending not enabled for this channel (owner approval required)');
 

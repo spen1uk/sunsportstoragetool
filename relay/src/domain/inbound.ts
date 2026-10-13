@@ -9,6 +9,7 @@ import { saveMedia } from './media.js';
 import { notify, recipientsForConversation } from './notifications.js';
 import { HttpError } from './authz.js';
 import { touchSummary } from './summary.js';
+import { enqueue } from './queue.js';
 
 const RANK: Record<string, number> = { queued: 0, sending: 1, unknown: 1, provider_accepted: 2, delivered: 3, failed: 3 };
 
@@ -98,6 +99,10 @@ async function handleInbound(c: PoolClient, provider: string, ev: Extract<Normal
   await notify(c, { workspaceId: ws, userIds: await recipientsForConversation(c, conv.id), type: 'inbound_message', title: `New text from ${who}`, conversationId: conv.id });
 
   const kw = classifyKeyword(ev.body);
+  if (!kw) {   // automation reacts only to real conversation, never to STOP/START/HELP
+    await enqueue(c, 'auto_respond', { conversationId: conv.id, messageId: msg.rows[0].id }, { workspaceId: ws, dedupeKey: msg.rows[0].id });
+    await enqueue(c, 'workflow_event', { type: 'inbound_message', conversationId: conv.id, messageId: msg.rows[0].id }, { workspaceId: ws, dedupeKey: `wf:${msg.rows[0].id}` });
+  }
   if (kw === 'stop') {
     await recordConsent(c, { workspaceId: ws, contactId: contact.id, type: 'sms_stop', source: 'inbound_keyword', evidence: ev.body, occurredAt: ev.occurredAt });
     // Cancel anything still queued for this contact (except compliance) — opt-out wins over pending sends.

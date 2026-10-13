@@ -86,7 +86,7 @@ export async function assign(a: Actor, conversationId: string, assigneeId: strin
 export async function takeover(a: Actor, conversationId: string) {
   return tx(async (c) => {
     const conv = await lockConv(c, a, conversationId);
-    await c.query(`UPDATE conversations SET handling_mode='human', assignee_user_id=$2, revision=revision+1 WHERE id=$1`, [conversationId, a.userId]);
+    await c.query(`UPDATE conversations SET handling_mode='human', assignee_user_id=$2, revision=revision+1, last_takeover_at=now() WHERE id=$1`, [conversationId, a.userId]);
     // Anything automation/Sandra still has queued (not yet sent) is suppressed now, not just fenced later.
     await c.query(`UPDATE messages SET status='suppressed', status_detail='employee_takeover' WHERE conversation_id=$1 AND status='queued' AND sender_type IN ('sandra','automation')`, [conversationId]);
     await timeline(c, a, conv, 'handling_mode', 'Employee took over (Human handling)');

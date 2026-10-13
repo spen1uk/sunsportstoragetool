@@ -28,3 +28,26 @@ export function zonedToUtc(local: string, tz: string): Zoned {
   if (valid.length === 1) return { utc: new Date(valid[0]), dst: 'none' };
   return { utc: new Date(guess - before), dst: 'gap_shifted_forward' };
 }
+
+export interface LocalParts { year: number; month: number; day: number; hour: number; minute: number; weekday: number; date: string }
+/** Wall-clock components of an instant in `tz` (weekday 0 = Sunday). */
+export function localParts(d: Date, tz: string): LocalParts {
+  const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', weekday: 'short' });
+  const p = Object.fromEntries(f.formatToParts(d).map((x) => [x.type, x.value]));
+  const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday);
+  return { year: +p.year, month: +p.month, day: +p.day, hour: +p.hour, minute: +p.minute, weekday: wd, date: `${p.year}-${p.month}-${p.day}` };
+}
+const pad = (n: number) => String(n).padStart(2, '0');
+/** Calendar-day arithmetic on a YYYY-MM-DD string (no timezone involved). */
+export function addDays(date: string, n: number): string { const [y, m, d] = date.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1, d + n)); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`; }
+export const weekdayOf = (date: string) => new Date(date + 'T00:00:00Z').getUTCDay();
+
+/** Quiet hours are a wall-clock window (start..end, may wrap midnight). Returns the instant they end if `now` is inside, else null. DST-safe. */
+export function quietHoursEnd(now: Date, tz: string, startHour: number, endHour: number): Date | null {
+  if (startHour === endHour) return null;
+  const lp = localParts(now, tz);
+  const inQuiet = startHour > endHour ? lp.hour >= startHour || lp.hour < endHour : lp.hour >= startHour && lp.hour < endHour;
+  if (!inQuiet) return null;
+  const endDate = startHour > endHour && lp.hour >= startHour ? addDays(lp.date, 1) : lp.date;
+  return zonedToUtc(`${endDate}T${pad(endHour)}:00`, tz).utc;
+}
