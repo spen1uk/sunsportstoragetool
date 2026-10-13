@@ -244,6 +244,9 @@ class Dashboard(unittest.TestCase):
             self.assertTrue(0.0 <= w["charge"] <= 1.0)
             self.assertEqual(len(w["checklist"]), 4)  # Calvin: UT Bot, ribbon, SMMA, Stoch RSI
             self.assertTrue(w["thought"])
+        self.assertIn("feeds", snap["health"])           # DATA view
+        self.assertIn("stats", snap["lab"])              # LAB view
+        self.assertTrue(all("id" in t for t in snap["trades"]))  # city coin animation
         json.dumps(snap)  # must be serialisable for the web page
 
     def test_server_serves_state(self):

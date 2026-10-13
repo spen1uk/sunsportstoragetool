@@ -7,7 +7,7 @@ import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 from .backtest import stats
-from .config import DATA_DIR, ROOT
+from .config import DATA_DIR, PARAMS_FILE, ROOT
 from .strategy import checklist
 from .util import ts_iso, utc_day
 
@@ -61,7 +61,7 @@ def think(symbol, items, position, engine, bar_ts):
 
 
 # ------------------------------------------------------------------ snapshot
-def build_snapshot(cfg, engine, journal, market, now_ms=None, demo=False):
+def build_snapshot(cfg, engine, journal, market, now_ms=None, demo=False, health=None):
     """market: {symbol: {"candles": [...], "ind": {...}, "ctx": {...}}} for the latest closed bar."""
     now_ms = now_ms or int(time.time() * 1000)
     today = utc_day(now_ms)
@@ -136,13 +136,68 @@ def build_snapshot(cfg, engine, journal, market, now_ms=None, demo=False):
         "daily": [{"day": d, "pnl": round(by_day[d], 4)} for d in days],
         "curve": curve,
         "trades": [{
-            "symbol": t["symbol"], "side": t["side"], "pnl": t["net_pnl"], "r": t["r_multiple"],
+            "id": t["id"], "symbol": t["symbol"], "side": t["side"], "pnl": t["net_pnl"], "r": t["r_multiple"],
             "entry": t["entry_price"], "exit": t["exit_price"], "entry_time": ts_iso(t["entry_ts"]),
             "exit_time": ts_iso(t["exit_ts"]), "bars": t["bars_held"], "how": exit_label(t["exit_reason"]),
             "best_r": t["mfe_r"],
         } for t in reversed(trades[-12:])],
         "thoughts": [{"time": ts_iso(e["ts"]), "kind": e["kind"], "message": e["message"]} for e in thoughts],
+        "health": _health(cfg, market, health, now_ms),
+        "lab": _lab(cfg, engine, trades),
     }
+
+
+def _health(cfg, market, health, now_ms):
+    """Pipeline status for the DATA view (BloFin -> candles -> ... -> learner)."""
+    from .util import BAR_MS
+    h = dict(health or {})
+    bar_ms = BAR_MS[cfg["timeframe"]]
+    feeds = {}
+    for s in cfg["symbols"]:
+        cs = (market.get(s) or {}).get("candles") or []
+        last = cs[-1].ts if cs else None
+        feeds[s.split("-")[0]] = {"last_candle": ts_iso(last) if last else None, "bars": len(cs),
+                                  "fresh": bool(last) and (now_ms - (last + bar_ms)) < 2 * bar_ms}
+    h["feeds"] = feeds
+    h.setdefault("errors", [])
+    h["snapshot_at"] = int(time.time() * 1000)
+    return h
+
+
+def _lab(cfg, engine, trades):
+    """Strategy-lab numbers: stats, drawdown, result histogram, rules and their history."""
+    start = cfg["starting_balance"]
+    st = {k: (None if isinstance(v, float) and v == float("inf") else v)
+          for k, v in stats(trades, start).items()}
+    bal = peak = start
+    dd = []
+    for t in trades:
+        bal += t["net_pnl"]
+        peak = max(peak, bal)
+        dd.append(round((bal / peak - 1) * 100, 3))
+    months = {}
+    for t in trades:
+        m = ts_iso(t["exit_ts"])[:7]
+        months[m] = months.get(m, 0.0) + t["net_pnl"]
+    L = cfg.get("learning", {})
+    keys = list(L.get("tunable", {})) + list(L.get("toggles", []))
+    versions = []
+    if os.path.exists(PARAMS_FILE):
+        try:
+            with open(PARAMS_FILE) as f:
+                versions = [{"version": v["version"], "at": v.get("adopted_at"), "reason": v.get("reason")}
+                            for v in json.load(f).get("versions", [])][-10:]
+        except (OSError, ValueError):
+            versions = []
+    log_path = os.path.join(DATA_DIR, "learning_log.md")
+    learning = ""
+    if os.path.exists(log_path):
+        with open(log_path) as f:
+            learning = f.read()[-4000:]
+    return {"stats": st, "r": [round(t["r_multiple"], 3) for t in trades], "drawdown": dd,
+            "months": [{"month": m, "pnl": round(v, 4)} for m, v in sorted(months.items())],
+            "params": {k: engine.p.get(k) for k in keys}, "version": engine.pv,
+            "versions": versions, "learning": learning, "risk": cfg["risk"]}
 
 
 def write_snapshot(snap, path=SNAPSHOT):
@@ -230,4 +285,18 @@ def build_demo(cfg, seed=35):
                 tl.update(s, kind, text, cs[i].ts)
     market = {s: {"candles": cs[:n], "ind": inds[s], "ctx": {"btc_up": btc.get(cs[n - 1].ts)}}
               for s, cs in hist.items()}
-    return build_snapshot(cfg, eng, j, market, now_ms=hist[cfg["symbols"][0]][n - 1].ts, demo=True)
+    learned = False
+    try:  # one learning cycle so the LAB view has lessons to show
+        from .config import save_new_params
+        from .learner import improve
+        new_params, rep = improve(cfg, params, hist)
+        learned = True
+        if rep["changes"]:
+            save_new_params(new_params, "; ".join(c["change"] for c in rep["changes"]), rep["changes"])
+    except Exception:
+        pass
+    t_end = hist[cfg["symbols"][0]][n - 1].ts
+    health = {"started": ts_iso(hist[cfg["symbols"][0]][60].ts), "last_fetch_ok": t_end, "last_tick": t_end,
+              "ticks": n - 60, "errors": [],
+              "last_learn": t_end if learned else None}
+    return build_snapshot(cfg, eng, j, market, now_ms=t_end, demo=True, health=health)

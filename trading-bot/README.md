@@ -73,7 +73,19 @@ python -m unittest discover tests   # run the tests
 
 ## Dashboard ("Bot City")
 
-A live dashboard where each coin is a "worker". For each one it shows:
+Four tabs:
+- **City**: a 3D neon city. Each coin is a tower around the Vault.
+  - A green beam means a trade is open; a violet pulse means a setup is forming.
+  - The ring on top lights one segment per rule that's lined up.
+  - Gold coins fly into the Vault on wins; red coins fly out on losses.
+  - Drag to orbit, scroll to zoom, click a tower to look inside that bot.
+- **Floor**: the detailed view (below).
+- **Data**: the live pipeline (BloFin → candles → indicators → signals → risk → broker →
+  journal → learner) with a health light on each step, price-feed freshness and recent errors.
+- **Lab**: strategy stats, drawdown, a histogram of trade results, results by month, the
+  current rules, rule-version history and the learning log.
+
+On the Floor, each coin is a "worker". For each one it shows:
 - its status (scanning, setup forming, in a trade, paused)
 - a **% charged** meter: how many of Calvin's four rules are met right now
 - a checklist of those rules
@@ -84,7 +96,7 @@ Below the workers: a **Thoughts** feed (what each worker is thinking, every entr
 the balance curve, profit by day, the payroll leaderboard and recent trade cards.
 
 ```bash
-python run.py dashboard --demo   # try it now with simulated data
+python3 run.py dashboard --demo  # try it now with simulated data
 python run.py run                # the bot (it writes data/dashboard.json every minute)
 python run.py dashboard          # in a second terminal, then open http://127.0.0.1:8050
 ```

@@ -44,6 +44,9 @@ class PaperBot:
             self.journal.event("start", f"Paper account opened with ${cfg['starting_balance']:.2f}")
         self.prices = {}
         self.thoughts = ThoughtLog(self.journal)
+        self.health = {"started": now_iso(), "last_fetch_ok": None, "last_tick": None, "ticks": 0,
+                       "errors": [], "last_learn": self.meta.get("last_learn") or None}
+        self.last_snapshot = None
         self._stop = False
 
     def save(self):
@@ -90,8 +93,12 @@ class PaperBot:
             kind, text = think(sym, checklist(candles, ind, newest, self.engine.p, ctx),
                                self.engine.positions.get(sym), self.engine, candles[newest].ts)
             self.thoughts.update(sym, kind, text, now_ms)
+        self.health.update(last_fetch_ok=now_ms, last_tick=now_ms, ticks=self.health["ticks"] + 1,
+                           last_learn=self.meta.get("last_learn") or None)
         try:
-            write_snapshot(build_snapshot(self.cfg, self.engine, self.journal, market, now_ms))
+            self.last_snapshot = build_snapshot(self.cfg, self.engine, self.journal, market, now_ms,
+                                                health=self.health)
+            write_snapshot(self.last_snapshot)
         except Exception as e:  # the dashboard must never stop the trading loop
             log(f"dashboard snapshot failed: {e}")
         self.journal.snapshot(now_ms, self.engine.balance, self.engine.equity(self.prices), len(self.engine.positions))
@@ -160,6 +167,13 @@ class PaperBot:
                     f.write(now_iso())
             except Exception as e:
                 log(f"ERROR: {e}\n{traceback.format_exc()}")
+                self.health["errors"] = (self.health["errors"] + [{"time": now_iso(), "error": str(e)[:200]}])[-5:]
+                if self.last_snapshot:  # keep the DATA view honest when a tick fails
+                    try:
+                        self.last_snapshot["health"]["errors"] = self.health["errors"]
+                        write_snapshot(self.last_snapshot)
+                    except Exception:
+                        pass
                 if time.time() - last_err_note > 3600:
                     notify(self.cfg, f"Trading bot error (it keeps retrying): {e}", log)
                     last_err_note = time.time()

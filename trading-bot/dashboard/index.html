@@ -5,126 +5,59 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bot City</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%2314142b'/%3E%3Cpath d='M3 13V7h2v6zm4 0V3h2v10zm4 0V9h2v4z' fill='%239085e9'/%3E%3C/svg%3E">
-<style>
-:root {
-  color-scheme: dark;
-  --page: #0b0b1e;
-  --surface: #14142b;
-  --surface-2: #1b1b38;
-  --border: rgba(144, 133, 233, 0.22);
-  --glow: 0 0 18px rgba(120, 100, 255, 0.18);
-  --ink: #f0efec;
-  --ink-2: #c3c2b7;
-  --muted: #8d8ba3;
-  --grid: #26264a;
-  --axis: #383861;
-  --accent: #9085e9;           /* neon violet: chrome + charge meter */
-  --good: #0ca30c;             /* status: good (fills) */
-  --good-text: #34c759;
-  --warn: #fab219;
-  --bad: #d03b3b;              /* status: critical (fills) */
-  --bad-text: #e66767;
-  --series-1: #3987e5;         /* coins, fixed order from config: blue, orange, aqua */
-  --series-2: #d95926;
-  --series-3: #199e70;
-  --series-4: #c98500;
-  --series-5: #d55181;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: radial-gradient(1200px 600px at 50% -200px, #24205a 0%, var(--page) 60%) fixed, var(--page);
-  color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-main { max-width: 1280px; margin: 0 auto; padding: 16px; }
-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.logo { font-weight: 800; letter-spacing: 0.14em; font-size: 18px; text-shadow: 0 0 12px rgba(144,133,233,.8); }
-.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
-  background: var(--surface-2); border: 1px solid var(--border); color: var(--ink-2); font-size: 12px; }
-.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); }
-.live-dot.stale { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
-.spacer { flex: 1; }
-.banner { border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; border: 1px solid; font-weight: 600; }
-.banner.demo { border-color: var(--warn); color: var(--warn); background: rgba(250,178,25,.08); }
-.banner.halt { border-color: var(--bad); color: var(--bad-text); background: rgba(208,59,59,.1); }
-.banner.pause { border-color: var(--warn); color: var(--warn); background: rgba(250,178,25,.08); }
-.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--glow); padding: 14px; }
-h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
-.kpi .k { color: var(--muted); font-size: 12px; }
-.kpi .v { font-size: 24px; font-weight: 700; margin-top: 2px; }
-.kpi.hero { grid-column: span 2; }
-.kpi.hero .v { font-size: 34px; text-shadow: 0 0 16px rgba(144,133,233,.45); }
-.up { color: var(--good-text); } .down { color: var(--bad-text); }
-.workers { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 14px; }
-.worker { position: relative; overflow: hidden; }
-.worker::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--c); box-shadow: 0 0 12px var(--c); }
-.w-head { display: flex; align-items: center; gap: 8px; }
-.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); flex: none; }
-.w-name { font-weight: 800; font-size: 16px; letter-spacing: .04em; }
-.w-price { margin-left: auto; text-align: right; font-variant-numeric: tabular-nums; }
-.w-price .p { font-weight: 700; } .w-price .c { font-size: 12px; }
-.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 2px 9px;
-  border-radius: 999px; margin-top: 8px; border: 1px solid currentColor; }
-.s-fire, .s-manage { color: var(--good-text); } .s-setup, .s-pause { color: var(--warn); }
-.s-scan { color: var(--ink-2); } .s-halted { color: var(--bad-text); }
-.thought { color: var(--ink-2); font-size: 13px; margin: 8px 0; min-height: 2.9em; }
-.spark { width: 100%; height: 56px; display: block; }
-.charge { margin: 10px 0 6px; }
-.charge .row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-.charge .row b { color: var(--ink); }
-.segs { display: flex; gap: 3px; }
-.seg { flex: 1; height: 8px; border-radius: 4px; background: var(--grid); }
-.seg.on { background: var(--accent); box-shadow: 0 0 8px rgba(144,133,233,.7); }
-.checks { list-style: none; padding: 0; margin: 8px 0 0; font-size: 12.5px; }
-.checks li { display: flex; gap: 8px; padding: 3px 0; border-top: 1px solid var(--grid); }
-.checks .ic { width: 16px; text-align: center; font-weight: 800; }
-.checks .ok .ic { color: var(--good-text); } .checks .no .ic { color: var(--muted); }
-.checks .det { margin-left: auto; color: var(--muted); text-align: right; }
-.pos { margin-top: 10px; padding: 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12.5px; }
-.pos .top { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 6px; }
-.track { position: relative; height: 6px; border-radius: 3px; background: linear-gradient(90deg, rgba(208,59,59,.6), rgba(12,163,12,.6)); margin: 8px 0 4px; }
-.track i { position: absolute; top: -4px; width: 4px; height: 14px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 8px var(--ink); transform: translateX(-2px); }
-.track-l { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.pay { display: flex; justify-content: space-between; margin-top: 10px; font-size: 12px; color: var(--muted); }
-.pay b { color: var(--ink); }
-.grid2 { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; margin-bottom: 14px; }
-.stack { display: grid; gap: 12px; }
-@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } .kpi.hero { grid-column: span 1; } }
-.chart { width: 100%; height: 190px; display: block; }
-.axis-t { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.feed { list-style: none; margin: 0; padding: 0; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; max-height: 470px; overflow: auto; }
-.feed li { padding: 5px 0; border-top: 1px solid var(--grid); display: grid; grid-template-columns: 78px 64px 1fr; gap: 8px; }
-.feed .t { color: var(--muted); } .feed .m { color: var(--ink-2); word-break: break-word; }
-.tag { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); }
-.tag.entry, .tag.learn { color: var(--accent); } .tag.exit { color: var(--ink); }
-.tag.halt { color: var(--bad-text); } .tag.pause { color: var(--warn); }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { padding: 7px 6px; border-top: 1px solid var(--grid); text-align: left; }
-th { color: var(--muted); font-weight: 600; font-size: 12px; border-top: 0; }
-td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
-.tw { overflow-x: auto; }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
-.tcard { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; font-size: 12.5px; }
-.tcard .top { display: flex; align-items: center; gap: 6px; font-weight: 700; }
-.tcard .amt { font-size: 22px; font-weight: 800; margin: 4px 0; }
-.tcard dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; color: var(--muted); }
-.tcard dd { margin: 0; color: var(--ink-2); text-align: right; font-variant-numeric: tabular-nums; }
-.empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
-#tip { position: fixed; pointer-events: none; z-index: 10; background: #0f0f24; border: 1px solid var(--border);
-  border-radius: 8px; padding: 6px 9px; font-size: 12px; color: var(--ink); box-shadow: var(--glow); display: none; white-space: nowrap; }
-#tip .s { color: var(--muted); }
-footer { color: var(--muted); font-size: 12px; text-align: center; padding: 16px 0 8px; }
-</style>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="city.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
 </head>
 <body>
-<main>
-  <header>
-    <span class="logo">BOT CITY</span>
-    <span class="chip" id="mode">paper</span>
-    <span class="chip" id="strat">strategy</span>
-    <span class="spacer"></span>
-    <span class="chip"><span class="live-dot" id="live"></span><span id="updated">connecting…</span></span>
-  </header>
+<nav class="topnav">
+  <span class="logo">BOT CITY</span>
+  <a href="#city" data-view="city">City</a>
+  <a href="#floor" data-view="floor">Floor</a>
+  <a href="#data" data-view="data">Data</a>
+  <a href="#lab" data-view="lab">Lab</a>
+  <span class="spacer"></span>
+  <span class="chip" id="mode">paper</span>
+  <span class="chip"><span class="live-dot" id="live"></span><span id="updated">connecting…</span></span>
+</nav>
+
+<!-- ===================== CITY (3D) ===================== -->
+<section class="view" id="view-city">
+  <div id="city-canvas"></div>
+  <div class="hud">
+    <div class="hud-top" id="hud-workers"></div>
+    <div class="hud-banner" id="hud-banner"></div>
+    <div class="hud-right">
+      <button class="btn" id="btn-payroll">Payroll</button>
+      <button class="btn" id="btn-rotate" aria-pressed="true">Auto-rotate</button>
+    </div>
+    <div class="hud-legend">
+      <span><i class="lg beam-long"></i>Green beam = in a trade</span>
+      <span><i class="lg beam-setup"></i>Violet pulse = setup forming</span>
+      <span><i class="lg ring"></i>Ring = rules lined up</span>
+      <span class="muted">Drag to orbit · scroll to zoom · click a tower</span>
+    </div>
+    <div class="ticker"><div class="ticker-track" id="ticker"></div></div>
+  </div>
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <button class="drawer-close" id="drawer-close" aria-label="Close">×</button>
+    <div id="drawer-body"></div>
+  </aside>
+  <div class="modal" id="payroll-modal" hidden>
+    <div class="panel modal-card">
+      <button class="drawer-close" id="payroll-close" aria-label="Close">×</button>
+      <h2>Payroll</h2>
+      <div class="tw"><table id="payroll-city"></table></div>
+      <p class="muted small">Every closed trade sends its money to the vault: gold coins for a win, red for a loss.</p>
+    </div>
+  </div>
+  <div class="no-webgl" id="no-webgl" hidden>Your browser couldn't start 3D graphics. The Floor, Data and Lab tabs still work.</div>
+</section>
+
+<!-- ===================== FLOOR ===================== -->
+<section class="view" id="view-floor"><main>
   <div id="banners"></div>
   <section class="kpis" id="kpis"></section>
   <section class="workers" id="workers"></section>
@@ -137,166 +70,42 @@ footer { color: var(--muted); font-size: 12px; text-align: center; padding: 16px
   </section>
   <section class="panel" style="margin-bottom:14px"><h2>Payroll</h2><div class="tw"><table id="payroll"></table></div></section>
   <section class="panel"><h2>Recent trades</h2><div class="cards" id="trades"></div></section>
-  <footer>Paper money only · Not financial advice · Data refreshes every 5 seconds</footer>
-</main>
+</main></section>
+
+<!-- ===================== DATA ===================== -->
+<section class="view" id="view-data"><main>
+  <div class="panel" style="margin-bottom:14px">
+    <h2>Pipeline · live data flow</h2>
+    <svg id="pipeline" class="pipeline" role="img" aria-label="Data pipeline from BloFin to the learner"></svg>
+  </div>
+  <section class="grid2">
+    <div class="panel"><h2>Every step</h2><div class="tw"><table id="nodes"></table></div></div>
+    <div class="stack">
+      <div class="panel"><h2>Price feeds</h2><div class="tw"><table id="feeds"></table></div></div>
+      <div class="panel"><h2>Recent errors</h2><ul class="feed" id="errors"></ul></div>
+    </div>
+  </section>
+</main></section>
+
+<!-- ===================== LAB ===================== -->
+<section class="view" id="view-lab"><main>
+  <section class="kpis" id="lab-kpis"></section>
+  <section class="grid2">
+    <div class="stack">
+      <div class="panel"><h2>Drawdown · how far below the best balance</h2><svg class="chart" id="drawdown" role="img" aria-label="Drawdown after each trade"></svg></div>
+      <div class="panel"><h2>Trade results · how many trades ended at each R</h2><svg class="chart" id="hist" role="img" aria-label="Histogram of trade results in R"></svg></div>
+      <div class="panel"><h2>Profit / loss by month</h2><svg class="chart" id="monthly" role="img" aria-label="Net profit or loss per month"></svg></div>
+    </div>
+    <div class="stack">
+      <div class="panel"><h2>Current rules</h2><div class="tw"><table id="params"></table></div></div>
+      <div class="panel"><h2>Rule versions</h2><ul class="feed" id="versions"></ul></div>
+    </div>
+  </section>
+  <section class="panel"><h2>What the bot has learned</h2><pre class="learn" id="learning"></pre></section>
+</main></section>
+
+<footer>Paper money only · Not financial advice · Refreshes every 5 seconds</footer>
 <div id="tip"></div>
-<script>
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const usd = (v, sign = false) => (v == null ? "–" : (sign && v > 0 ? "+" : v < 0 ? "−" : "") + "$" + Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-const pct = (v, sign = true) => (v == null ? "–" : (sign && v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(2) + "%");
-const px = (v) => (v == null ? "–" : v >= 1000 ? v.toLocaleString(undefined, { maximumFractionDigits: 2 }) : v >= 1 ? v.toFixed(3) : v.toPrecision(4));
-const when = (t) => String(t ?? "").slice(5).replace(" 00:00", "");
-const cls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "");
-const color = (slot) => `var(--series-${((slot - 1) % 5) + 1})`;
-const ICON = { fire: "⚡", setup: "◔", scan: "◌", manage: "●", pause: "⏸", halted: "⛔" };
-
-// ---------- tooltip
-const tip = $("tip");
-function showTip(e, html) { tip.innerHTML = html; tip.style.display = "block";
-  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8), y = Math.max(8, e.clientY - tip.offsetHeight - 10);
-  tip.style.left = x + "px"; tip.style.top = y + "px"; }
-function hideTip() { tip.style.display = "none"; }
-
-// ---------- line chart with crosshair (equity curve + sparklines)
-function lineChart(svg, values, { stroke = "var(--accent)", labels = null, fmt = usd, axis = true, base = null } = {}) {
-  const W = svg.clientWidth || 600, H = svg.clientHeight || 190;
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.innerHTML = "";
-  if (values.length < 2) { svg.innerHTML = `<text x="8" y="22" class="axis-t">No trades yet - the line appears after the first closed trade.</text>`; return; }
-  const padL = axis ? 58 : 2, padR = axis ? 10 : 6, padT = 8, padB = axis ? 18 : 4;
-  let lo = Math.min(...values, base ?? Infinity), hi = Math.max(...values, base ?? -Infinity);
-  if (lo === hi) { lo -= 1; hi += 1; }
-  const X = (i) => padL + (i / (values.length - 1)) * (W - padL - padR);
-  const Y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
-  let g = "";
-  if (axis) for (const v of [lo, (lo + hi) / 2, hi]) g += `<line x1="${padL}" x2="${W - padR}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${padL - 6}" y="${Y(v) + 4}" text-anchor="end" class="axis-t">${fmt(v)}</text>`;
-  if (base != null) g += `<line x1="${padL}" x2="${W - padR}" y1="${Y(base)}" y2="${Y(base)}" stroke="var(--axis)"/>`;
-  const d = values.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join("");
-  const last = values.length - 1;
-  svg.innerHTML = g + `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px ${stroke})"/>`
-    + `<circle cx="${X(last)}" cy="${Y(values[last])}" r="4" fill="${stroke}" stroke="var(--surface)" stroke-width="2"/>`
-    + `<line class="xh" y1="${padT}" y2="${H - padB}" stroke="var(--ink-2)" stroke-width="1" visibility="hidden"/>`
-    + `<circle class="xd" r="4" fill="${stroke}" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>`
-    + `<rect x="0" y="0" width="${W}" height="${H}" fill="transparent"/>`;
-  const xh = svg.querySelector(".xh"), xd = svg.querySelector(".xd");
-  svg.onmousemove = (e) => {
-    const r = svg.getBoundingClientRect(), mx = (e.clientX - r.left) * (W / r.width);
-    const i = Math.max(0, Math.min(last, Math.round(((mx - padL) / (W - padL - padR)) * last)));
-    xh.setAttribute("x1", X(i)); xh.setAttribute("x2", X(i)); xh.setAttribute("visibility", "visible");
-    xd.setAttribute("cx", X(i)); xd.setAttribute("cy", Y(values[i])); xd.setAttribute("visibility", "visible");
-    showTip(e, `<b>${fmt(values[i])}</b>${labels ? `<div class="s">${esc(labels[i])}</div>` : ""}`);
-  };
-  svg.onmouseleave = () => { xh.setAttribute("visibility", "hidden"); xd.setAttribute("visibility", "hidden"); hideTip(); };
-}
-
-// ---------- daily profit/loss bars (good = green, loss = red, shared zero baseline)
-function dailyBars(svg, rows) {
-  const W = svg.clientWidth || 600, H = svg.clientHeight || 190;
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  if (!rows.length) { svg.innerHTML = `<text x="8" y="22" class="axis-t">No closed trades yet.</text>`; return; }
-  const padL = 58, padR = 10, padT = 8, padB = 22;
-  const vals = rows.map((r) => r.pnl), hi = Math.max(0, ...vals), lo = Math.min(0, ...vals), span = hi - lo || 1;
-  const Y = (v) => padT + (1 - (v - lo) / span) * (H - padT - padB);
-  const bw = (W - padL - padR) / rows.length, gap = Math.min(8, bw * 0.3);
-  let s = "";
-  for (const v of [lo, hi]) if (v !== 0) s += `<line x1="${padL}" x2="${W - padR}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${padL - 6}" y="${Y(v) + 4}" text-anchor="end" class="axis-t">${usd(v, true)}</text>`;
-  rows.forEach((r, i) => {
-    const x = padL + i * bw + gap / 2, w = bw - gap, y0 = Y(0), y1 = Y(r.pnl), h = Math.max(1, Math.abs(y1 - y0));
-    s += `<rect data-i="${i}" x="${x}" y="${Math.min(y0, y1)}" width="${w}" height="${h}" rx="3" fill="${r.pnl >= 0 ? "var(--good)" : "var(--bad)"}"/>`;
-    if (rows.length <= 14 && (i === 0 || i === rows.length - 1)) s += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle" class="axis-t">${esc(r.day.slice(5))}</text>`;
-  });
-  s += `<line x1="${padL}" x2="${W - padR}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)"/><text x="${padL - 6}" y="${Y(0) + 4}" text-anchor="end" class="axis-t">$0</text>`;
-  svg.innerHTML = s;
-  svg.querySelectorAll("rect").forEach((el) => {
-    const r = rows[+el.dataset.i];
-    el.onmousemove = (e) => showTip(e, `<b class="${cls(r.pnl)}">${r.pnl >= 0 ? "▲" : "▼"} ${usd(r.pnl, true)}</b><div class="s">${esc(r.day)}</div>`);
-    el.onmouseleave = hideTip;
-  });
-}
-
-// ---------- render
-function render(s) {
-  $("mode").textContent = s.demo ? "DEMO · simulated prices" : `${s.mode} trading · ${s.timeframe} candles`;
-  $("strat").textContent = `${s.strategy} · rules v${s.version}`;
-  let b = "";
-  if (s.demo) b += `<div class="banner demo">⚠ Demo data from simulated prices - this shows how the dashboard works, not real performance.</div>`;
-  if (s.guards.halted) b += `<div class="banner halt">⛔ ${esc(s.guards.halt_reason)}</div>`;
-  else if (s.guards.paused_until) b += `<div class="banner pause">⏸ Cooling off after a losing streak until ${esc(s.guards.paused_until)} UTC</div>`;
-  else if (s.guards.daily_loss_hit) b += `<div class="banner pause">⏸ Daily loss limit reached - no new trades until tomorrow (UTC)</div>`;
-  $("banners").innerHTML = b;
-
-  const v = s.vault;
-  $("kpis").innerHTML = `
-    <div class="panel kpi hero"><div class="k">The vault · equity (started ${usd(v.start)})</div><div class="v">${usd(v.equity)}</div><div class="${cls(v.return_pct)}">${pct(v.return_pct)} all time</div></div>
-    <div class="panel kpi"><div class="k">Today</div><div class="v ${cls(v.today)}">${usd(v.today, true)}</div></div>
-    <div class="panel kpi"><div class="k">Win rate</div><div class="v">${v.trades ? v.win_rate.toFixed(0) + "%" : "–"}</div><div class="k">${v.trades} closed trades</div></div>
-    <div class="panel kpi"><div class="k">Open trades</div><div class="v">${v.open}</div></div>
-    <div class="panel kpi"><div class="k">Below peak</div><div class="v">${v.drawdown_pct.toFixed(1)}%</div><div class="k">worst ${v.max_dd_pct.toFixed(1)}% · stops at 20%</div></div>`;
-
-  $("workers").innerHTML = s.workers.map((w, i) => {
-    const segs = w.checklist.map((c) => `<span class="seg ${c.ok ? "on" : ""}"></span>`).join("");
-    const p = w.position;
-    return `<article class="panel worker" style="--c:${color(w.slot)}">
-      <div class="w-head"><span class="dot"></span><span class="w-name">${esc(w.name)}</span>
-        <div class="w-price"><div class="p">${px(w.price)}</div><div class="c ${cls(w.change_pct)}">${pct(w.change_pct)}</div></div></div>
-      <span class="status s-${w.status_kind}">${ICON[w.status_kind] || ""} ${esc(w.status)}</span>
-      <div class="thought">${esc(w.thought)}</div>
-      <svg class="spark" id="spark${i}" role="img" aria-label="${esc(w.name)} recent closes"></svg>
-      <div class="charge"><div class="row"><span>Signal charge</span><b>${Math.round(w.charge * 100)}% charged</b></div><div class="segs">${segs}</div></div>
-      <ul class="checks">${w.checklist.map((c) => `<li class="${c.ok ? "ok" : "no"}"><span class="ic">${c.ok ? "✓" : "✗"}</span><span>${esc(c.name)}</span><span class="det">${esc(c.detail)}</span></li>`).join("")}</ul>
-      ${p ? `<div class="pos"><div class="top"><span>${esc(p.side)} since ${esc(when(p.since))}</span><span class="${cls(p.upnl)}">${usd(p.upnl, true)} · ${p.r >= 0 ? "+" : "−"}${Math.abs(p.r).toFixed(2)}R</span></div>
-        <div class="track"><i style="left:${(p.progress * 100).toFixed(1)}%"></i></div>
-        <div class="track-l"><span>stop ${px(p.stop)}</span><span>entry ${px(p.entry)}</span><span>target ${px(p.target)}</span></div></div>` : ""}
-      <div class="pay"><span>Today <b>${w.today.trades}</b> trades · <b class="${cls(w.today.earned)}">${usd(w.today.earned, true)}</b></span>
-        <span>All time <b class="${cls(w.all.earned)}">${usd(w.all.earned, true)}</b></span></div>
-    </article>`;
-  }).join("");
-  s.workers.forEach((w, i) => lineChart($("spark" + i), w.spark, { stroke: color(w.slot), axis: false, fmt: px }));
-
-  lineChart($("curve"), s.curve.map((p) => p[1]), { labels: s.curve.map((p, i) => i ? `after trade ${i}` : "start"), base: v.start });
-  dailyBars($("daily"), s.daily);
-
-  $("feed").innerHTML = s.thoughts.length ? s.thoughts.map((t) =>
-    `<li><span class="t">${esc(when(t.time))}</span><span class="tag ${esc(t.kind)}">${esc(t.kind)}</span><span class="m">${esc(t.message)}</span></li>`).join("")
-    : `<li class="empty">No activity yet.</li>`;
-
-  const rows = [...s.workers].sort((a, b) => b.all.earned - a.all.earned);
-  $("payroll").innerHTML = `<thead><tr><th>#</th><th>Worker</th><th>Status</th><th class="n">Today trades</th><th class="n">Today earned</th><th class="n">All trades</th><th class="n">Win rate</th><th class="n">All earned</th></tr></thead><tbody>`
-    + rows.map((w, i) => `<tr><td>${i + 1}</td><td><span class="dot" style="--c:${color(w.slot)};display:inline-block;margin-right:6px"></span>${esc(w.name)}</td>
-      <td class="s-${w.status_kind}">${ICON[w.status_kind] || ""} ${esc(w.status)}</td><td class="n">${w.today.trades}</td>
-      <td class="n ${cls(w.today.earned)}">${usd(w.today.earned, true)}</td><td class="n">${w.all.trades}</td>
-      <td class="n">${w.all.trades ? Math.round((w.all.wins / w.all.trades) * 100) + "%" : "–"}</td>
-      <td class="n ${cls(w.all.earned)}">${usd(w.all.earned, true)}</td></tr>`).join("") + `</tbody>`;
-
-  const slotOf = Object.fromEntries(s.workers.map((w) => [w.symbol, w.slot]));
-  $("trades").innerHTML = s.trades.length ? s.trades.map((t) => `<div class="tcard">
-      <div class="top"><span class="dot" style="--c:${color(slotOf[t.symbol] || 1)}"></span>${esc(t.symbol.split("-")[0])} · ${esc(t.side)}</div>
-      <div class="amt ${cls(t.pnl)}">${t.pnl >= 0 ? "▲" : "▼"} ${usd(t.pnl, true)}</div>
-      <dl><dt>Entry</dt><dd>${esc(when(t.entry_time))} @ ${px(t.entry)}</dd><dt>Exit</dt><dd>${esc(when(t.exit_time))} @ ${px(t.exit)}</dd>
-      <dt>Held</dt><dd>${t.bars} candles</dd><dt>How it closed</dt><dd>${esc(t.how)}</dd>
-      <dt>Result</dt><dd>${t.r >= 0 ? "+" : "−"}${Math.abs(t.r).toFixed(2)}R · best ${t.best_r.toFixed(1)}R</dd></dl></div>`).join("")
-    : `<div class="empty">No closed trades yet.</div>`;
-}
-
-let lastOk = 0, lastState = null;
-async function poll() {
-  try {
-    const r = await fetch("api/state", { cache: "no-store" });
-    const s = await r.json();
-    if (s.error) throw new Error(s.error);
-    lastState = s; lastOk = Date.now(); render(s);
-  } catch (err) {
-    if (!lastState) $("updated").textContent = String(err.message || err);
-  }
-}
-setInterval(() => {
-  if (!lastOk) return;
-  const sec = Math.round((Date.now() - lastOk) / 1000);
-  $("updated").textContent = sec < 15 ? `live · data ${lastState.market_time}` : `no update for ${sec}s`;
-  $("live").classList.toggle("stale", sec >= 15);
-}, 1000);
-addEventListener("resize", () => lastState && render(lastState));
-poll(); setInterval(poll, 5000);
-</script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
