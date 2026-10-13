@@ -4,7 +4,7 @@ import type { Actor } from '../src/domain/authz.js';
 import { createContact, openConversationFor } from '../src/domain/contacts.js';
 import { processWebhookEvent } from '../src/domain/inbound.js';
 import { runOne } from '../src/domain/queue.js';
-import { handleSendMessageJob } from '../src/domain/messaging.js';
+import { handlers } from '../src/worker/handlers.js';
 import { simulatorControl } from '../src/providers/sms.js';
 
 export async function resetDb() {
@@ -27,5 +27,4 @@ let n = 0;
 export const inbound = (from: string, body: string, extra: Partial<{ eventId: string; providerMessageId: string; occurredAt: Date }> = {}) =>
   processWebhookEvent('simulator', { type: 'inbound', eventId: extra.eventId ?? `ev${++n}-${Math.random()}`, providerMessageId: extra.providerMessageId ?? `pm${n}-${Math.random()}`, from, to: '+12625550100', body, occurredAt: extra.occurredAt ?? new Date() });
 
-export const handlers = { send_message: async (j: { payload: { messageId: string } }) => handleSendMessageJob(j.payload.messageId) };
-export const drain = async () => { let k = 0; while (await runOne(handlers as never)) k++; return k; };
+export const drain = async () => { let k = 0; while (await runOne(handlers)) k++; return k; };

@@ -1,10 +1,6 @@
-import { runOne, type Handler } from '../domain/queue.js';
-import { handleSendMessageJob } from '../domain/messaging.js';
+import { runOne } from '../domain/queue.js';
+import { handlers } from './handlers.js';
 import { migrate } from '../db/migrate.js';
-
-const handlers: Record<string, Handler> = {
-  send_message: async (j) => handleSendMessageJob(j.payload.messageId),
-};
 
 /** Poll loop. Safe to run multiple workers (SKIP LOCKED); crashed workers' jobs are reclaimed after the lease expires. */
 await migrate();

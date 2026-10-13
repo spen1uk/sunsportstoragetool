@@ -45,7 +45,8 @@ export async function getThread(a: Actor, conversationId: string) {
   const conv = (await pool.query(
     `SELECT c.*, ch.is_simulated, ch.provider, ch.address AS channel_address, trim(coalesce(ct.first_name,'')||' '||coalesce(ct.last_name,'')) AS contact_name FROM conversations c JOIN channels ch ON ch.id=c.channel_id JOIN contacts ct ON ct.id=c.contact_id WHERE c.id=$1`, [conversationId])).rows[0];
   const messages = (await pool.query(
-    `SELECT m.id, m.seq, m.direction, m.sender_type, m.sender_user_id, u.name AS sender_name, m.purpose, m.body, m.status, m.status_detail, m.created_at, m.source_ts
+    `SELECT m.id, m.seq, m.direction, m.sender_type, m.sender_user_id, u.name AS sender_name, m.purpose, m.body, m.status, m.status_detail, m.created_at, m.source_ts,
+       COALESCE((SELECT json_agg(json_build_object('id', a.id, 'filename', a.filename, 'content_type', a.content_type) ORDER BY a.created_at) FROM message_attachments ma JOIN media_assets a ON a.id=ma.media_id WHERE ma.message_id=m.id), '[]'::json) AS attachments
      FROM messages m LEFT JOIN users u ON u.id=m.sender_user_id WHERE m.conversation_id=$1 ORDER BY m.seq`, [conversationId])).rows;
   const notes = (await pool.query(
     `SELECT n.id, n.body, n.created_at, u.name AS author_name FROM notes n LEFT JOIN users u ON u.id=n.author_user_id WHERE n.contact_id=$1 ORDER BY n.created_at DESC`, [conv.contact_id])).rows;

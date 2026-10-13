@@ -18,6 +18,8 @@ import { processWebhookEvent } from '../domain/inbound.js';
 import { publish } from '../domain/events.js';
 import { getProvider, signWebhook } from '../providers/sms.js';
 import { randomUUID } from 'node:crypto';
+import multipart from '@fastify/multipart';
+import { registerPhase2 } from './phase2.js';
 
 declare module 'fastify' { interface FastifyRequest { actor?: Actor } }
 const COOKIE = 'relay_session';
@@ -25,6 +27,7 @@ const COOKIE = 'relay_session';
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 1_000_000, trustProxy: true });
   await app.register(cookie);
+  await app.register(multipart, { limits: { files: 1, fields: 10 } });
   await app.register(rateLimit, { global: true, max: 600, timeWindow: '1 minute' });
 
   app.setErrorHandler((err: any, _req, reply) => {
@@ -99,9 +102,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   });
   app.post('/api/conversations/:id/messages', async (req, reply) => {
     const a = A(req); const id = idParam(req);
-    const b = z.object({ body: z.string().min(1).max(1600), idempotencyKey: z.string().min(8).max(100), ifLastSeq: z.number().int().optional(), force: z.boolean().optional() }).parse(req.body);
+    const b = z.object({ body: z.string().max(1600), idempotencyKey: z.string().min(8).max(100), ifLastSeq: z.number().int().optional(), force: z.boolean().optional(), mediaIds: z.array(z.string().uuid()).max(5).optional(), packageId: z.string().uuid().optional() }).parse(req.body);
     await requireConversation(pool, a, id);
-    const r = await queueOutbound({ workspaceId: a.workspaceId, conversationId: id, body: b.body, senderType: 'staff', senderUserId: a.userId, idempotencyKey: b.idempotencyKey, ifLastSeq: b.ifLastSeq, force: b.force });
+    const r = await queueOutbound({ workspaceId: a.workspaceId, conversationId: id, body: b.body, senderType: 'staff', senderUserId: a.userId, idempotencyKey: b.idempotencyKey, ifLastSeq: b.ifLastSeq, force: b.force, mediaIds: b.mediaIds, packageId: b.packageId });
     if (!r.ok) return reply.status(r.reason === 'newer_messages' ? 409 : 422).send({ error: r.reason, messageId: r.messageId });
     return r;
   });
@@ -115,6 +118,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   post('read', (a, id) => conv.markRead(a, id));
   post('notes', (a, id, b) => conv.addNote(a, id, z.object({ body: z.string().min(1).max(5000) }).parse(b).body));
   post('typing', async (a, id, b) => { await conv.getThread(a, id); await publish(pool, a.workspaceId, 'typing', { conversationId: id, userId: a.userId, name: a.name, typing: !!b.typing }); });
+
+  registerPhase2(app, A);
 
   // ---------- contacts ----------
   app.get('/api/contacts', async (req) => contacts.listContacts(A(req), z.object({ search: z.string().max(100).optional(), tag: z.string().optional() }).parse(req.query)));

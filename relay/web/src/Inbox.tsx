@@ -2,18 +2,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, fmtTime, get, nameOf, post, subscribe, uuid } from './api';
 import type { Me } from './App';
 import { ContactCard } from './Customers';
+import { Attachment } from './Media';
+import { upload } from './api';
 
 const RESP: Record<string, string> = { needs_our_reply: 'Needs our reply', waiting_on_customer: 'Waiting on customer', waiting_on_staff: 'Waiting on staff', scheduled: 'Scheduled', closed: 'Closed' };
 const MODE: Record<string, string> = { human: 'Human handling', sandra: 'Sandra handling', draft_only: 'Draft assistance only', paused: 'Automation paused' };
 // Delivery states are shown exactly as the system knows them — "provider accepted" is NOT "delivered".
 const STATUS: Record<string, string> = { received: '', queued: 'Queued', sending: 'Sending…', provider_accepted: 'Accepted by provider', delivered: 'Delivered', failed: 'Failed', unknown: 'Outcome unknown — verify before resending', suppressed: 'Not sent' };
-const REASON: Record<string, string> = { sms_opted_out: 'customer opted out', do_not_text: 'do-not-text is set', outbound_blocked: 'outbound is blocked', no_marketing_consent: 'no marketing consent', employee_takeover: 'employee took over', stale_revision: 'conversation changed', conversation_closed: 'conversation closed', handling_mode_changed: 'handling mode changed' };
+const REASON: Record<string, string> = { unresolved_template_variables: 'the message still has unfilled {{variables}}', empty_message: 'the message is empty', attachment_too_large_for_mms: 'attachments are too large for texting', attachment_type_not_allowed: 'that attachment type cannot be texted', attachment_not_found: 'attachment not found', attachment_unavailable: 'attachment unavailable', customer_replied_since_scheduling: 'customer replied after it was scheduled', global_pause: 'automation is globally paused', sms_opted_out: 'customer opted out', do_not_text: 'do-not-text is set', outbound_blocked: 'outbound is blocked', no_marketing_consent: 'no marketing consent', employee_takeover: 'employee took over', stale_revision: 'conversation changed', conversation_closed: 'conversation closed', handling_mode_changed: 'handling mode changed' };
 
-export function Inbox({ me }: { me: Me }) {
+export function Inbox({ me, focus }: { me: Me; focus?: string | null }) {
   const [list, setList] = useState<any[] | null>(null);
   const [filters, setFilters] = useState({ status: 'open', responsibility: '', assignee: '', search: '', unread: false });
-  const [sel, setSel] = useState<string | null>(null);
-  const [panel, setPanel] = useState<'list' | 'thread' | 'info'>('list');
+  const [sel, setSel] = useState<string | null>(focus ?? null);
+  const [panel, setPanel] = useState<'list' | 'thread' | 'info'>(focus ? 'thread' : 'list');
   const [typing, setTyping] = useState<Record<string, { name: string; at: number }>>({});
   const selRef = useRef(sel); selRef.current = sel;
   const [tick, setTick] = useState(0);
@@ -26,6 +28,7 @@ export function Inbox({ me }: { me: Me }) {
   useEffect(() => { const t = setTimeout(loadList, 150); return () => clearTimeout(t); }, [loadList]);
   useEffect(() => subscribe((e) => {
     if (e.type === 'typing' && e.userId !== me.user.id) setTyping((t) => ({ ...t, [e.conversationId]: { name: e.name, at: Date.now() } }));
+    else if (e.type === 'notification') { /* handled by the bell */ }
     else { loadList(); if (e.conversationId === selRef.current) setTick((n) => n + 1); }
   }), [loadList, me.user.id]);
 
@@ -59,7 +62,7 @@ export function Inbox({ me }: { me: Me }) {
         {me.simulated && <Simulate onDone={loadList} />}
       </section>
       <section className="pane thread">
-        {sel ? <Thread key={sel} id={sel} tick={tick} typing={typing[sel]} onBack={() => setPanel('list')} onInfo={() => setPanel('info')} onChanged={loadList} /> : <p className="muted pad">Select a conversation.</p>}
+        {sel ? <Thread key={sel} id={sel} tz={me.workspace.timezone} tick={tick} typing={typing[sel]} onBack={() => setPanel('list')} onInfo={() => setPanel('info')} onChanged={loadList} /> : <p className="muted pad">Select a conversation.</p>}
       </section>
       <section className="pane side">
         {sel && <SideInfo key={sel + tick} id={sel} me={me} onBack={() => setPanel('thread')} onChanged={() => { loadList(); setTick((n) => n + 1); }} />}
@@ -80,18 +83,22 @@ function Simulate({ onDone }: { onDone: () => void }) {
   );
 }
 
-function Thread({ id, tick, typing, onBack, onInfo, onChanged }: { id: string; tick: number; typing?: { name: string; at: number }; onBack: () => void; onInfo: () => void; onChanged: () => void }) {
-  const [data, setData] = useState<any>(null); const [draft, setDraft] = useState(''); const [err, setErr] = useState(''); const [warn, setWarn] = useState<string | null>(null);
+function Thread({ id, tz, tick, typing, onBack, onInfo, onChanged }: { id: string; tz: string; tick: number; typing?: { name: string; at: number }; onBack: () => void; onInfo: () => void; onChanged: () => void }) {
+  const [data, setData] = useState<any>(null); const [draft, setDraft] = useState(''); const [err, setErr] = useState(''); const [loadErr, setLoadErr] = useState(''); const [warn, setWarn] = useState<string | null>(null);
+  const [files, setFiles] = useState<{ id: string; name: string }[]>([]); const [showTpl, setShowTpl] = useState(false); const [showSched, setShowSched] = useState(false); const [tpls, setTpls] = useState<any[]>([]); const [tplSearch, setTplSearch] = useState('');
+  const [sched, setSched] = useState<any[]>([]); const [when, setWhen] = useState(''); const [tplMissing, setTplMissing] = useState<string[]>([]);
   const keyRef = useRef(uuid()); const endRef = useRef<HTMLDivElement>(null); const typingTimer = useRef<number>(0);
-  const load = useCallback(() => get(`/api/conversations/${id}`).then((d) => { setData(d); post(`/api/conversations/${id}/read`).catch(() => {}); }).catch((e) => setErr(e.message)), [id]);
-  useEffect(() => { load(); }, [load, tick]);
+  const load = useCallback(() => get(`/api/conversations/${id}`).then((d) => { setData(d); post(`/api/conversations/${id}/read`).catch(() => {}); }).catch((e) => setLoadErr(e.message)), [id]);
+  const loadSched = useCallback(() => get(`/api/conversations/${id}/scheduled`).then(setSched).catch(() => {}), [id]);
+  useEffect(() => { load(); loadSched(); }, [load, loadSched, tick]);
+  useEffect(() => { if (showTpl) get('/api/templates?search=' + encodeURIComponent(tplSearch)).then(setTpls); }, [showTpl, tplSearch]);
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [data?.messages?.length]);
   const [, force] = useState(0); useEffect(() => { const t = setInterval(() => force((n) => n + 1), 2000); return () => clearInterval(t); }, []);
-  if (err) return <p className="error pad">{err}</p>; if (!data) return <p className="muted pad">Loading…</p>;
+  if (loadErr) return <p className="error pad">{loadErr}</p>; if (!data) return <p className="muted pad">Loading…</p>;
   const c = data.conversation; const lastSeq = data.messages.length ? data.messages[data.messages.length - 1].seq : 0;
   const send = async (force = false) => {
     setErr(''); setWarn(null);
-    try { await post(`/api/conversations/${id}/messages`, { body: draft, idempotencyKey: keyRef.current, ifLastSeq: lastSeq, force }); setDraft(''); keyRef.current = uuid(); load(); onChanged(); }
+    try { await post(`/api/conversations/${id}/messages`, { body: draft, idempotencyKey: keyRef.current, ifLastSeq: lastSeq, force, mediaIds: files.map((f) => f.id) }); setDraft(''); setFiles([]); setTplMissing([]); keyRef.current = uuid(); load(); onChanged(); }
     catch (e) {
       if (e instanceof ApiError && e.status === 409) setWarn('New activity arrived in this conversation while you were typing. Review it, then send anyway if still appropriate.');
       else if (e instanceof ApiError && e.status === 422) { setErr(`Not sent: ${REASON[e.body?.error] ?? e.body?.error}.`); keyRef.current = uuid(); load(); }
@@ -113,6 +120,7 @@ function Thread({ id, tick, typing, onBack, onInfo, onChanged }: { id: string; t
           <div key={m.id} className={`bubble ${m.direction}`}>
             <div className="meta">{m.direction === 'inbound' ? 'Customer' : m.sender_type === 'staff' ? (m.sender_name ?? 'Staff') : m.sender_type === 'sandra' ? 'Sandra' : m.sender_type === 'automation' ? 'Automation' : 'System'}{m.purpose !== 'conversational' ? ` · ${m.purpose}` : ''} · {fmtTime(m.created_at)}</div>
             <div className="text">{m.body}</div>
+            {m.attachments?.map((a: any) => <Attachment key={a.id} id={a.id} filename={a.filename} type={a.content_type} />)}
             {m.direction === 'outbound' && <div className={`status s-${m.status}`}>{STATUS[m.status]}{m.status_detail ? ` — ${REASON[m.status_detail] ?? m.status_detail}` : ''}</div>}
           </div>))}
         <div ref={endRef} />
@@ -121,11 +129,24 @@ function Thread({ id, tick, typing, onBack, onInfo, onChanged }: { id: string; t
       {warn && <div className="banner warn" role="alert">{warn} <button onClick={() => { load(); setWarn(null); }}>Review</button> <button onClick={() => send(true)}>Send anyway</button></div>}
       {err && <div className="banner bad" role="alert">{err}</div>}
       {c.status === 'closed' && <div className="banner">This conversation is closed. Sending a message reopens it.</div>}
-      <form className="composer" onSubmit={(e) => { e.preventDefault(); if (draft.trim()) send(); }}>
+      {sched.filter((x) => x.status === 'pending' || x.status === 'needs_review').map((x) => (
+        <div key={x.id} className={`banner ${x.status === 'needs_review' ? 'warn' : ''}`}>Scheduled for {new Date(x.run_at).toLocaleString([], { timeZone: x.timezone, dateStyle: 'medium', timeStyle: 'short' })} ({x.timezone}) by {x.created_by_name}{x.status === 'needs_review' ? ' — NOT sent: customer replied since; review' : ''}: “{x.body.slice(0, 60)}” {x.status === 'pending' && <button onClick={async () => { try { await post(`/api/scheduled/${x.id}/cancel`); loadSched(); load(); } catch (e: any) { setErr(e.message); } }}>Cancel</button>}</div>))}
+      {tplMissing.length > 0 && <div className="banner warn" role="alert">This template needs details we don't have: {tplMissing.join(', ')}. Fill them in (Settings / customer record) or edit the text. It cannot be sent with {'{{…}}'} left in.</div>}
+      {showTpl && <div className="popover"><input placeholder="Search templates…" aria-label="Search templates" value={tplSearch} onChange={(e) => setTplSearch(e.target.value)} />
+        {tpls.length === 0 ? <p className="muted small">No templates.</p> : tpls.map((t) => <div key={t.id} className="trow"><button className="linkbtn" onClick={async () => { await post(`/api/templates/${t.id}/favorite`, { favorite: !t.favorite }); setTplSearch((x) => x + ''); get('/api/templates?search=' + encodeURIComponent(tplSearch)).then(setTpls); }} aria-label="Toggle favorite">{t.favorite ? '★' : '☆'}</button>
+          <button className="row" onClick={async () => { const r = await post(`/api/templates/${t.id}/render`, { conversationId: id }); setDraft(r.text); setTplMissing(r.missing); setShowTpl(false); }}><b>{t.name}</b><span className="small muted">{t.category}</span></button></div>)}</div>}
+      {showSched && <div className="popover"><label>Send at ({tz})<input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} /></label>
+        <p className="small muted">Consent, handling mode and replies are re-checked when it is due. If the customer writes first, it will NOT send and you'll be asked to review.</p>
+        <button className="primary" disabled={!when || (!draft.trim() && !files.length)} onClick={async () => { try { const r = await post(`/api/conversations/${id}/scheduled`, { body: draft, localTime: when, mediaIds: files.map((f) => f.id) }); setDraft(''); setFiles([]); setShowSched(false); setErr(r.dst !== 'none' ? `Note: that local time hits a daylight-saving change (${r.dst.replaceAll('_', ' ')}).` : ''); loadSched(); load(); } catch (e: any) { setErr(e.message); } }}>Schedule</button></div>}
+      {files.length > 0 && <div className="chips pad">{files.map((f) => <span key={f.id} className="chip">📎 {f.name} <button className="linkbtn" onClick={() => setFiles(files.filter((x) => x.id !== f.id))} aria-label={`Remove ${f.name}`}>×</button></span>)}</div>}
+      <form className="composer" onSubmit={(e) => { e.preventDefault(); if (draft.trim() || files.length) send(); }}>
+        <div className="tools"><button type="button" onClick={() => { setShowTpl(!showTpl); setShowSched(false); }} aria-label="Templates">Templates</button>
+          <label className="filebtn" title="Attach image/PDF (texting limit 5 MB)">📎<input type="file" hidden accept="image/*,application/pdf,video/mp4" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const r = await upload(f, { category: 'message' }); setFiles([...files, { id: r.id, name: f.name }]); } catch (x: any) { setErr(x.message); } e.target.value = ''; }} /></label>
+          <button type="button" onClick={() => { setShowSched(!showSched); setShowTpl(false); }} aria-label="Schedule">⏰</button></div>
         <textarea rows={2} placeholder="Write a message…" aria-label="Message" value={draft} maxLength={1600}
           onChange={(e) => { setDraft(e.target.value); window.clearTimeout(typingTimer.current); post(`/api/conversations/${id}/typing`, { typing: true }).catch(() => {}); typingTimer.current = window.setTimeout(() => {}, 3000); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (draft.trim()) send(); } }} />
-        <button className="primary" type="submit" disabled={!draft.trim()}>Send</button>
+          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (draft.trim() || files.length) send(); } }} />
+        <button className="primary" type="submit" disabled={!draft.trim() && !files.length}>Send</button>
       </form>
       <p className="hint small muted">Ctrl/⌘+Enter to send. “Accepted by provider” means the provider took the message; it is not proof of delivery.</p>
     </div>

@@ -5,6 +5,9 @@ import { classifyKeyword, recordConsent } from './consent.js';
 import { publish } from './events.js';
 import { queueOutbound } from './messaging.js';
 import type { NormalizedWebhook } from '../providers/sms.js';
+import { saveMedia } from './media.js';
+import { notify, recipientsForConversation } from './notifications.js';
+import { HttpError } from './authz.js';
 
 const RANK: Record<string, number> = { queued: 0, sending: 1, unknown: 1, provider_accepted: 2, delivered: 3, failed: 3 };
 
@@ -77,6 +80,20 @@ async function handleInbound(c: PoolClient, provider: string, ev: Extract<Normal
   await c.query(
     `UPDATE conversations SET status='open', responsibility='needs_our_reply', last_inbound_at=$2, last_message_at=GREATEST(COALESCE(last_message_at,$2),$2), last_preview=$3, revision=revision+1 WHERE id=$1`,
     [conv.id, ev.occurredAt, ev.body.slice(0, 140)]);
+
+  // Inbound MMS: only inline content is stored here. URL-only attachments need an authenticated, SSRF-safe provider fetch adapter (not built).
+  for (const m of ev.media ?? []) {
+    if (!m.dataBase64) { await c.query(`INSERT INTO timeline_events (workspace_id, contact_id, conversation_id, type, summary) VALUES ($1,$2,$3,'message','Inbound attachment not fetched: provider media fetch is not implemented')`, [ws, contact.id, conv.id]); continue; }
+    try {
+      const saved = await saveMedia({ workspaceId: ws }, { filename: `mms-${ev.providerMessageId}`, data: Buffer.from(m.dataBase64, 'base64'), origin: 'inbound_mms', contactId: contact.id }, c);
+      await c.query('INSERT INTO message_attachments (message_id, media_id) VALUES ($1,$2)', [msg.rows[0].id, saved.id]);
+    } catch (e) {
+      if (!(e instanceof HttpError)) throw e;
+      await c.query(`INSERT INTO timeline_events (workspace_id, contact_id, conversation_id, type, summary) VALUES ($1,$2,$3,'message',$4)`, [ws, contact.id, conv.id, `Inbound attachment rejected: ${e.message}`]);
+    }
+  }
+  const who = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || e164;
+  await notify(c, { workspaceId: ws, userIds: await recipientsForConversation(c, conv.id), type: 'inbound_message', title: `New text from ${who}`, conversationId: conv.id });
 
   const kw = classifyKeyword(ev.body);
   if (kw === 'stop') {

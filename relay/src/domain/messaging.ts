@@ -5,6 +5,8 @@ import { enqueue } from './queue.js';
 import { publish } from './events.js';
 import { getProvider } from '../providers/sms.js';
 import { HttpError } from './authz.js';
+import { validateAttachments, signedMediaUrls } from './media.js';
+import { verifyPackageFresh } from './outreach.js';
 
 export type SenderType = 'staff' | 'sandra' | 'automation' | 'system';
 export interface OutboundRequest {
@@ -15,7 +17,9 @@ export interface OutboundRequest {
   expectedRevision?: number;
   /** Human concurrent-reply guard: reject if messages newer than this seq exist from someone else, unless force. */
   ifLastSeq?: number; force?: boolean;
-  runAt?: Date;
+  mediaIds?: string[];
+  /** Outreach package snapshot id: boat price/availability are re-verified immediately before queueing. */
+  packageId?: string;
 }
 export type OutboundResult =
   | { ok: true; messageId: string; duplicate: boolean; status: string }
@@ -26,8 +30,13 @@ export type OutboundResult =
  * Order: idempotency → lock conversation → fencing/mode → consent → persist (outbox row) → enqueue job.
  */
 export async function queueOutbound(req: OutboundRequest): Promise<OutboundResult> {
+  return tx((c) => queueOutboundTx(c, req));
+}
+
+/** Same pipeline, inside a caller-owned transaction (used by the scheduler so cancel/send cannot race). */
+export async function queueOutboundTx(c: PoolClient, req: OutboundRequest): Promise<OutboundResult> {
   const purpose = req.purpose ?? 'conversational';
-  return tx(async (c) => {
+  {
     const dup = await c.query('SELECT id, status FROM messages WHERE workspace_id=$1 AND idempotency_key=$2', [req.workspaceId, req.idempotencyKey]);
     if (dup.rows[0]) return { ok: true as const, messageId: dup.rows[0].id, duplicate: true, status: dup.rows[0].status };
 
@@ -39,6 +48,9 @@ export async function queueOutbound(req: OutboundRequest): Promise<OutboundResul
        WHERE c.id=$1 AND c.workspace_id=$2 FOR UPDATE OF c`, [req.conversationId, req.workspaceId])).rows[0];
     if (!conv) throw new HttpError(404, 'conversation not found');
     if (!conv.to_e164) return { ok: false as const, reason: 'no_destination_number' };
+    // Never send half-filled templates to customers.
+    if (/\{\{\s*[a-z0-9_]+\s*\}\}/i.test(req.body)) return { ok: false as const, reason: 'unresolved_template_variables' };
+    if (!req.body.trim() && !req.mediaIds?.length) return { ok: false as const, reason: 'empty_message' };
 
     if (req.senderType === 'sandra' || req.senderType === 'automation') {
       if (req.expectedRevision !== conv.revision) return { ok: false as const, reason: 'stale_revision' };
@@ -65,22 +77,33 @@ export async function queueOutbound(req: OutboundRequest): Promise<OutboundResul
       return { ok: false as const, reason: verdict.reason, messageId: m.rows[0].id };
     }
 
+    if (req.mediaIds?.length) {
+      const bad = await validateAttachments(c, req.workspaceId, req.mediaIds);
+      if (bad) return { ok: false as const, reason: bad };
+    }
+    if (req.packageId) {
+      const stale = await verifyPackageFresh(c, req.workspaceId, req.packageId);
+      if (stale) return { ok: false as const, reason: stale };
+    }
+
     const m = await c.query(
       `INSERT INTO messages (workspace_id, conversation_id, direction, sender_type, sender_user_id, purpose, body, status, idempotency_key, fence_revision, from_original, to_original)
        VALUES ($1,$2,'outbound',$3,$4,$5,$6,'queued',$7,$8,$9,$10) RETURNING id, seq`,
       [req.workspaceId, req.conversationId, req.senderType, req.senderUserId ?? null, purpose, req.body, req.idempotencyKey, conv.revision, conv.from_addr, conv.to_e164]);
     const msgId = m.rows[0].id as string;
+    for (const mid of req.mediaIds ?? []) await c.query('INSERT INTO message_attachments (message_id, media_id) VALUES ($1,$2)', [msgId, mid]);
+    if (req.packageId) await c.query(`UPDATE outreach_packages SET status='sent', sent_message_id=$2 WHERE id=$1`, [req.packageId, msgId]);
 
-    const nextResp = req.runAt && req.runAt > new Date() ? 'scheduled' : (purpose === 'compliance' ? conv.responsibility : 'waiting_on_customer');
+    const nextResp = purpose === 'compliance' ? conv.responsibility : 'waiting_on_customer';
     // A human/automation/Sandra send changes the context → bump revision so other stale pending sends are fenced out.
     await c.query(
       `UPDATE conversations SET last_outbound_at=now(), last_message_at=now(), last_preview=$2, responsibility=$3,
          revision=revision+1, status=CASE WHEN status='closed' AND $4 THEN 'open' ELSE status END WHERE id=$1`,
       [req.conversationId, req.body.slice(0, 140), nextResp, req.senderType === 'staff']);
-    await enqueue(c, 'send_message', { messageId: msgId }, { runAt: req.runAt, workspaceId: req.workspaceId, dedupeKey: msgId });
+    await enqueue(c, 'send_message', { messageId: msgId }, { workspaceId: req.workspaceId, dedupeKey: msgId });
     await publish(c, req.workspaceId, 'message.created', { conversationId: req.conversationId });
     return { ok: true as const, messageId: msgId, duplicate: false, status: 'queued' };
-  });
+  }
 }
 
 /** Worker handler. Never blindly retries an ambiguous send. */
@@ -113,7 +136,8 @@ export async function handleSendMessageJob(messageId: string) {
   const provider = getProvider(row.provider);
   if (!provider) return setStatus(messageId, 'failed', `no adapter registered for ${row.provider}`);
 
-  const outcome = await provider.send({ from: row.address, to: row.to_original, body: row.body, idempotencyKey: row.idempotency_key ?? row.id }).catch((e): import('../providers/sms.js').SendOutcome => ({ kind: 'ambiguous', error: String(e?.message ?? e) }));
+  const media = await signedMediaUrls(messageId);
+  const outcome = await provider.send({ from: row.address, to: row.to_original, body: row.body, idempotencyKey: row.idempotency_key ?? row.id, media }).catch((e): import('../providers/sms.js').SendOutcome => ({ kind: 'ambiguous', error: String(e?.message ?? e) }));
   switch (outcome.kind) {
     case 'accepted':
       await pool.query(`UPDATE messages SET status='provider_accepted', provider=$2, provider_message_id=$3, status_detail=NULL WHERE id=$1`, [messageId, row.provider, outcome.providerMessageId]);

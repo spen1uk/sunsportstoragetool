@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { get, post } from './api';
+import { get, post, subscribe } from './api';
 import { Inbox } from './Inbox';
 import { Customers } from './Customers';
 import { Setup } from './Setup';
+import { MediaLibrary } from './Media';
+import { Settings } from './Settings';
 
 export interface Me { user: { id: string; name: string; role: string; departmentIds: string[] }; workspace: { name: string; timezone: string }; channels: any[]; simulated: boolean }
 
@@ -14,15 +16,16 @@ const NAV: { key: string; label: string; icon: string; setup?: { phase: string; 
   { key: 'payments', label: 'Payments', icon: '$', setup: { phase: 'Phase 5', needs: 'Requires a payment provider account with signed webhooks. Relay never stores card details.' } },
   { key: 'automations', label: 'Automations', icon: '⚙', setup: { phase: 'Phase 4', needs: 'Visual builder with dry-run is planned. All automation stays off until you enable it.' } },
   { key: 'broadcasts', label: 'Broadcasts', icon: '📣', setup: { phase: 'Phase 4', needs: 'Requires verified marketing consent records and owner authorization. Nothing will be sent automatically.' } },
-  { key: 'media', label: 'Media', icon: '▣', setup: { phase: 'Phase 2', needs: 'Shared media library and MMS attachments are planned for Phase 2.' } },
+  { key: 'media', label: 'Media', icon: '▣' },
   { key: 'analytics', label: 'Analytics', icon: '▥', setup: { phase: 'Phase 4', needs: 'Will report only measured data, with definitions. Provider acceptance is never counted as delivery.' } },
   { key: 'connections', label: 'Connections', icon: '⇄', setup: { phase: 'Phase 5', needs: 'See INTEGRATION_CAPABILITIES.md: every provider is pending until credentials exist and capabilities are verified.' } },
-  { key: 'settings', label: 'Settings', icon: '☰', setup: { phase: 'Phase 1+', needs: 'Business hours, templates, users and departments management are planned. Timezone: America/Chicago (default).' } },
+  { key: 'settings', label: 'Settings', icon: '☰' },
 ];
 
 export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [tab, setTab] = useState('inbox');
+  const [focus, setFocus] = useState<string | null>(null);
   const refresh = useCallback(() => get<Me>('/api/me').then(setMe).catch(() => setMe(null)), []);
   useEffect(() => { refresh(); }, [refresh]);
   if (me === undefined) return <div className="center muted">Loading…</div>;
@@ -44,14 +47,29 @@ export function App() {
         <header className="topbar">
           <strong>{me.workspace.name}</strong>
           {me.simulated && <span className="badge demo" title="No real SMS provider is connected. Nothing leaves this system.">DEMO · simulated SMS — no real texts are sent</span>}
-          <span className="muted small right">{me.user.name} · {me.user.role}</span>
+          <Bell me={me} onOpen={(cid) => { setFocus(cid); setTab('inbox'); }} />
+          <span className="muted small">{me.user.name} · {me.user.role}</span>
         </header>
         <div className="content">
-          {tab === 'inbox' && <Inbox me={me} />}
+          {tab === 'inbox' && <Inbox key={focus ?? 'none'} me={me} focus={focus} />}
+          {tab === 'media' && <MediaLibrary />}
+          {tab === 'settings' && <Settings me={me} />}
           {tab === 'customers' && <Customers me={me} />}
           {cur.setup && <Setup title={cur.label} phase={cur.setup.phase} needs={cur.setup.needs} />}
         </div>
       </main>
+    </div>
+  );
+}
+
+function Bell({ me, onOpen }: { me: Me; onOpen: (conversationId: string) => void }) {
+  const [d, setD] = useState<{ items: any[]; unread: number }>({ items: [], unread: 0 }); const [open, setOpen] = useState(false);
+  const load = useCallback(() => get('/api/notifications').then(setD).catch(() => {}), []);
+  useEffect(() => { load(); return subscribe((e) => { if (e.type === 'notification' && e.userId === me.user.id) load(); }); }, [load, me.user.id]);
+  return (
+    <div className="bell right"><button onClick={() => { setOpen(!open); if (!open) post('/api/notifications/read').then(load); }} aria-label={`Notifications, ${d.unread} unread`}>🔔{d.unread > 0 && <span className="chip count">{d.unread}</span>}</button>
+      {open && <div className="popover drop">{d.items.length === 0 ? <p className="muted small pad">Nothing yet.</p> : d.items.map((n) => <button key={n.id} className="row" onClick={() => { setOpen(false); if (n.conversation_id) onOpen(n.conversation_id); }}><span className={n.read_at ? '' : 'unreadtext'}>{n.title}</span><span className="small muted">{new Date(n.created_at).toLocaleString()}</span></button>)}
+        <p className="small muted pad">In-app only. Phone/desktop push notifications are not built yet.</p></div>}
     </div>
   );
 }

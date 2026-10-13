@@ -8,6 +8,9 @@ export const config = {
   simulatorWebhookSecret: process.env.SIM_WEBHOOK_SECRET ?? 'dev-simulator-secret',
   webhookToleranceSeconds: 300,
   secureCookies: process.env.RELAY_ENV === 'production',
+  mediaDir: process.env.MEDIA_DIR ?? './data/media',
+  publicBaseUrl: process.env.PUBLIC_BASE_URL ?? 'http://localhost:4000',
+  mediaSigningKey: process.env.MEDIA_SIGNING_KEY ?? 'dev-media-signing-key',
   // Master key for encrypting stored integration credentials (32-byte hex). Required in production.
   credentialKeyHex: process.env.CREDENTIAL_KEY_HEX ?? '',
 };

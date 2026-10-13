@@ -24,6 +24,17 @@ export async function seed(opts: { password?: string } = {}) {
   }
   // Simulated channel on a clearly fictional number. NOT the business number.
   await pool.query(`INSERT INTO channels (workspace_id,kind,provider,address,is_simulated) VALUES ($1,'sms','simulator','+12625550100',true)`, [ws]);
+  // Neutral starter templates: variables only, no prices/services/hours asserted. Managers edit these.
+  const starters: [string, string, string][] = [
+    ['sales', 'First reply', 'Hi {{first_name}}, this is {{staff_name}} at {{business_name}}. Thanks for reaching out — how can I help?'],
+    ['appointment', 'Visit confirmation', 'Hi {{first_name}}, confirming your visit with {{business_name}}. Directions: {{directions_link}}'],
+    ['review_request', 'Review request', 'Hi {{first_name}}, thanks for working with {{business_name}}. If you have a moment, we would value your feedback: {{review_link}}'],
+    ['general', 'Business hours', 'Our hours are: {{business_hours}}'],
+  ];
+  for (const [category, name, body] of starters) {
+    const t = (await pool.query(`INSERT INTO templates (workspace_id, category, name, created_by) VALUES ($1,$2,$3,$4) RETURNING id`, [ws, category, name, users.owner])).rows[0].id;
+    await pool.query(`INSERT INTO template_versions (template_id, version, body, created_by) VALUES ($1,1,$2,$3)`, [t, body, users.owner]);
+  }
   return { workspaceId: ws, departments: deps, users };
 }
 

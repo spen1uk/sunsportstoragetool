@@ -9,13 +9,13 @@ export type SendOutcome =
   | { kind: 'ambiguous'; error: string };          // timeout after request left: outcome unknown
 
 export type NormalizedWebhook =
-  | { type: 'inbound'; eventId: string; providerMessageId: string; from: string; to: string; body: string; occurredAt: Date; media?: { url: string; contentType: string }[] }
+  | { type: 'inbound'; eventId: string; providerMessageId: string; from: string; to: string; body: string; occurredAt: Date; media?: { contentType: string; dataBase64?: string; url?: string }[] }
   | { type: 'status'; eventId: string; providerMessageId: string; status: 'delivered' | 'failed' | 'provider_accepted'; occurredAt: Date; error?: string };
 
 export interface SmsProvider {
   key: string;
   isSimulated: boolean;
-  send(req: { from: string; to: string; body: string; idempotencyKey: string }): Promise<SendOutcome>;
+  send(req: { from: string; to: string; body: string; idempotencyKey: string; media?: { url: string; contentType: string }[] }): Promise<SendOutcome>;
   /** Throws on bad signature / stale timestamp. Returns normalized events. */
   verifyAndParse(headers: Record<string, string | string[] | undefined>, rawBody: string): NormalizedWebhook[];
 }
@@ -39,7 +39,7 @@ export function verifySignature(secret: string, header: string | undefined, rawB
 export const simulatorControl = {
   /** Test hook: queue outcomes for upcoming sends. */
   nextOutcomes: [] as SendOutcome[],
-  sent: [] as { from: string; to: string; body: string; idempotencyKey: string; providerMessageId: string }[],
+  sent: [] as { from: string; to: string; body: string; idempotencyKey: string; providerMessageId: string; media?: { url: string; contentType: string }[] }[],
   reset() { this.nextOutcomes = []; this.sent = []; },
 };
 let simCounter = 0;
