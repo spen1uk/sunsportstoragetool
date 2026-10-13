@@ -4,14 +4,17 @@ import type { Me } from './App';
 import { ContactCard } from './Customers';
 import { Attachment } from './Media';
 import { upload } from './api';
+import { SummaryBox } from './Summary';
+import { VoicePanel } from './Voice';
 
 const RESP: Record<string, string> = { needs_our_reply: 'Needs our reply', waiting_on_customer: 'Waiting on customer', waiting_on_staff: 'Waiting on staff', scheduled: 'Scheduled', closed: 'Closed' };
 const MODE: Record<string, string> = { human: 'Human handling', sandra: 'Sandra handling', draft_only: 'Draft assistance only', paused: 'Automation paused' };
 // Delivery states are shown exactly as the system knows them — "provider accepted" is NOT "delivered".
 const STATUS: Record<string, string> = { received: '', queued: 'Queued', sending: 'Sending…', provider_accepted: 'Accepted by provider', delivered: 'Delivered', failed: 'Failed', unknown: 'Outcome unknown — verify before resending', suppressed: 'Not sent' };
-const REASON: Record<string, string> = { unresolved_template_variables: 'the message still has unfilled {{variables}}', empty_message: 'the message is empty', attachment_too_large_for_mms: 'attachments are too large for texting', attachment_type_not_allowed: 'that attachment type cannot be texted', attachment_not_found: 'attachment not found', attachment_unavailable: 'attachment unavailable', customer_replied_since_scheduling: 'customer replied after it was scheduled', global_pause: 'automation is globally paused', sms_opted_out: 'customer opted out', do_not_text: 'do-not-text is set', outbound_blocked: 'outbound is blocked', no_marketing_consent: 'no marketing consent', employee_takeover: 'employee took over', stale_revision: 'conversation changed', conversation_closed: 'conversation closed', handling_mode_changed: 'handling mode changed' };
+const REASON: Record<string, string> = { package_price_changed: 'a price changed since this package was drafted — rebuild it from Inventory Matches', package_boat_sold: 'a boat in this package is no longer available — rebuild it', package_inventory_stale: 'inventory data is stale and availability is unverified', package_already_sent: 'this package was already sent', package_boat_unavailable: 'a boat in this package is pending or on hold', unresolved_template_variables: 'the message still has unfilled {{variables}}', empty_message: 'the message is empty', attachment_too_large_for_mms: 'attachments are too large for texting', attachment_type_not_allowed: 'that attachment type cannot be texted', attachment_not_found: 'attachment not found', attachment_unavailable: 'attachment unavailable', customer_replied_since_scheduling: 'customer replied after it was scheduled', global_pause: 'automation is globally paused', sms_opted_out: 'customer opted out', do_not_text: 'do-not-text is set', outbound_blocked: 'outbound is blocked', no_marketing_consent: 'no marketing consent', employee_takeover: 'employee took over', stale_revision: 'conversation changed', conversation_closed: 'conversation closed', handling_mode_changed: 'handling mode changed' };
 
-export function Inbox({ me, focus }: { me: Me; focus?: string | null }) {
+type Compose = { conversationId: string; body: string; mediaIds: string[]; packageId: string };
+export function Inbox({ me, focus, compose, onComposeUsed, onOpenTeam }: { me: Me; focus?: string | null; compose?: Compose | null; onComposeUsed?: () => void; onOpenTeam?: (channelId: string) => void }) {
   const [list, setList] = useState<any[] | null>(null);
   const [filters, setFilters] = useState({ status: 'open', responsibility: '', assignee: '', search: '', unread: false });
   const [sel, setSel] = useState<string | null>(focus ?? null);
@@ -28,7 +31,7 @@ export function Inbox({ me, focus }: { me: Me; focus?: string | null }) {
   useEffect(() => { const t = setTimeout(loadList, 150); return () => clearTimeout(t); }, [loadList]);
   useEffect(() => subscribe((e) => {
     if (e.type === 'typing' && e.userId !== me.user.id) setTyping((t) => ({ ...t, [e.conversationId]: { name: e.name, at: Date.now() } }));
-    else if (e.type === 'notification') { /* handled by the bell */ }
+    else if (e.type === 'notification' || e.type === 'chat.message' || e.type === 'inventory.updated') { /* handled elsewhere */ }
     else { loadList(); if (e.conversationId === selRef.current) setTick((n) => n + 1); }
   }), [loadList, me.user.id]);
 
@@ -62,10 +65,10 @@ export function Inbox({ me, focus }: { me: Me; focus?: string | null }) {
         {me.simulated && <Simulate onDone={loadList} />}
       </section>
       <section className="pane thread">
-        {sel ? <Thread key={sel} id={sel} tz={me.workspace.timezone} tick={tick} typing={typing[sel]} onBack={() => setPanel('list')} onInfo={() => setPanel('info')} onChanged={loadList} /> : <p className="muted pad">Select a conversation.</p>}
+        {sel ? <Thread key={sel} id={sel} tz={me.workspace.timezone} compose={compose?.conversationId === sel ? compose : null} onComposeUsed={onComposeUsed} tick={tick} typing={typing[sel]} onBack={() => setPanel('list')} onInfo={() => setPanel('info')} onChanged={loadList} /> : <p className="muted pad">Select a conversation.</p>}
       </section>
       <section className="pane side">
-        {sel && <SideInfo key={sel + tick} id={sel} me={me} onBack={() => setPanel('thread')} onChanged={() => { loadList(); setTick((n) => n + 1); }} />}
+        {sel && <SideInfo key={sel + tick} id={sel} me={me} onOpenTeam={onOpenTeam} onBack={() => setPanel('thread')} onChanged={() => { loadList(); setTick((n) => n + 1); }} />}
       </section>
     </div>
   );
@@ -83,11 +86,14 @@ function Simulate({ onDone }: { onDone: () => void }) {
   );
 }
 
-function Thread({ id, tz, tick, typing, onBack, onInfo, onChanged }: { id: string; tz: string; tick: number; typing?: { name: string; at: number }; onBack: () => void; onInfo: () => void; onChanged: () => void }) {
+function Thread({ id, tz, compose, onComposeUsed, tick, typing, onBack, onInfo, onChanged }: { id: string; tz: string; compose: Compose | null; onComposeUsed?: () => void; tick: number; typing?: { name: string; at: number }; onBack: () => void; onInfo: () => void; onChanged: () => void }) {
   const [data, setData] = useState<any>(null); const [draft, setDraft] = useState(''); const [err, setErr] = useState(''); const [loadErr, setLoadErr] = useState(''); const [warn, setWarn] = useState<string | null>(null);
   const [files, setFiles] = useState<{ id: string; name: string }[]>([]); const [showTpl, setShowTpl] = useState(false); const [showSched, setShowSched] = useState(false); const [tpls, setTpls] = useState<any[]>([]); const [tplSearch, setTplSearch] = useState('');
   const [sched, setSched] = useState<any[]>([]); const [when, setWhen] = useState(''); const [tplMissing, setTplMissing] = useState<string[]>([]);
-  const keyRef = useRef(uuid()); const endRef = useRef<HTMLDivElement>(null); const typingTimer = useRef<number>(0);
+  const [packageId, setPackageId] = useState<string | null>(null); const [showVoice, setShowVoice] = useState(false);
+  const keyRef = useRef(uuid());
+  useEffect(() => { if (compose) { setDraft(compose.body); setPackageId(compose.packageId); setFiles([]); onComposeUsed?.(); } }, [compose]);
+  const endRef = useRef<HTMLDivElement>(null); const typingTimer = useRef<number>(0);
   const load = useCallback(() => get(`/api/conversations/${id}`).then((d) => { setData(d); post(`/api/conversations/${id}/read`).catch(() => {}); }).catch((e) => setLoadErr(e.message)), [id]);
   const loadSched = useCallback(() => get(`/api/conversations/${id}/scheduled`).then(setSched).catch(() => {}), [id]);
   useEffect(() => { load(); loadSched(); }, [load, loadSched, tick]);
@@ -98,7 +104,7 @@ function Thread({ id, tz, tick, typing, onBack, onInfo, onChanged }: { id: strin
   const c = data.conversation; const lastSeq = data.messages.length ? data.messages[data.messages.length - 1].seq : 0;
   const send = async (force = false) => {
     setErr(''); setWarn(null);
-    try { await post(`/api/conversations/${id}/messages`, { body: draft, idempotencyKey: keyRef.current, ifLastSeq: lastSeq, force, mediaIds: files.map((f) => f.id) }); setDraft(''); setFiles([]); setTplMissing([]); keyRef.current = uuid(); load(); onChanged(); }
+    try { await post(`/api/conversations/${id}/messages`, { body: draft, idempotencyKey: keyRef.current, ifLastSeq: lastSeq, force, mediaIds: [...files.map((f) => f.id), ...(packageId && compose?.mediaIds ? compose.mediaIds : [])], packageId: packageId ?? undefined }); setDraft(''); setFiles([]); setTplMissing([]); setPackageId(null); keyRef.current = uuid(); load(); onChanged(); }
     catch (e) {
       if (e instanceof ApiError && e.status === 409) setWarn('New activity arrived in this conversation while you were typing. Review it, then send anyway if still appropriate.');
       else if (e instanceof ApiError && e.status === 422) { setErr(`Not sent: ${REASON[e.body?.error] ?? e.body?.error}.`); keyRef.current = uuid(); load(); }
@@ -132,6 +138,8 @@ function Thread({ id, tz, tick, typing, onBack, onInfo, onChanged }: { id: strin
       {sched.filter((x) => x.status === 'pending' || x.status === 'needs_review').map((x) => (
         <div key={x.id} className={`banner ${x.status === 'needs_review' ? 'warn' : ''}`}>Scheduled for {new Date(x.run_at).toLocaleString([], { timeZone: x.timezone, dateStyle: 'medium', timeStyle: 'short' })} ({x.timezone}) by {x.created_by_name}{x.status === 'needs_review' ? ' — NOT sent: customer replied since; review' : ''}: “{x.body.slice(0, 60)}” {x.status === 'pending' && <button onClick={async () => { try { await post(`/api/scheduled/${x.id}/cancel`); loadSched(); load(); } catch (e: any) { setErr(e.message); } }}>Cancel</button>}</div>))}
       {tplMissing.length > 0 && <div className="banner warn" role="alert">This template needs details we don't have: {tplMissing.join(', ')}. Fill them in (Settings / customer record) or edit the text. It cannot be sent with {'{{…}}'} left in.</div>}
+      {packageId && <div className="banner">Boat package draft — review and edit, then Send. Price and availability are re-verified when you send; the send is refused if anything changed.</div>}
+      {showVoice && <VoicePanel conversationId={id} onClose={() => setShowVoice(false)} onSent={() => { setShowVoice(false); load(); onChanged(); }} />}
       {showTpl && <div className="popover"><input placeholder="Search templates…" aria-label="Search templates" value={tplSearch} onChange={(e) => setTplSearch(e.target.value)} />
         {tpls.length === 0 ? <p className="muted small">No templates.</p> : tpls.map((t) => <div key={t.id} className="trow"><button className="linkbtn" onClick={async () => { await post(`/api/templates/${t.id}/favorite`, { favorite: !t.favorite }); setTplSearch((x) => x + ''); get('/api/templates?search=' + encodeURIComponent(tplSearch)).then(setTpls); }} aria-label="Toggle favorite">{t.favorite ? '★' : '☆'}</button>
           <button className="row" onClick={async () => { const r = await post(`/api/templates/${t.id}/render`, { conversationId: id }); setDraft(r.text); setTplMissing(r.missing); setShowTpl(false); }}><b>{t.name}</b><span className="small muted">{t.category}</span></button></div>)}</div>}
@@ -142,7 +150,8 @@ function Thread({ id, tz, tick, typing, onBack, onInfo, onChanged }: { id: strin
       <form className="composer" onSubmit={(e) => { e.preventDefault(); if (draft.trim() || files.length) send(); }}>
         <div className="tools"><button type="button" onClick={() => { setShowTpl(!showTpl); setShowSched(false); }} aria-label="Templates">Templates</button>
           <label className="filebtn" title="Attach image/PDF (texting limit 5 MB)">📎<input type="file" hidden accept="image/*,application/pdf,video/mp4" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const r = await upload(f, { category: 'message' }); setFiles([...files, { id: r.id, name: f.name }]); } catch (x: any) { setErr(x.message); } e.target.value = ''; }} /></label>
-          <button type="button" onClick={() => { setShowSched(!showSched); setShowTpl(false); }} aria-label="Schedule">⏰</button></div>
+          <button type="button" onClick={() => { setShowSched(!showSched); setShowTpl(false); setShowVoice(false); }} aria-label="Schedule">⏰</button>
+          <button type="button" onClick={() => { setShowVoice(!showVoice); setShowTpl(false); setShowSched(false); }} aria-label="Voice message">🎤</button></div>
         <textarea rows={2} placeholder="Write a message…" aria-label="Message" value={draft} maxLength={1600}
           onChange={(e) => { setDraft(e.target.value); window.clearTimeout(typingTimer.current); post(`/api/conversations/${id}/typing`, { typing: true }).catch(() => {}); typingTimer.current = window.setTimeout(() => {}, 3000); }}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (draft.trim() || files.length) send(); } }} />
@@ -153,7 +162,7 @@ function Thread({ id, tz, tick, typing, onBack, onInfo, onChanged }: { id: strin
   );
 }
 
-function SideInfo({ id, me, onBack, onChanged }: { id: string; me: Me; onBack: () => void; onChanged: () => void }) {
+function SideInfo({ id, me, onBack, onChanged, onOpenTeam }: { id: string; me: Me; onBack: () => void; onChanged: () => void; onOpenTeam?: (id: string) => void }) {
   const [d, setD] = useState<any>(null); const [users, setUsers] = useState<any[]>([]); const [deps, setDeps] = useState<any[]>([]); const [note, setNote] = useState(''); const [err, setErr] = useState('');
   useEffect(() => { get(`/api/conversations/${id}`).then(setD).catch((e) => setErr(e.message)); get('/api/users').then(setUsers); get('/api/departments').then(setDeps); }, [id]);
   if (err) return <p className="error pad">{err}</p>; if (!d) return null;
@@ -175,6 +184,8 @@ function SideInfo({ id, me, onBack, onChanged }: { id: string; me: Me; onBack: (
       <div className="pad"><h3>Internal notes</h3><p className="muted small">Only staff see notes. They can never be sent to the customer.</p>
         <form onSubmit={async (e) => { e.preventDefault(); if (note.trim()) { await act('notes', { body: note }); setNote(''); } }}><textarea rows={2} aria-label="New internal note" value={note} onChange={(e) => setNote(e.target.value)} /><button>Add note</button></form>
         <ul className="notes">{d.notes.map((n: any) => <li key={n.id}><span className="muted small">{n.author_name} · {fmtTime(n.created_at)}</span><br />{n.body}</li>)}</ul></div>
+      <SummaryBox contactId={c.contact_id} tick={0} />
+      <div className="pad"><button onClick={async () => { const r = await post('/api/chat/customer', { contactId: c.contact_id }); onOpenTeam?.(r.id); }}>Open private team discussion about this customer</button></div>
       <ContactCard id={c.contact_id} me={me} />
     </div>
   );

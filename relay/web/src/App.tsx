@@ -5,13 +5,15 @@ import { Customers } from './Customers';
 import { Setup } from './Setup';
 import { MediaLibrary } from './Media';
 import { Settings } from './Settings';
+import { TeamChat } from './TeamChat';
+import { Matches } from './Matches';
 
 export interface Me { user: { id: string; name: string; role: string; departmentIds: string[] }; workspace: { name: string; timezone: string }; channels: any[]; simulated: boolean }
 
 const NAV: { key: string; label: string; icon: string; setup?: { phase: string; needs: string } }[] = [
   { key: 'inbox', label: 'Inbox', icon: '✉' }, { key: 'customers', label: 'Customers', icon: '☺' },
-  { key: 'team', label: 'Team Chat', icon: '☷', setup: { phase: 'Phase 3', needs: 'Internal channels, DMs and tasks are planned next. Internal messages will use a separate data type that can never reach SMS.' } },
-  { key: 'matches', label: 'Inventory Matches', icon: '⚓', setup: { phase: 'Phase 3', needs: 'Needs an inventory source of truth (your inventory system or a manual import). Nothing is shown until real inventory is connected — stale data is never presented as available.' } },
+  { key: 'team', label: 'Team Chat', icon: '☷' },
+  { key: 'matches', label: 'Inventory Matches', icon: '⚓' },
   { key: 'reviews', label: 'Reviews', icon: '★', setup: { phase: 'Phase 5', needs: 'Requires Google Business Profile API access (to be verified) and owner approval before any review request is sent.' } },
   { key: 'payments', label: 'Payments', icon: '$', setup: { phase: 'Phase 5', needs: 'Requires a payment provider account with signed webhooks. Relay never stores card details.' } },
   { key: 'automations', label: 'Automations', icon: '⚙', setup: { phase: 'Phase 4', needs: 'Visual builder with dry-run is planned. All automation stays off until you enable it.' } },
@@ -26,6 +28,8 @@ export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [tab, setTab] = useState('inbox');
   const [focus, setFocus] = useState<string | null>(null);
+  const [compose, setCompose] = useState<{ conversationId: string; body: string; mediaIds: string[]; packageId: string } | null>(null);
+  const [chatFocus, setChatFocus] = useState<string | null>(null);
   const refresh = useCallback(() => get<Me>('/api/me').then(setMe).catch(() => setMe(null)), []);
   useEffect(() => { refresh(); }, [refresh]);
   if (me === undefined) return <div className="center muted">Loading…</div>;
@@ -47,11 +51,13 @@ export function App() {
         <header className="topbar">
           <strong>{me.workspace.name}</strong>
           {me.simulated && <span className="badge demo" title="No real SMS provider is connected. Nothing leaves this system.">DEMO · simulated SMS — no real texts are sent</span>}
-          <Bell me={me} onOpen={(cid) => { setFocus(cid); setTab('inbox'); }} />
+          <Bell me={me} onOpen={(cid) => { setFocus(cid); setTab('inbox'); }} onOpenChannel={(ch) => { setChatFocus(ch); setTab('team'); }} />
           <span className="muted small">{me.user.name} · {me.user.role}</span>
         </header>
         <div className="content">
-          {tab === 'inbox' && <Inbox key={focus ?? 'none'} me={me} focus={focus} />}
+          {tab === 'inbox' && <Inbox key={focus ?? 'none'} me={me} focus={focus} compose={compose} onComposeUsed={() => setCompose(null)} onOpenTeam={(id) => { setChatFocus(id); setTab('team'); }} />}
+          {tab === 'team' && <TeamChat key={chatFocus ?? 'x'} me={me} initialChannel={chatFocus} onOpenConversation={(cid) => { setFocus(cid); setTab('inbox'); }} />}
+          {tab === 'matches' && <Matches me={me} onCompose={(c) => { setCompose(c); setFocus(c.conversationId); setTab('inbox'); }} />}
           {tab === 'media' && <MediaLibrary />}
           {tab === 'settings' && <Settings me={me} />}
           {tab === 'customers' && <Customers me={me} />}
@@ -62,13 +68,13 @@ export function App() {
   );
 }
 
-function Bell({ me, onOpen }: { me: Me; onOpen: (conversationId: string) => void }) {
+function Bell({ me, onOpen, onOpenChannel }: { me: Me; onOpen: (conversationId: string) => void; onOpenChannel: (channelId: string) => void }) {
   const [d, setD] = useState<{ items: any[]; unread: number }>({ items: [], unread: 0 }); const [open, setOpen] = useState(false);
   const load = useCallback(() => get('/api/notifications').then(setD).catch(() => {}), []);
   useEffect(() => { load(); return subscribe((e) => { if (e.type === 'notification' && e.userId === me.user.id) load(); }); }, [load, me.user.id]);
   return (
     <div className="bell right"><button onClick={() => { setOpen(!open); if (!open) post('/api/notifications/read').then(load); }} aria-label={`Notifications, ${d.unread} unread`}>🔔{d.unread > 0 && <span className="chip count">{d.unread}</span>}</button>
-      {open && <div className="popover drop">{d.items.length === 0 ? <p className="muted small pad">Nothing yet.</p> : d.items.map((n) => <button key={n.id} className="row" onClick={() => { setOpen(false); if (n.conversation_id) onOpen(n.conversation_id); }}><span className={n.read_at ? '' : 'unreadtext'}>{n.title}</span><span className="small muted">{new Date(n.created_at).toLocaleString()}</span></button>)}
+      {open && <div className="popover drop">{d.items.length === 0 ? <p className="muted small pad">Nothing yet.</p> : d.items.map((n) => <button key={n.id} className="row" onClick={() => { setOpen(false); if (n.conversation_id) onOpen(n.conversation_id); else if (n.type === 'mention' && n.ref_id) onOpenChannel(n.ref_id); }}><span className={n.read_at ? '' : 'unreadtext'}>{n.title}</span><span className="small muted">{new Date(n.created_at).toLocaleString()}</span></button>)}
         <p className="small muted pad">In-app only. Phone/desktop push notifications are not built yet.</p></div>}
     </div>
   );

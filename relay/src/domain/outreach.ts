@@ -14,7 +14,7 @@ export async function createPackage(a: Actor, contactId: string, boatIds: string
   const ct = (await pool.query('SELECT first_name FROM contacts WHERE id=$1', [contactId])).rows[0];
   const name = ct.first_name && !/^\+?\d[\d\s()-]*$/.test(ct.first_name) ? ct.first_name : '';
   const checked = new Date().toLocaleString('en-US', { timeZone: 'America/Chicago', dateStyle: 'medium', timeStyle: 'short' });
-  const lines = boats.map((b, i) => `${i + 1}) ${[b.year, b.make, b.model].filter(Boolean).join(' ')}${b.price != null ? ` — $${Math.round(Number(b.price)).toLocaleString('en-US')}` : ''}${b.length_ft ? `, ${b.length_ft} ft` : ''}${b.listing_url ? `\n${b.listing_url}` : ''}`);
+  const lines = boats.map((b, i) => `${i + 1}) ${[b.year, b.make, b.model].filter(Boolean).join(' ')}${b.price != null ? ` — $${Math.round(Number(b.price)).toLocaleString('en-US')}` : ''}${b.length_ft ? `, ${Number(b.length_ft)} ft` : ''}${b.listing_url ? `\n${b.listing_url}` : ''}`);
   const body = `${name ? `Hi ${name}, ` : 'Hi, '}here are boats that fit what you told us:\n${lines.join('\n')}\nPrice and availability were confirmed ${checked} (Central) and can change.`;
   const snapshot = Object.fromEntries(boats.map((b) => [b.id, { price: b.price != null ? Number(b.price) : null, status: b.status, updatedAt: b.updated_at }]));
   const mediaIds = [...new Set(boats.flatMap((b) => b.media_ids as string[]))].slice(0, 5);

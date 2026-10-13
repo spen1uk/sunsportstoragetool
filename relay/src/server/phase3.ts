@@ -6,7 +6,6 @@ import * as summary from '../domain/summary.js';
 import * as voice from '../domain/voice.js';
 import * as inv from '../domain/inventory.js';
 import * as outreach from '../domain/outreach.js';
-import { pool } from '../db/pool.js';
 import { HttpError } from '../domain/authz.js';
 
 export function registerPhase3(app: FastifyInstance, A: (r: FastifyRequest) => Actor) {
@@ -64,6 +63,4 @@ export function registerPhase3(app: FastifyInstance, A: (r: FastifyRequest) => A
   app.get('/api/contacts/:id/matches', async (r) => inv.getMatches(A(r), id(r), { includeExcluded: (r.query as any).excluded === '1' }));
   app.post('/api/contacts/:id/matches/:boatId/feedback', async (r) => { const b = z.object({ status: z.enum(['suggested', 'dismissed', 'interested']), reason: z.string().max(300).optional() }).parse(r.body); await inv.matchFeedback(A(r), id(r), uuid.parse((r.params as any).boatId), b.status, b.reason); return { ok: true }; });
   app.post('/api/contacts/:id/packages', async (r) => outreach.createPackage(A(r), id(r), z.object({ boatIds: z.array(uuid).min(1).max(5) }).parse(r.body).boatIds));
-  app.get('/api/matches/overview', async (r) => (await pool.query(
-    `SELECT ct.id, ct.first_name, ct.last_name, count(*) FILTER (WHERE m.verdict='match')::int AS matches FROM contact_preferences p JOIN contacts ct ON ct.id=p.contact_id LEFT JOIN match_results m ON m.contact_id=p.contact_id WHERE p.workspace_id=$1 GROUP BY ct.id ORDER BY matches DESC LIMIT 100`, [A(r).workspaceId])).rows.filter(async () => true));
 }
