@@ -204,7 +204,11 @@ route('POST', '/api/mac/detect', async ({ db, body }) => { const k = kindOf(body
 route('PUT', '/api/mac/sources', ({ db, body }) => { const b = parse(z.object({ kind: z.enum(['calendar', 'notes']), enabled: z.array(z.string().max(200)).max(100) }), body); const known = new Set(cal.sources(db, b.kind).map((x) => x.name)); cal.setEnabled(db, b.kind, b.enabled.filter((n) => known.has(n))); return { sources: cal.sources(db, b.kind), state: cal.syncState(db, b.kind) }; });
 route('POST', '/api/mac/sync', async ({ db, body }) => { const k = kindOf(body); const r = k === 'calendar' ? await cal.syncCalendar(db) : await nts.syncNotes(db); if (!r.ok) throw new HttpError(502, r.error ?? 'sync failed'); return { ...r, state: cal.syncState(db, k) }; });
 route('POST', '/api/mac/disconnect', ({ db, body }) => { const k = kindOf(body); cal.setEnabled(db, k, []); db.prepare('DELETE FROM mac_sync WHERE kind=?').run(k); cal.setConnection(db, k); audit(db, 'luke', `${k}.disconnect`); return { ok: true }; });
-route('GET', '/api/calendar', ({ db }) => { const t = Date.now(); return { state: cal.syncState(db, 'calendar', t), events: cal.upcoming(db, t - 3_600_000, t + 14 * 86_400_000) }; });
+route('GET', '/api/calendar', ({ db, url }) => {
+  const t = Date.now(), q = (k: string, d: number) => { const n = Number(url.searchParams.get(k)); return Number.isFinite(n) && n > 0 ? n : d; };
+  const from = q('from', t - 3_600_000), to = Math.min(q('to', t + 14 * 86_400_000), from + 100 * 86_400_000);   // at most ~14 weeks per request
+  return { state: cal.syncState(db, 'calendar', t), events: cal.upcoming(db, from, to), now: t };
+});
 route('GET', '/api/notes', ({ db, url }) => ({ state: cal.syncState(db, 'notes'), items: nts.listNotes(db, (url.searchParams.get('q') ?? '').slice(0, 100)) }));
 route('GET', '/api/notes/:id', ({ db, params }) => { const n = nts.getNote(db, params.id); if (!n) throw new HttpError(404, 'not found'); return n; });
 route('GET', '/api/budget', ({ db }) => ({ summary: budget.summary(db), ledger: rows(db, 'SELECT * FROM budget_ledger ORDER BY at DESC LIMIT 100') }));

@@ -6,7 +6,7 @@ import { getRunner, MacError, isMac } from './mac.ts';
 import { publish } from './events.ts';
 import { expand } from './recurrence.ts';
 
-const DAY = 86_400_000, PAST_DAYS = 1, AHEAD_DAYS = 14, STALE_MS = 45 * 60_000;
+const DAY = 86_400_000, PAST_DAYS = 35, AHEAD_DAYS = 62, STALE_MS = 45 * 60_000;
 
 // JXA run on the Mac. Reads only. Bulk property access keeps big calendars fast.
 const LIST_JS = `function run(){ const C = Application('Calendar'); return JSON.stringify(C.calendars().map(c => c.name())); }`;
