@@ -7,6 +7,9 @@ import { MediaLibrary } from './Media';
 import { Settings } from './Settings';
 import { TeamChat } from './TeamChat';
 import { Matches } from './Matches';
+import { Automations } from './Automations';
+import { Broadcasts } from './Broadcasts';
+import { Analytics } from './Analytics';
 
 export interface Me { user: { id: string; name: string; role: string; departmentIds: string[] }; workspace: { name: string; timezone: string }; channels: any[]; simulated: boolean }
 
@@ -16,10 +19,10 @@ const NAV: { key: string; label: string; icon: string; setup?: { phase: string; 
   { key: 'matches', label: 'Inventory Matches', icon: '⚓' },
   { key: 'reviews', label: 'Reviews', icon: '★', setup: { phase: 'Phase 5', needs: 'Requires Google Business Profile API access (to be verified) and owner approval before any review request is sent.' } },
   { key: 'payments', label: 'Payments', icon: '$', setup: { phase: 'Phase 5', needs: 'Requires a payment provider account with signed webhooks. Relay never stores card details.' } },
-  { key: 'automations', label: 'Automations', icon: '⚙', setup: { phase: 'Phase 4', needs: 'Visual builder with dry-run is planned. All automation stays off until you enable it.' } },
-  { key: 'broadcasts', label: 'Broadcasts', icon: '📣', setup: { phase: 'Phase 4', needs: 'Requires verified marketing consent records and owner authorization. Nothing will be sent automatically.' } },
+  { key: 'automations', label: 'Automations', icon: '⚙' },
+  { key: 'broadcasts', label: 'Broadcasts', icon: '📣' },
   { key: 'media', label: 'Media', icon: '▣' },
-  { key: 'analytics', label: 'Analytics', icon: '▥', setup: { phase: 'Phase 4', needs: 'Will report only measured data, with definitions. Provider acceptance is never counted as delivery.' } },
+  { key: 'analytics', label: 'Analytics', icon: '▥' },
   { key: 'connections', label: 'Connections', icon: '⇄', setup: { phase: 'Phase 5', needs: 'See INTEGRATION_CAPABILITIES.md: every provider is pending until credentials exist and capabilities are verified.' } },
   { key: 'settings', label: 'Settings', icon: '☰' },
 ];
@@ -58,6 +61,9 @@ export function App() {
           {tab === 'inbox' && <Inbox key={focus ?? 'none'} me={me} focus={focus} compose={compose} onComposeUsed={() => setCompose(null)} onOpenTeam={(id) => { setChatFocus(id); setTab('team'); }} />}
           {tab === 'team' && <TeamChat key={chatFocus ?? 'x'} me={me} initialChannel={chatFocus} onOpenConversation={(cid) => { setFocus(cid); setTab('inbox'); }} />}
           {tab === 'matches' && <Matches me={me} onCompose={(c) => { setCompose(c); setFocus(c.conversationId); setTab('inbox'); }} />}
+          {tab === 'automations' && <Automations me={me} onOpenConversation={(cid) => { setFocus(cid); setTab('inbox'); }} />}
+          {tab === 'broadcasts' && <Broadcasts me={me} />}
+          {tab === 'analytics' && <Analytics me={me} />}
           {tab === 'media' && <MediaLibrary />}
           {tab === 'settings' && <Settings me={me} />}
           {tab === 'customers' && <Customers me={me} />}

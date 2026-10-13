@@ -1,7 +1,7 @@
 # Build status
 Last updated: 2026-10-13
 
-**Verification summary:** `npm run check` = typecheck ✓ · eslint ✓ · 90 tests ✓ (real Postgres). Browser-verified (Chromium, desktop 1400px + mobile 390px, real server+worker processes). Nothing real has been sent: SMS is a DEMO simulator.
+**Verification summary:** `npm run check` = typecheck ✓ · eslint ✓ · 145 tests ✓ (real Postgres). Browser-verified (Chromium, desktop 1400px + mobile 390px, real server+worker processes). Nothing real has been sent: SMS is a DEMO simulator.
 
 ## Phase 0 — done (cost model TODO)
 ## Phase 1 — COMPLETE ✔ (see git history / earlier notes): auth, roles, dept-scoped access, contacts, inbox, assignment, notes, responsibility vs handling states, durable messages, SSE realtime, responsive UI, restart retention.
@@ -24,12 +24,34 @@ Gate items and evidence:
 - **Sold/stale inventory excluded or flagged:** sold + unknown excluded with reason; stale source → "unverified", not packageable; packages re-verified at send (price change, sold, stale all refuse). ✓
 - Team chat: department/DM/group/customer-linked channels with membership rules (even the owner can't read others' DMs), threads, mentions (only people with access), unread counts, search scoped to readable channels, message→task with due date + link-back ✓.
 
+## Phase 4 — COMPLETE for local behaviour (simulator SMS; no external-event adapters)
+Gate items and evidence (`npm run check`: typecheck ✓ · eslint ✓ · **145 tests ✓**; browser-verified desktop + 390px):
+- **Staff-wait state prevents customer follow-ups:** a follow-up step is HELD whenever Sun Sport Marine owes the customer a reply ("waiting on staff"/"needs our reply"); the assigned employee is reminded once after N hours, managers are escalated after M hours, and the follow-up resumes only after staff respond. Test walks the whole path and asserts no customer text is sent while we owe; mutation-verified (removing the hold fails 2 tests).
+- **Customer reply / takeover (and close, STOP, do-not-text, Sandra/paused modes) stop pending steps:** checked before EVERY step; 7 parameterised cases assert nothing is sent afterwards and the stop reason is logged. Mutation-verified (removing the reply check fails 2 tests).
+- **Timezone/DST:** business-hours open/close boundaries tested on spring-forward and fall-back days; quiet-hours end instant tested across both DST changes; holidays override; `nextOpenAt` skips closed days/holidays. Broadcast/scheduled sends convert local time with gap/overlap rules (Phase 2).
+- **Restart recovery:** a step-job whose worker "died" holding an expired lease is reclaimed and executes exactly once; concurrent advances of one run send once (row lock + idempotency key); one pending job per run (found & fixed a bug where a re-deferral to the same instant could strand a run).
+- **Opt-outs enforced during broadcasts:** audience is resolved at approval, but consent is re-checked per recipient at send time; test: do-not-text, staff opt-out and a STOP reply after approval → only the remaining person is texted (STOP sender gets only the compliance acknowledgment).
+- **Logs explain execution:** per-run plain-language log (start, branch decisions with the values checked, waits with the next time, holds/reminders/escalations, stop reasons), conversation timeline entries, per-conversation "Automation activity" panel with next step + Stop button, dry-run preview that explains blocks.
+What was built:
+- **Business hours / holidays / auto-responses:** nothing assumed (unconfigured = "unknown", features stay off). First-contact greeting once; after-hours/holiday notices on a cadence; one message only when both apply; skipped (with a timeline note) when a human/Sandra owns the thread, staff already replied, STOP/HELP, global pause, or details are missing. Auto-replies are *passive* (don't change who owes the next move or the fence).
+- **Automation builder (visual, bounded):** triggers inbound text / no-response follow-up / inventory change (only customers who marked interest); conditions; steps wait, send (follow-up flag), tag, assign, task, notify, set state, if/else; versions; activate/pause; global pause; limits (daily cap, quiet hours, loop protection: one active run per conversation, 5 runs/customer/day, no workflow-triggers-workflow).
+- **Broadcasts:** individual texts only, tag/explicit audience, dedupe by number, exclusions with reasons (no marketing opt-in ≠ consent, opt-outs, missing details), preview with personalised samples + segment/cost estimate (cost "unknown" until you enter a rate), manager approval, scheduling, throttled batches, pause/resume/cancel, per-recipient status (accepted ≠ delivered), replies enter the inbox, quiet hours for marketing.
+- **Analytics:** volume (tz-aware days, department, channel, staff), unanswered snapshot, first-human-response (hand-checked median/p90; automation replies excluded; waiting turns reported separately), delivery by true status, automation/broadcast performance ("replied within 48h" stated as correlation), tasks, cost estimates, CSV export (formula-injection safe), definitions on every metric, freshness + scope, permission-scoped.
+Limitations specific to Phase 4:
+- **External-event triggers (appointment/service/storage/invoice) cannot be activated** — no verified adapters exist; the UI says so.
+- Dry-run assumes the conversation stays as it is now; real runs re-check live state.
+- "Needs a customer response" = conversation is *waiting on customer* (optionally: our last message asked a question). No language understanding.
+- Marketing texts: Relay does not auto-append opt-out wording or enforce carrier/legal content rules — verify requirements with the chosen provider/counsel before any live broadcast.
+- Throughput settings (batch size / interval) are ours; the provider's real limits are unverified. `BROADCAST_MAX_RECIPIENTS` is our own safety valve, not a carrier rule.
+- Analytics has no appointment, review or payment data yet and never computes sales attribution; response times are wall-clock.
+- Quiet hours do not delay replies to a customer who just texted (auto-responses).
+
 ## Honest limitations
 - Summaries use a regex extractor, not an LLM: good at budgets/boats/dates/questions, weak at nuance; "unanswered" means no staff message followed at all. LLM adapters pending API key (docs/AI_DATA_SHARING.md).
 - Inventory has no live source; import/manual only. "Source of truth" = the imported list, marked stale after 24h unless re-confirmed.
 - No push notifications; PWA installable manifest + minimal service worker only.
 - Local-disk media store (needs object storage for production); no malware scanner.
-- Not built: presence, bulk actions, groups/segments, merge tool, Phases 4–7, cost model, deployment package.
+- Not built: presence, bulk actions, contact merge tool, Phases 5–7, cost model, deployment package. ("Groups" are tags.)
 
 ## Blocked / needs owner
 1. SMS test-number provider choice + account + spend approval (and answers to the live-number questions in INTEGRATION_CAPABILITIES.md).
@@ -37,4 +59,4 @@ Gate items and evidence:
 3. Inventory system access/API details (or approval to treat manual CSV import as source of truth).
 
 ## Next
-Phase 4: automation builder (follow-up rule, stop conditions, dry-run), broadcasts, auto-responses/business hours, analytics.
+Phase 5: reviews, payments, connections framework (adapters, encrypted credentials, webhooks, SSRF guard), external sync. Most items need credentials — building the framework and honest 'setup required' states first.

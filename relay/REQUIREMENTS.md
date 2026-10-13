@@ -9,7 +9,7 @@ Legend: [ ] todo · [~] partial · [x] done+verified (evidence in BUILD_STATUS.m
 ## §5 Messaging
 - [x] phone normalization · [x] outbox+idempotency, ambiguous sends not retried · [x] webhook signature/replay (simulator signing) · [x] dup/out-of-order events
 - [~] open/closed ✓, assignment ✓, search ✓, filters ✓, per-user read ✓; tags UI, bulk actions w/ preview TODO · [~] typing ✓, concurrent-reply warning ✓, presence TODO
-- [x] responsibility states vs handling modes · [x] server-side takeover fencing · [ ] follow-up rule (Phase 4)
+- [x] responsibility states vs handling modes · [x] server-side takeover fencing · [x] follow-up rule (Phase 4)
 - [B] real test-number SMS/MMS (needs provider account + spend approval)
 ## §6 Customers
 - [~] contacts ✓, identities ✓, boats ✓ (API; UI read-only), groups TODO · [x] consent states + enforcement · [x] STOP/START/HELP (simulator; real provider rules to verify) · [~] timeline (basic) · [ ] merge w/ rollback
@@ -17,8 +17,8 @@ Legend: [ ] todo · [~] partial · [x] done+verified (evidence in BUILD_STATUS.m
 ## §8 Team chat   [x] DMs, department channels, groups, customer-linked, threads, mentions, unread, search, attachments(API), message→task w/ due date & link-back, isolation (import-graph + runtime tests). [ ] chat attachments UI
 ## §9 Voice       [x] record (MediaRecorder), browser-speech/typed fallback, transcriber adapter (none configured), subset-only cleanup, original+cleaned shown, explicit send, owner-only access, retention purge. [B] mic capture/browser STT untested on real phones
 ## §10 Matching   [x] inventory w/ source-of-truth+freshness, explicit prefs, explain/rank, missing vs disqualifying, recalculation on all triggers, sold/unknown excluded, stale flagged, feedback, duplicate-outreach log, draft-only packages re-verified at send, future policy (consent/cap/quiet hours) encoded not wired. [B] no live inventory connection
-## §11 Templates ✓ (versions, variables, missing-field validation, search, favorites, dept scoping, manager-only edit) · Scheduling ✓ (DST gap/overlap, creator tz, cancel, history, recheck at execution) · [ ] automations · [ ] broadcasts · [ ] auto-responses (Phase 4)
-## §12 Media [~] library, validation, signed expiring links, revocation, MMS limits; TODO branded share pages, malware scanner · [ ] reviews · [ ] payments · [ ] analytics
+## §11 Templates ✓ (versions, variables, missing-field validation, search, favorites, dept scoping, manager-only edit) · Scheduling ✓ (DST gap/overlap, creator tz, cancel, history, recheck at execution) · [x] automation builder (bounded steps, conditions, branches, delay, stop conditions, preview/dry-run, activate/pause, versions, execution log, idempotency, loop prevention, frequency limits, quiet hours, opt-outs, global pause) · [x] broadcasts · [x] auto-responses/business hours/holidays · [B] external-event triggers need verified adapters
+## §12 Analytics [x] (appointments/reviews/payments pending connections) · Media [~] library, validation, signed expiring links, revocation, MMS limits; TODO branded share pages, malware scanner · [ ] reviews · [ ] payments
 ## §13 Connections framework  [ ] contract, encrypted creds, refresh, webhooks, SSRF guard · per-provider status in INTEGRATION_CAPABILITIES.md
 ## §14 Sandra API  [ ] service identity, scopes, events, fencing, idempotency, fake client, docs
 ## §15 Security   [x] roles ✓ dept scope ✓ rate limits ✓ audit ✓ · [ ] retention/export/delete · [ ] secret mgmt (Phase 5)

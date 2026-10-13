@@ -11,6 +11,7 @@ export function Settings({ me }: { me: Me }) {
       <h2>Settings</h2>
       <p className="muted small">Timezone: {me.workspace.timezone} (default). Channels: {me.channels.map((c) => `${c.provider} ${c.address}${c.is_simulated ? ' (DEMO)' : ''}${c.is_live_enabled ? ' [live enabled]' : ' [live sending off]'}`).join('; ') || 'none'}</p>
       <BusinessFacts editable={mgr} />
+      <HoursAndAutoResponse editable={mgr} />
       <Templates mgr={mgr} />
     </div>
   );
@@ -48,6 +49,28 @@ function Templates({ mgr }: { mgr: boolean }) {
         <label className="wide">Body<textarea rows={2} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} required /></label>
         <button className="primary">Add template</button></form>}
       {err && <p className="error" role="alert">{err}</p>}
+    </section>
+  );
+}
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+function HoursAndAutoResponse({ editable }: { editable: boolean }) {
+  const [d, setD] = useState<any>(null); const [hours, setHours] = useState<any[]>([]); const [hol, setHol] = useState<any[]>([]); const [ar, setAr] = useState<any>(null); const [msg, setMsg] = useState(''); const [newHol, setNewHol] = useState({ day: '', name: '', notice: '' });
+  useEffect(() => { get('/api/automation/settings').then((x) => { setD(x); setHours(DAYS.map((_, w) => { const h = x.hours.find((y: any) => y.weekday === w); return h ? { weekday: w, closed: h.closed, open: h.open ?? '09:00', close: h.close ?? '17:00' } : { weekday: w, closed: true, open: '09:00', close: '17:00', unset: true }; })); setHol(x.holidays); const a = x.autoResponse; setAr({ enabled: a.auto_response_enabled, firstContactMessage: a.first_contact_message ?? '', afterHoursMessage: a.after_hours_message ?? '', holidayMessage: a.holiday_message ?? '', cadenceHours: a.cadence_hours, quietStartHour: a.quiet_start_hour, quietEndHour: a.quiet_end_hour }); }); }, []);
+  if (!d || !ar) return null;
+  return (
+    <section className="card section"><h3>Business hours, holidays &amp; auto-responses</h3>
+      <p className="muted small">Nothing is assumed. {d.hoursConfigured ? 'Hours below are what you entered.' : 'Hours are NOT configured: after-hours notices and “business hours” conditions stay off until you save them.'} Times are in {d.timezone}.</p>
+      <table className="tbl"><tbody>{hours.map((h, i) => <tr key={i}><td>{DAYS[i]}</td><td><label className="inline"><input type="checkbox" disabled={!editable} checked={h.closed} onChange={(e) => setHours(hours.map((x, j) => (j === i ? { ...x, closed: e.target.checked, unset: false } : x)))} /> Closed</label></td><td><input type="time" disabled={!editable || h.closed} value={h.open} onChange={(e) => setHours(hours.map((x, j) => (j === i ? { ...x, open: e.target.value } : x)))} aria-label={`${DAYS[i]} opens`} /></td><td><input type="time" disabled={!editable || h.closed} value={h.close} onChange={(e) => setHours(hours.map((x, j) => (j === i ? { ...x, close: e.target.value } : x)))} aria-label={`${DAYS[i]} closes`} /></td></tr>)}</tbody></table>
+      <h4>Holidays</h4>{hol.map((h, i) => <div key={i} className="trow"><span>{h.day} — {h.name}{h.notice ? `: “${h.notice}”` : ''}</span>{editable && <button onClick={() => setHol(hol.filter((_, j) => j !== i))}>Remove</button>}</div>)}
+      {editable && <div className="formgrid"><label>Date<input type="date" value={newHol.day} onChange={(e) => setNewHol({ ...newHol, day: e.target.value })} /></label><label>Name<input value={newHol.name} onChange={(e) => setNewHol({ ...newHol, name: e.target.value })} /></label><label>Notice text (optional)<input value={newHol.notice} onChange={(e) => setNewHol({ ...newHol, notice: e.target.value })} /></label><button onClick={() => { if (newHol.day && newHol.name) { setHol([...hol, { day: newHol.day, name: newHol.name, closed: true, notice: newHol.notice || null }]); setNewHol({ day: '', name: '', notice: '' }); } }}>Add holiday</button></div>}
+      <h4>Auto-responses</h4>
+      <label className="inline"><input type="checkbox" disabled={!editable} checked={ar.enabled} onChange={(e) => setAr({ ...ar, enabled: e.target.checked })} /> Send automatic first-contact / after-hours / holiday replies</label>
+      <p className="small muted">Never sent when a person or Sandra is handling the thread, when staff already replied, or for STOP/HELP. After-hours and holiday notices are limited to one per conversation per cadence window; a first-contact greeting is sent once. If both apply, only the closed notice is sent. You write every message — Relay supplies none.</p>
+      <div className="formgrid"><label className="wide">First-contact message (while open)<textarea rows={2} disabled={!editable} value={ar.firstContactMessage} onChange={(e) => setAr({ ...ar, firstContactMessage: e.target.value })} /></label><label className="wide">After-hours message<textarea rows={2} disabled={!editable} value={ar.afterHoursMessage} onChange={(e) => setAr({ ...ar, afterHoursMessage: e.target.value })} /></label><label className="wide">Holiday message (used when a holiday has no notice of its own)<textarea rows={2} disabled={!editable} value={ar.holidayMessage} onChange={(e) => setAr({ ...ar, holidayMessage: e.target.value })} /></label>
+        <label>Min hours between closed notices<input type="number" min="1" disabled={!editable} value={ar.cadenceHours} onChange={(e) => setAr({ ...ar, cadenceHours: Number(e.target.value) })} /></label><label>Quiet hours start (0–23)<input type="number" min="0" max="23" disabled={!editable} value={ar.quietStartHour} onChange={(e) => setAr({ ...ar, quietStartHour: Number(e.target.value) })} /></label><label>Quiet hours end (0–23)<input type="number" min="0" max="23" disabled={!editable} value={ar.quietEndHour} onChange={(e) => setAr({ ...ar, quietEndHour: Number(e.target.value) })} /></label></div>
+      <p className="small muted">Quiet hours apply to follow-ups, automations and marketing broadcasts (not to replying to a customer who just wrote). Start = end turns them off.</p>
+      {editable && <div><button className="primary" onClick={async () => { setMsg(''); try { await put('/api/automation/settings', { hours: hours.filter((h) => !h.unset).length ? hours.map((h) => ({ weekday: h.weekday, closed: h.closed, open: h.closed ? null : h.open, close: h.closed ? null : h.close })) : undefined, holidays: hol, autoResponse: { ...ar, firstContactMessage: ar.firstContactMessage || null, afterHoursMessage: ar.afterHoursMessage || null, holidayMessage: ar.holidayMessage || null } }); setMsg('Saved.'); } catch (e: any) { setMsg(e.message); } }}>Save</button> <span className="small muted">{msg}</span></div>}
     </section>
   );
 }

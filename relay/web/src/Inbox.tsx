@@ -6,6 +6,7 @@ import { Attachment } from './Media';
 import { upload } from './api';
 import { SummaryBox } from './Summary';
 import { VoicePanel } from './Voice';
+import { fmtTime as fmt2 } from './api';
 
 const RESP: Record<string, string> = { needs_our_reply: 'Needs our reply', waiting_on_customer: 'Waiting on customer', waiting_on_staff: 'Waiting on staff', scheduled: 'Scheduled', closed: 'Closed' };
 const MODE: Record<string, string> = { human: 'Human handling', sandra: 'Sandra handling', draft_only: 'Draft assistance only', paused: 'Automation paused' };
@@ -184,9 +185,22 @@ function SideInfo({ id, me, onBack, onChanged, onOpenTeam }: { id: string; me: M
       <div className="pad"><h3>Internal notes</h3><p className="muted small">Only staff see notes. They can never be sent to the customer.</p>
         <form onSubmit={async (e) => { e.preventDefault(); if (note.trim()) { await act('notes', { body: note }); setNote(''); } }}><textarea rows={2} aria-label="New internal note" value={note} onChange={(e) => setNote(e.target.value)} /><button>Add note</button></form>
         <ul className="notes">{d.notes.map((n: any) => <li key={n.id}><span className="muted small">{n.author_name} · {fmtTime(n.created_at)}</span><br />{n.body}</li>)}</ul></div>
+      <AutomationPanel conversationId={id} onChanged={onChanged} />
       <SummaryBox contactId={c.contact_id} tick={0} />
       <div className="pad"><button onClick={async () => { const r = await post('/api/chat/customer', { contactId: c.contact_id }); onOpenTeam?.(r.id); }}>Open private team discussion about this customer</button></div>
       <ContactCard id={c.contact_id} me={me} />
     </div>
+  );
+}
+
+function AutomationPanel({ conversationId, onChanged }: { conversationId: string; onChanged: () => void }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const load = useCallback(() => get(`/api/conversations/${conversationId}/automation`).then(setRows).catch(() => {}), [conversationId]); useEffect(() => { load(); }, [load]);
+  if (!rows.length) return null;
+  return (
+    <section className="pad" aria-label="Automation activity"><h3>Automation activity</h3>
+      {rows.map((r) => <div key={r.id} className="small trow"><div><b>{r.workflow}</b> <span className={`chip ${r.status === 'completed' ? 'good' : r.status === 'stopped' || r.status === 'failed' ? 'bad' : 'warn'}`}>{r.status}</span>{r.stopReason && <span className="muted"> ({r.stopReason.replaceAll('_', ' ')})</span>}{r.next && <div className="muted">Next: {r.next}{r.nextRunAt ? ` — ${fmt2(r.nextRunAt)}` : ''}</div>}</div>
+        {['waiting', 'running'].includes(r.status) && <button onClick={async () => { await post(`/api/workflow-runs/${r.id}/stop`); load(); onChanged(); }}>Stop</button>}</div>)}
+      <p className="small muted">Replying yourself or taking over stops pending automated steps.</p></section>
   );
 }

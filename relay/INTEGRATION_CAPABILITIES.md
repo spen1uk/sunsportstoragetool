@@ -17,3 +17,11 @@ States: **verified-docs** · **sandbox-tested** · **production-tested** · **un
 2. Is the number landline/VoIP/mobile type per Lookup? Is it already messaging-enabled somewhere?
 3. Can Kenect export contacts/history/templates/media/consents?
 Until answered, use a **separate temporary test number** (needs provider account + approval for spend).
+
+## Automation trigger sources (Phase 4)
+| Trigger | State | Notes |
+|---|---|---|
+| Inbound customer text | sandbox-tested (simulator) | Internal event from the verified webhook path. |
+| No response (follow-up) | sandbox-tested | Internal scan of conversation state. |
+| Inventory update | sandbox-tested | Internal event from inventory import/edit; only customers who marked interest. No live inventory source connected. |
+| Appointment / service / storage / invoice events | **unsupported until adapters exist** | Definitions can be drafted and previewed; activation is refused with an explanation. Storage events would come from the repo's storage tool via a future read adapter. |
