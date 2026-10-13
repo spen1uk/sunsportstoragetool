@@ -78,3 +78,41 @@ export function findPerson(db: DB, text: string) {
   const hits = listPeople(db).filter((p) => t.includes(p.name.toLowerCase()) || p.name.toLowerCase().split(' ')[0] === t);
   return hits.length === 1 ? hits[0] : null;
 }
+
+// ---------------- Learning goals (weekly targets Luke logs himself) ----------------
+export const goalInput = z.object({ name: z.string().min(1).max(60), unit: z.string().min(1).max(20).default('sessions'), perWeek: z.number().int().min(1).max(50).default(3) });
+const weekStartOf = (day: string) => shift(day, -((dowOf(day) + 6) % 7));   // Monday-first
+
+export function createGoal(db: DB, raw: unknown) {
+  const g = goalInput.parse(raw), name = clean(g.name, 60), unit = clean(g.unit, 20) || 'sessions'; if (!name) throw new Error('A goal needs a name.');
+  if (rows(db, 'SELECT 1 FROM learning_goals WHERE archived=0 AND lower(name)=lower(?)', name).length) throw new Error('You already have a goal with that name.');
+  if (rows(db, 'SELECT 1 FROM learning_goals WHERE archived=0').length >= 15) throw new Error('That is a lot of goals. Archive one first.');
+  const gid = id(); db.prepare('INSERT INTO learning_goals(id,name,unit,per_week,created_at) VALUES(?,?,?,?,?)').run(gid, name, unit, g.perWeek, isoNow()); publish({ type: 'life' }); return gid;
+}
+export function archiveGoal(db: DB, gid: string) { const r = db.prepare('UPDATE learning_goals SET archived=1 WHERE id=? AND archived=0').run(gid); publish({ type: 'life' }); return r.changes > 0; }
+export function logLearning(db: DB, gid: string, amount = 1, nowMs = Date.now()) {
+  const n = z.number().int().min(1).max(20).parse(amount);
+  if (!rows(db, 'SELECT 1 FROM learning_goals WHERE id=? AND archived=0', gid).length) throw new Error('goal not found');
+  db.prepare('INSERT INTO learning_logs(goal_id,day,amount) VALUES(?,?,?)').run(gid, dayStr(nowMs), n); publish({ type: 'life' });
+}
+/** Take back the most recent entry (a mis-click), whichever day it was. */
+export function undoLearning(db: DB, gid: string) {
+  const last = rows(db, 'SELECT id FROM learning_logs WHERE goal_id=? ORDER BY id DESC LIMIT 1', gid)[0]; if (!last) return false;
+  db.prepare('DELETE FROM learning_logs WHERE id=?').run(last.id); publish({ type: 'life' }); return true;
+}
+export function listGoals(db: DB, nowMs = Date.now()) {
+  const today = dayStr(nowMs), wk = weekStartOf(today);
+  return rows(db, 'SELECT * FROM learning_goals WHERE archived=0 ORDER BY created_at').map((g) => {
+    const logs = rows(db, 'SELECT day, amount FROM learning_logs WHERE goal_id=? AND day>=?', g.id, shift(wk, -7 * 12));
+    const total = (from: string, to: string) => logs.filter((l) => l.day >= from && l.day <= to).reduce((n, l) => n + l.amount, 0);
+    const weeks = Array.from({ length: 5 }, (_, i) => { const s = shift(wk, -7 * (4 - i)); return total(s, shift(s, 6)); });   // oldest → this week
+    let streak = 0; for (let i = 3; i >= 0 && weeks[i] >= g.per_week; i--) streak++;   // completed weeks directly before this one
+    if (weeks[4] >= g.per_week) streak++;                                               // this week is still open: it only extends a streak, never breaks it
+    return { id: g.id, name: g.name, unit: g.unit, perWeek: g.per_week, weekTotal: weeks[4], done: weeks[4] >= g.per_week, weeks, streakWeeks: streak, allTime: (rows(db, 'SELECT COALESCE(SUM(amount),0) s FROM learning_logs WHERE goal_id=?', g.id)[0].s as number) };
+  });
+}
+export function findGoal(db: DB, text: string) {
+  const t = text.toLowerCase().trim(); if (t.length < 3) return null;
+  const hits = listGoals(db).filter((g) => t.includes(g.name.toLowerCase()) || g.name.toLowerCase().includes(t));
+  return hits.length === 1 ? hits[0] : null;
+}

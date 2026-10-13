@@ -3,7 +3,7 @@ import type { DB } from './db.ts';
 import { now } from './db.ts';
 
 /** Modular Workspace: named panel layouts, stored whole. The browser draws them; the server only validates and keeps them. */
-export const WIDGETS = ['conversation', 'today', 'calendar', 'tasks', 'approvals', 'review', 'habits', 'people', 'spend', 'systems'] as const;
+export const WIDGETS = ['conversation', 'today', 'calendar', 'tasks', 'approvals', 'review', 'habits', 'people', 'learning', 'links', 'spend', 'systems'] as const;
 export const widgetSchema = z.object({ id: z.string().min(1).max(40).regex(/^[a-z0-9-]+$/), type: z.enum(WIDGETS), x: z.number().int().min(0).max(11), y: z.number().int().min(0).max(400), w: z.number().int().min(2).max(12), h: z.number().int().min(3).max(24) }).refine((v) => v.x + v.w <= 12, 'panel runs past the right edge');
 export const layoutSchema = z.array(widgetSchema).max(24).refine((l) => new Set(l.map((w) => w.id)).size === l.length, 'duplicate panel id');
 const nameSchema = z.string().min(1).max(40).regex(/^[A-Za-z0-9 _-]+$/, 'Names can use letters, numbers, spaces, - and _');

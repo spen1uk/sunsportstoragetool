@@ -28,6 +28,7 @@ import * as cal from './calendar.ts';
 import * as nts from './notes.ts';
 import * as life from './life.ts';
 import * as ws from './workspace.ts';
+import * as links from './links.ts';
 import { MacError, isMac } from './mac.ts';
 
 type Ctx = { req: http.IncomingMessage; res: http.ServerResponse; db: DB; session: auth.Session | null; params: Record<string, string>; body: any; url: URL };
@@ -214,7 +215,13 @@ route('GET', '/api/calendar', ({ db, url }) => {
 route('GET', '/api/notes', ({ db, url }) => ({ state: cal.syncState(db, 'notes'), items: nts.listNotes(db, (url.searchParams.get('q') ?? '').slice(0, 100)) }));
 route('GET', '/api/notes/:id', ({ db, params }) => { const n = nts.getNote(db, params.id); if (!n) throw new HttpError(404, 'not found'); return n; });
 // ---- My Life (habits, people) and Modular Workspace layouts ----
-route('GET', '/api/life', ({ db }) => ({ habits: life.listHabits(db), people: life.listPeople(db) }));
+route('GET', '/api/life', ({ db }) => ({ habits: life.listHabits(db), people: life.listPeople(db), goals: life.listGoals(db), links: links.listLinks(db) }));
+route('POST', '/api/goals', ({ db, body }) => guard(() => ({ id: life.createGoal(db, body) })));
+route('POST', '/api/goals/:id/log', ({ db, params, body }) => guard(() => { life.logLearning(db, params.id, parse(z.object({ amount: z.number().int().min(1).max(20).default(1) }), body).amount); return { ok: true }; }));
+route('POST', '/api/goals/:id/undo', ({ db, params }) => ({ ok: life.undoLearning(db, params.id) }));
+route('DELETE', '/api/goals/:id', ({ db, params }) => ({ ok: life.archiveGoal(db, params.id) }));
+route('POST', '/api/links', ({ db, body }) => guard(() => ({ id: links.addLink(db, body) })));
+route('DELETE', '/api/links/:id', ({ db, params }) => ({ ok: links.removeLink(db, params.id) }));
 route('POST', '/api/habits', ({ db, body }) => guard(() => ({ id: life.createHabit(db, body) })));
 route('POST', '/api/habits/:id/toggle', ({ db, params, body }) => guard(() => life.toggleHabit(db, params.id, Date.now(), parse(z.object({ day: z.string().optional() }), body).day)));
 route('DELETE', '/api/habits/:id', ({ db, params }) => ({ ok: life.archiveHabit(db, params.id) }));

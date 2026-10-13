@@ -62,3 +62,36 @@ test('workspace: default layout valid; layouts are validated, saved by name, act
   assert.throws(() => deleteLayout(db, 'Main')); deleteLayout(db, 'Focus'); assert.equal(getWorkspaces(db).active, 'Main'); assert.equal(getWorkspaces(db).layouts.Focus, undefined);
   for (let i = 0; i < 12; i++) saveLayout(db, `L${i}`, mine); assert.throws(() => saveLayout(db, 'One more', mine), /up to 12/);
 });
+
+import { normalizeUrl, addLink, listLinks, removeLink } from '../links.ts';
+import { createGoal, logLearning, undoLearning, listGoals, findGoal } from '../life.ts';
+
+test('links: only plain http(s) addresses are accepted; credentials, scripts and files are refused; limit enforced', () => {
+  assert.equal(normalizeUrl('example.com/a b'), 'https://example.com/a%20b');
+  assert.equal(normalizeUrl('http://localhost:3000/x'), 'http://localhost:3000/x');
+  for (const bad of ['javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,hi', 'https://user:pw@example.com', 'ftp://example.com', 'notaurl', '']) assert.throws(() => normalizeUrl(bad));
+  const db = makeDb(); const id = addLink(db, { title: ' The   Real World ', url: 'www.example.com/campus' });
+  assert.deepEqual(listLinks(db).map((l) => [l.title, l.url, l.host]), [['The Real World', 'https://www.example.com/campus', 'example.com']]);
+  assert.equal(removeLink(db, id), true); assert.equal(listLinks(db).length, 0);
+  for (let i = 0; i < 40; i++) addLink(db, { title: `L${i}`, url: `https://e${i}.example.com` }); assert.throws(() => addLink(db, { title: 'x', url: 'https://x.example.com' }), /lot of links/);
+});
+
+test('learning goals: weekly totals are Monday-first and Chicago-dated, streaks count whole weeks, undo takes back the last entry', () => {
+  const db = makeDb(); const g = createGoal(db, { name: 'TRW lessons', unit: 'lessons', perWeek: 3 });
+  const log = (day: number, n = 1) => logLearning(db, g, n, T(day));
+  log(5); log(6, 2);                          // week of Mon Oct 5: 3 → complete
+  log(12); log(13);                           // week of Mon Oct 12: 2 so far
+  let l = listGoals(db, T(13, 22))[0]; assert.equal(l.weekTotal, 2); assert.equal(l.done, false); assert.deepEqual(l.weeks.slice(-2), [3, 2]); assert.equal(l.streakWeeks, 1, 'open week never breaks the streak');
+  log(14); l = listGoals(db, T(14, 22))[0]; assert.equal(l.done, true); assert.equal(l.streakWeeks, 2); assert.equal(l.allTime, 6);
+  assert.equal(listGoals(db, T(19, 8))[0].weekTotal, 0, 'a new week starts Monday');
+  assert.equal(undoLearning(db, g), true); assert.equal(listGoals(db, T(14, 22))[0].weekTotal, 2);
+  assert.throws(() => logLearning(db, g, 0)); assert.throws(() => logLearning(db, g, 99)); assert.throws(() => createGoal(db, { name: 'trw LESSONS' }), /already have/);
+  assert.equal(findGoal(db, 'trw lessons')?.id, g); assert.equal(findGoal(db, 'ab'), null);
+});
+
+test('chat: "finished a TRW lesson" logs progress toward the one matching goal; a habit of the same words wins; private mode is read-only', () => {
+  const db = makeDb(); createGoal(db, { name: 'TRW lessons', unit: 'lessons', perWeek: 5 });
+  const r = handleChat(db, 'I finished a TRW lesson'.replace('finished', 'did')); assert.match(r.text, /Logged one lesson toward "TRW lessons"/); assert.match(r.text, /1 of 5/);
+  assert.equal(listGoals(db)[0].weekTotal, 1);
+  assert.doesNotMatch(handleChat(db, 'did TRW lessons', { private: true, deferFallback: true }).text, /Logged/); assert.equal(listGoals(db)[0].weekTotal, 1);
+});

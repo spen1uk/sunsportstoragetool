@@ -7,7 +7,7 @@ import { setPaused, pauseStatus } from './pause.ts';
 import { publish } from './events.ts';
 import { upcoming, syncState } from './calendar.ts';
 import { listNotes } from './notes.ts';
-import { findHabit, findPerson, toggleHabit, markContacted } from './life.ts';
+import { findHabit, findPerson, toggleHabit, markContacted, findGoal, logLearning } from './life.ts';
 import { chicagoParts, chicagoInstant, addDays } from './tz.ts';
 
 export type ChatReply = { text: string; action?: { navigate?: string }; persisted: boolean; fallback?: boolean; source?: 'command' | 'model'; model?: string; costMicroUsd?: number };
@@ -97,6 +97,8 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
       if (h.doneToday) return reply(`"${h.name}" is already checked off today, sir. ${h.streak} day streak.`);
       toggleHabit(db, h.id); return reply(`Logged "${h.name}" for today, sir. ${h.streak + 1} day streak.`);
     }
+    const g = findGoal(db, m[1].replace(/^(?:a|an|one|1)\s+/i, ''));
+    if (g) { if (priv) return reply('Private mode does not modify records, sir.'); logLearning(db, g.id, 1); return reply(`Logged one ${g.unit.replace(/s$/, '')} toward "${g.name}", sir: ${g.weekTotal + 1} of ${g.perWeek} this week.`); }
   }
   if ((m = text.match(/^(?:i )?(?:talked to|spoke (?:to|with)|called|texted|contacted|caught up with)\s+(.+?)[.!]*$/i))) {
     const pr = findPerson(db, m[1]);

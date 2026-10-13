@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, useLive, usd, type AppState } from './api.ts';
 import type { Conversation } from './Chat.tsx';
-import { HabitsList, PeopleList } from './life.tsx';
+import { HabitsList, PeopleList, LearningList, LinksList } from './life.tsx';
 
 export type Widget = { id: string; type: string; x: number; y: number; w: number; h: number };
 const COLS = 12, ROW = 40, GAP = 8;
-const TITLES: Record<string, string> = { conversation: 'Conversation', today: 'Today', calendar: 'Next up', tasks: 'My tasks', approvals: 'Decisions', review: 'Ready for review', habits: 'Habits', people: 'Stay in touch', spend: 'Mind & spend', systems: 'Systems' };
-const MIN: Record<string, [number, number]> = { conversation: [3, 6], today: [3, 4], calendar: [3, 4], tasks: [3, 4], approvals: [2, 3], review: [2, 3], habits: [2, 4], people: [2, 4], spend: [2, 3], systems: [2, 4] };
-const SIZE: Record<string, [number, number]> = { conversation: [6, 12], today: [6, 6], calendar: [4, 6], tasks: [4, 6], approvals: [3, 5], review: [3, 5], habits: [3, 6], people: [3, 6], spend: [3, 5], systems: [3, 6] };
+const TITLES: Record<string, string> = { conversation: 'Conversation', today: 'Today', calendar: 'Next up', tasks: 'My tasks', approvals: 'Decisions', review: 'Ready for review', habits: 'Habits', people: 'Stay in touch', learning: 'Learning', links: 'Quick links', spend: 'Mind & spend', systems: 'Systems' };
+const MIN: Record<string, [number, number]> = { conversation: [3, 6], today: [3, 4], calendar: [3, 4], tasks: [3, 4], approvals: [2, 3], review: [2, 3], habits: [2, 4], people: [2, 4], learning: [3, 4], links: [2, 3], spend: [2, 3], systems: [2, 4] };
+const SIZE: Record<string, [number, number]> = { conversation: [6, 12], today: [6, 6], calendar: [4, 6], tasks: [4, 6], approvals: [3, 5], review: [3, 5], habits: [3, 6], people: [3, 6], learning: [4, 6], links: [3, 4], spend: [3, 5], systems: [3, 6] };
 
 const hit = (a: Widget, b: Widget) => a.id !== b.id && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 /** Keep a layout tidy after one panel moved/resized: the moved panel wins its spot, others are pushed down out of the way, then everything floats up into free space. */
@@ -63,6 +63,8 @@ function Body({ type, st, convo }: { type: string; st: AppState; convo: Conversa
   }
   if (type === 'habits') return <HabitsList compact />;
   if (type === 'people') return <PeopleList compact onlyDue />;
+  if (type === 'learning') return <LearningList compact />;
+  if (type === 'links') return <LinksList compact />;
   if (type === 'spend') return <div className="small"><div>Month <b>{usd(st.budget.committedMicroUsd)}</b> of {usd(st.budget.capMicroUsd)}</div><div className="meter"><i style={{ width: `${Math.min(100, st.budget.pctCommitted * 100)}%` }} /></div><div className="muted">{st.budget.level === 'ok' ? 'Well within budget.' : st.budget.level}</div></div>;
   if (type === 'systems') return <ul className="plain">{st.agents.filter((a) => a.role === 'manager').map((a) => <li key={a.id} className="row small"><span className={`dot ${a.status_kind}`} /><span className="grow">{a.name}</span><span className="badge sm">{a.status_kind}</span></li>)}</ul>;
   return null;

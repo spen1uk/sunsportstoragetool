@@ -99,3 +99,8 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 - **My Life** ✅ (tested): habits you check off yourself (Chicago days, streak, weekly count, 14-day back-fill, reversible) and people you want to stay in touch with ("every N days", overdue shown, "in touch today"). All typed in by you; never inferred, never sent to the language model; chat understands "I did gym" / "I talked to David" when exactly one thing matches (not in private mode). Overdue contacts appear as suggestions in the briefing. **Health stays ⚪ planned**: no health data is connected.
 - **Modular Workspace** ✅ (tested server side, verified in headless Chromium): 10 panel types (conversation, today, next-up calendar, tasks, decisions, ready for review, habits, stay-in-touch, spend, systems) on a 12-column grid; Arrange mode to drag, resize, add and remove panels (others are pushed out of the way); up to 12 named saved layouts, one active; Main can be reset but not deleted. Layouts only change what you see.
 - Not done: touch-device drag tuning, per-panel settings, cross-device layout sync beyond what the server stores.
+
+## Quick links and Learning goals
+- **Quick links** ✅ (tested): bookmarks Luke adds himself; only plain http/https addresses (no embedded logins, scripts, files); open in a new tab with `noopener noreferrer`. Jarvis never visits, logs into, scrapes or reads them. Max 40.
+- **Learning goals** ✅ (tested): weekly targets (e.g. "Campus lessons, 5/week") logged with +1 / Undo; Monday-first Chicago weeks, 5-week history, week streak (an unfinished current week never breaks a streak). Chat: "did a TRW lesson" logs one toward the matching goal (not in private mode).
+- Both are also Workspace panels. Neither is sent to the language model.
