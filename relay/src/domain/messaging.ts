@@ -1,7 +1,7 @@
 import type { PoolClient } from 'pg';
 import { pool, tx } from '../db/pool.js';
 import { checkSmsAllowed, type Purpose } from './consent.js';
-import { enqueue, PermanentJobError } from './queue.js';
+import { enqueue } from './queue.js';
 import { publish } from './events.js';
 import { getProvider } from '../providers/sms.js';
 import { HttpError } from './authz.js';
@@ -125,7 +125,6 @@ export async function handleSendMessageJob(messageId: string) {
       throw new Error(`not sent, will retry: ${outcome.error}`);
   }
 }
-void PermanentJobError;
 
 async function setStatus(messageId: string, status: string, detail: string) {
   await pool.query(`UPDATE messages SET status=$2, status_detail=$3 WHERE id=$1`, [messageId, status, detail]);

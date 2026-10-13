@@ -43,7 +43,7 @@ export async function listConversations(a: Actor, q: { status?: string; responsi
 export async function getThread(a: Actor, conversationId: string) {
   await requireConversation(pool, a, conversationId);
   const conv = (await pool.query(
-    `SELECT c.*, ch.is_simulated, ch.provider, ch.address AS channel_address FROM conversations c JOIN channels ch ON ch.id=c.channel_id WHERE c.id=$1`, [conversationId])).rows[0];
+    `SELECT c.*, ch.is_simulated, ch.provider, ch.address AS channel_address, trim(coalesce(ct.first_name,'')||' '||coalesce(ct.last_name,'')) AS contact_name FROM conversations c JOIN channels ch ON ch.id=c.channel_id JOIN contacts ct ON ct.id=c.contact_id WHERE c.id=$1`, [conversationId])).rows[0];
   const messages = (await pool.query(
     `SELECT m.id, m.seq, m.direction, m.sender_type, m.sender_user_id, u.name AS sender_name, m.purpose, m.body, m.status, m.status_detail, m.created_at, m.source_ts
      FROM messages m LEFT JOIN users u ON u.id=m.sender_user_id WHERE m.conversation_id=$1 ORDER BY m.seq`, [conversationId])).rows;

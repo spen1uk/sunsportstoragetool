@@ -22,7 +22,7 @@ export async function migrate(): Promise<string[]> {
         applied.push(f);
       } catch (e) {
         await c.query('ROLLBACK');
-        throw new Error(`migration ${f} failed: ${(e as Error).message}`);
+        throw new Error(`migration ${f} failed: ${(e as Error).message}`, { cause: e });
       }
     }
   } finally {
