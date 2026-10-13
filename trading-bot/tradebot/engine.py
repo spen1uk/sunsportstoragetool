@@ -218,7 +218,10 @@ class Engine:
             self.consec_losses += 1
             n = self.risk["pause_after_consecutive_losses"]
             if n and self.consec_losses >= n:
-                self.pause_until = ts + self.risk["pause_bars"] * self.bar_ms
+                hours = self.risk.get("pause_hours")
+                span = hours * 3_600_000 if hours is not None else self.risk["pause_bars"] * self.bar_ms
+                # The pause starts when the losing trade's candle closes.
+                self.pause_until = ts + self.bar_ms + span
                 self._event(ts, "pause", f"{self.consec_losses} losses in a row - pausing new entries until "
                                          f"{ts_iso(self.pause_until)} UTC")
                 self.consec_losses = 0

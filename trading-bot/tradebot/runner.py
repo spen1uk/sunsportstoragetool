@@ -6,13 +6,14 @@ import time
 import traceback
 
 from .config import DATA_DIR, load_params, save_new_params
+from .dashboard import ThoughtLog, build_snapshot, think, write_snapshot
 from .data import BloFinData, get_history
 from .engine import Engine
 from .journal import Journal
 from .learner import improve
 from .notify import notify
 from .report import summary_text, write_html
-from .strategy import btc_regime, compute_indicators
+from .strategy import btc_regime, checklist, compute_indicators
 from .util import BAR_MS, now_iso
 
 STATE_FILE = os.path.join(DATA_DIR, "state.json")
@@ -42,6 +43,7 @@ class PaperBot:
         else:
             self.journal.event("start", f"Paper account opened with ${cfg['starting_balance']:.2f}")
         self.prices = {}
+        self.thoughts = ThoughtLog(self.journal)
         self._stop = False
 
     def save(self):
@@ -57,6 +59,7 @@ class PaperBot:
         data = {s: get_history(self.client, s, self.cfg["timeframe"], LIVE_BARS)
                 for s in dict.fromkeys(["BTC-USDT"] + list(self.cfg["symbols"]))}
         btc = btc_regime(data["BTC-USDT"], self.engine.p) if data.get("BTC-USDT") else {}
+        market = {}
         for sym in self.cfg["symbols"]:
             candles = data[sym]
             if not candles:
@@ -82,6 +85,15 @@ class PaperBot:
                 log(f"ENTER {'LONG' if p.side > 0 else 'SHORT'} {sym} @ {p.entry_price:.4f} stop {p.stop:.4f} "
                     f"target {p.target:.4f}")
             self.prices[sym] = candles[-1].c
+            ctx = {"btc_up": btc.get(candles[newest].ts)}
+            market[sym] = {"candles": candles, "ind": ind, "ctx": ctx}
+            kind, text = think(sym, checklist(candles, ind, newest, self.engine.p, ctx),
+                               self.engine.positions.get(sym), self.engine, candles[newest].ts)
+            self.thoughts.update(sym, kind, text, now_ms)
+        try:
+            write_snapshot(build_snapshot(self.cfg, self.engine, self.journal, market, now_ms))
+        except Exception as e:  # the dashboard must never stop the trading loop
+            log(f"dashboard snapshot failed: {e}")
         self.journal.snapshot(now_ms, self.engine.balance, self.engine.equity(self.prices), len(self.engine.positions))
         self.save()
         self._periodic(now_ms)

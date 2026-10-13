@@ -9,6 +9,8 @@
   python run.py resume              # clear the drawdown kill switch after you've reviewed it
   python run.py rollback            # undo the last self-improvement change
   python run.py demo                # offline demo on SIMULATED prices (no internet needed)
+  python run.py dashboard           # live dashboard at http://127.0.0.1:8050 (run next to `run`)
+  python run.py dashboard --demo    # dashboard filled with SIMULATED data, to try it out
 """
 import argparse
 import os
@@ -21,20 +23,31 @@ sys.path.insert(0, HERE)
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["run", "once", "status", "report", "backtest", "learn",
-                                        "resume", "rollback", "demo"])
+                                        "resume", "rollback", "demo", "dashboard"])
     ap.add_argument("--config", default=None)
     ap.add_argument("--bars", type=int, default=None, help="history length for backtest")
+    ap.add_argument("--demo", action="store_true", help="dashboard: use simulated data")
+    ap.add_argument("--host", default="127.0.0.1", help="dashboard: address to listen on")
+    ap.add_argument("--port", type=int, default=8050, help="dashboard: port")
     args = ap.parse_args()
 
     # Backtests and demos get their own data folder so they never mix with the paper account.
     if args.command in ("backtest", "demo") and "TRADEBOT_DATA_DIR" not in os.environ:
         os.environ["TRADEBOT_DATA_DIR"] = os.path.join(HERE, "data", args.command)
+    if args.command == "dashboard" and args.demo and "TRADEBOT_DATA_DIR" not in os.environ:
+        os.environ["TRADEBOT_DATA_DIR"] = os.path.join(HERE, "data", "dashboard-demo")
 
     from tradebot.config import load_config, load_params, rollback_params
     cfg = load_config(args.config)
 
     if args.command == "demo":
         return demo(cfg)
+    if args.command == "dashboard":
+        from tradebot.dashboard import build_demo, serve, write_snapshot
+        if args.demo:
+            write_snapshot(build_demo(cfg))
+            print("Showing SIMULATED demo data.")
+        return serve(args.host, args.port)
     if args.command == "backtest":
         return backtest(cfg, args.bars)
 

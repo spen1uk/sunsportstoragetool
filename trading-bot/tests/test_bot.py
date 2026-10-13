@@ -112,11 +112,11 @@ class EngineRules(unittest.TestCase):
         self.assertNotIn("Y", eng.positions)
 
     def test_pause_after_losing_streak(self):
-        eng = _engine(pause_after_consecutive_losses=3, pause_bars=24, max_drawdown_pct=100)
+        eng = _engine(pause_after_consecutive_losses=3, pause_hours=24, max_drawdown_pct=100)
         for _ in range(3):
             _pos(eng, qty=0.1)
             eng._manage(eng.positions["X"], Candle(3_600_000, 100, 100, 97, 97), 1.0)
-        self.assertEqual(eng.pause_until, 3_600_000 + 24 * eng.bar_ms)
+        self.assertEqual(eng.pause_until, 3_600_000 + eng.bar_ms + 24 * 3_600_000)  # 24 real hours
 
     def test_state_roundtrip(self):
         eng = _engine()
@@ -232,6 +232,51 @@ class NewRules(unittest.TestCase):
         self.assertIn("ribbon_filter off", names)
         self.assertIn("stoch_filter off", names)
         self.assertIn("btc_filter on", names)
+
+
+class Dashboard(unittest.TestCase):
+    def test_demo_snapshot_shape(self):
+        from tradebot.dashboard import build_demo
+        snap = build_demo(copy.deepcopy(CFG))
+        self.assertTrue(snap["demo"])
+        self.assertEqual([w["symbol"] for w in snap["workers"]], CFG["symbols"])
+        for w in snap["workers"]:
+            self.assertTrue(0.0 <= w["charge"] <= 1.0)
+            self.assertEqual(len(w["checklist"]), 4)  # Calvin: UT Bot, ribbon, SMMA, Stoch RSI
+            self.assertTrue(w["thought"])
+        json.dumps(snap)  # must be serialisable for the web page
+
+    def test_server_serves_state(self):
+        import threading
+        import urllib.request
+        from http.server import ThreadingHTTPServer
+        from tradebot import dashboard
+        path = os.path.join(TMP, "snap.json")
+        dashboard.write_snapshot({"ok": 1}, path)
+        srv = {}
+
+        def run():
+            orig = ThreadingHTTPServer.serve_forever
+
+            def capture(self, *a, **k):
+                srv["s"] = self
+                orig(self, *a, **k)
+            ThreadingHTTPServer.serve_forever = capture
+            try:
+                dashboard.serve("127.0.0.1", 0, path)
+            finally:
+                ThreadingHTTPServer.serve_forever = orig
+        threading.Thread(target=run, daemon=True).start()
+        import time
+        for _ in range(50):
+            if "s" in srv:
+                break
+            time.sleep(0.05)
+        port = srv["s"].server_address[1]
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        self.assertEqual(json.loads(opener.open(f"http://127.0.0.1:{port}/api/state").read()), {"ok": 1})
+        self.assertIn(b"BOT CITY", opener.open(f"http://127.0.0.1:{port}/").read())
+        srv["s"].shutdown()
 
 
 class NoLookahead(unittest.TestCase):

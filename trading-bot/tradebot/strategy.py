@@ -172,3 +172,46 @@ def exit_signal(ind, i, p, side):
     if p.get("name") == "calvin_system" and p.get("ut_exit", True):
         return bool(ind["ut_sell"][i]) if side > 0 else bool(ind["ut_buy"][i])
     return False
+
+
+def checklist(candles, ind, i, p, ctx=None):
+    """Plain-English status of each entry rule on bar i (for the dashboard's
+    '% charged' meter and thoughts feed). Long side only - matches the default setup."""
+    bar = candles[i]
+    items = []
+
+    def add(name, ok, detail):
+        items.append({"name": name, "ok": bool(ok), "detail": detail})
+
+    if p.get("name") == "calvin_system":
+        stacked, beyond = _ribbon_state(ind, i, +1, bar.c)
+        sm, k, d = ind["smma"][i], ind["stoch_k"][i], ind["stoch_d"][i]
+        stop = ind["ut_stop"][i]
+        add("UT Bot BUY", ind["ut_buy"][i],
+            "BUY signal on this candle" if ind["ut_buy"][i] else
+            (f"waiting - price {'above' if stop and bar.c > stop else 'below'} UT line" if stop else "warming up"))
+        if p.get("ribbon_filter", True):
+            add("Above EMA ribbon", stacked and beyond,
+                "ribbon stacked bullish, price above it" if stacked and beyond else
+                ("warming up" if stacked is None else
+                 "price inside/below ribbon" if not beyond else "ribbon not stacked bullish"))
+        if p.get("smma_filter", True):
+            add(f"Above SMMA {p.get('smma_len', 50)}", sm is not None and bar.c > sm,
+                "warming up" if sm is None else f"{(bar.c / sm - 1) * 100:+.1f}% vs SMMA")
+        if p.get("stoch_filter", True):
+            smax = p.get("stoch_max", 80)
+            ok = k is not None and d is not None and k > d and k < smax
+            add("Stoch RSI timing", ok, "warming up" if k is None or d is None else
+                f"K {k:.0f} {'>' if k > d else '<'} D {d:.0f}" + (" (overbought)" if k >= smax else ""))
+    else:
+        ef, es, et, r = ind["ema_fast"][i], ind["ema_slow"][i], ind["ema_trend"][i], ind["rsi"][i]
+        trend = None not in (ef, es, et) and bar.c > et and es > et and ef > es
+        add("Uptrend", trend, "EMAs stacked bullish" if trend else "no clean uptrend")
+        add("RSI band", r is not None and p["rsi_min"] <= r <= p["rsi_max"],
+            "warming up" if r is None else f"RSI {r:.0f}")
+        add("Bullish candle", bar.c > bar.o, "closed up" if bar.c > bar.o else "closed down")
+    if p.get("btc_filter"):
+        up = (ctx or {}).get("btc_up")
+        add("Bitcoin trend", up is not False, "BTC above its 200 EMA" if up else
+            ("no BTC data" if up is None else "BTC below its 200 EMA"))
+    return items

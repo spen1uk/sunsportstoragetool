@@ -17,7 +17,7 @@
     "daily_loss_limit_pct": 3.0,
     "max_drawdown_pct": 20.0,
     "pause_after_consecutive_losses": 3,
-    "pause_bars": 24,
+    "pause_hours": 24,
     "min_notional": 5.0
   },
 

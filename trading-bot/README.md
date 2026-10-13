@@ -71,6 +71,27 @@ python run.py rollback    # undo the last rule change
 python -m unittest discover tests   # run the tests
 ```
 
+## Dashboard ("Bot City")
+
+A live dashboard where each coin is a "worker". For each one it shows:
+- its status (scanning, setup forming, in a trade, paused)
+- a **% charged** meter: how many of Calvin's four rules are met right now
+- a checklist of those rules
+- the open trade, with stop, entry and target on one bar
+- what it earned today and in total
+
+Below the workers: a **Thoughts** feed (what each worker is thinking, every entry and exit),
+the balance curve, profit by day, the payroll leaderboard and recent trade cards.
+
+```bash
+python run.py dashboard --demo   # try it now with simulated data
+python run.py run                # the bot (it writes data/dashboard.json every minute)
+python run.py dashboard          # in a second terminal, then open http://127.0.0.1:8050
+```
+
+On a server, keep the dashboard private and view it through an SSH tunnel:
+`ssh -L 8050:127.0.0.1:8050 you@your-server`, then open http://127.0.0.1:8050 on your computer.
+
 ## Running 24/7
 
 Your laptop sleeps, so the bot needs a small always-on cloud server. About $4-6/month from
