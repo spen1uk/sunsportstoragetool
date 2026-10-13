@@ -20,6 +20,7 @@ import { getProvider, signWebhook } from '../providers/sms.js';
 import { randomUUID } from 'node:crypto';
 import multipart from '@fastify/multipart';
 import { registerPhase2 } from './phase2.js';
+import { registerPhase3 } from './phase3.js';
 
 declare module 'fastify' { interface FastifyRequest { actor?: Actor } }
 const COOKIE = 'relay_session';
@@ -120,6 +121,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   post('typing', async (a, id, b) => { await conv.getThread(a, id); await publish(pool, a.workspaceId, 'typing', { conversationId: id, userId: a.userId, name: a.name, typing: !!b.typing }); });
 
   registerPhase2(app, A);
+  registerPhase3(app, A);
 
   // ---------- contacts ----------
   app.get('/api/contacts', async (req) => contacts.listContacts(A(req), z.object({ search: z.string().max(100).optional(), tag: z.string().optional() }).parse(req.query)));

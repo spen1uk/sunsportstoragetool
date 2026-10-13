@@ -6,7 +6,8 @@ import { publish } from './events.js';
 import { getProvider } from '../providers/sms.js';
 import { HttpError } from './authz.js';
 import { validateAttachments, signedMediaUrls } from './media.js';
-import { verifyPackageFresh } from './outreach.js';
+import { verifyPackageFresh, recordPackageSent } from './outreach.js';
+import { touchSummary } from './summary.js';
 
 export type SenderType = 'staff' | 'sandra' | 'automation' | 'system';
 export interface OutboundRequest {
@@ -92,7 +93,7 @@ export async function queueOutboundTx(c: PoolClient, req: OutboundRequest): Prom
       [req.workspaceId, req.conversationId, req.senderType, req.senderUserId ?? null, purpose, req.body, req.idempotencyKey, conv.revision, conv.from_addr, conv.to_e164]);
     const msgId = m.rows[0].id as string;
     for (const mid of req.mediaIds ?? []) await c.query('INSERT INTO message_attachments (message_id, media_id) VALUES ($1,$2)', [msgId, mid]);
-    if (req.packageId) await c.query(`UPDATE outreach_packages SET status='sent', sent_message_id=$2 WHERE id=$1`, [req.packageId, msgId]);
+    if (req.packageId) await recordPackageSent(c, req.packageId, msgId);
 
     const nextResp = purpose === 'compliance' ? conv.responsibility : 'waiting_on_customer';
     // A human/automation/Sandra send changes the context → bump revision so other stale pending sends are fenced out.
@@ -100,6 +101,7 @@ export async function queueOutboundTx(c: PoolClient, req: OutboundRequest): Prom
       `UPDATE conversations SET last_outbound_at=now(), last_message_at=now(), last_preview=$2, responsibility=$3,
          revision=revision+1, status=CASE WHEN status='closed' AND $4 THEN 'open' ELSE status END WHERE id=$1`,
       [req.conversationId, req.body.slice(0, 140), nextResp, req.senderType === 'staff']);
+    await touchSummary(c, req.workspaceId, conv.contact_id);
     await enqueue(c, 'send_message', { messageId: msgId }, { workspaceId: req.workspaceId, dedupeKey: msgId });
     await publish(c, req.workspaceId, 'message.created', { conversationId: req.conversationId });
     return { ok: true as const, messageId: msgId, duplicate: false, status: 'queued' };

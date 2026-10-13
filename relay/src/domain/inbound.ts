@@ -8,6 +8,7 @@ import type { NormalizedWebhook } from '../providers/sms.js';
 import { saveMedia } from './media.js';
 import { notify, recipientsForConversation } from './notifications.js';
 import { HttpError } from './authz.js';
+import { touchSummary } from './summary.js';
 
 const RANK: Record<string, number> = { queued: 0, sending: 1, unknown: 1, provider_accepted: 2, delivered: 3, failed: 3 };
 
@@ -81,6 +82,7 @@ async function handleInbound(c: PoolClient, provider: string, ev: Extract<Normal
     `UPDATE conversations SET status='open', responsibility='needs_our_reply', last_inbound_at=$2, last_message_at=GREATEST(COALESCE(last_message_at,$2),$2), last_preview=$3, revision=revision+1 WHERE id=$1`,
     [conv.id, ev.occurredAt, ev.body.slice(0, 140)]);
 
+  await touchSummary(c, ws, contact.id);
   // Inbound MMS: only inline content is stored here. URL-only attachments need an authenticated, SSRF-safe provider fetch adapter (not built).
   for (const m of ev.media ?? []) {
     if (!m.dataBase64) { await c.query(`INSERT INTO timeline_events (workspace_id, contact_id, conversation_id, type, summary) VALUES ($1,$2,$3,'message','Inbound attachment not fetched: provider media fetch is not implemented')`, [ws, contact.id, conv.id]); continue; }

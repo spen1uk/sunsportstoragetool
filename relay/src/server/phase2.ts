@@ -7,7 +7,7 @@ import * as sched from '../domain/scheduling.js';
 import * as media from '../domain/media.js';
 import * as notif from '../domain/notifications.js';
 
-export const SETTING_KEYS = ['business_phone', 'business_address', 'business_hours', 'directions_link', 'review_link', 'website'] as const;
+export const SETTING_KEYS = ['business_phone', 'business_address', 'business_hours', 'directions_link', 'review_link', 'website', 'voice_retention_days'] as const;
 
 export function registerPhase2(app: FastifyInstance, A: (r: FastifyRequest) => Actor) {
   const id = (r: FastifyRequest) => z.string().uuid().parse((r.params as any).id);
