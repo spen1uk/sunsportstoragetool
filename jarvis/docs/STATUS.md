@@ -16,7 +16,8 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Durable queue, leases, restart recovery, bounded retries/backoff, idempotency | ✅ | DB-backed; survives dashboard close and worker restart |
 | Local-Mac tasks wait while no Mac is connected | ✅ | `requires='mac'` never claimed by cloud worker |
 | Pause/resume (blocks claims, tool calls, approved-action execution) | ✅ | In-flight count shown; no instant recall |
-| Research → sourced draft → review → revise → compare → restore → accept | ✅ | Extractive provider only; free-form rewrite declined honestly |
+| Research → sourced draft → review → revise → compare → restore → accept | ✅ | Quotes are always verbatim. With a model connected, a cited **Summary** is added (Sonnet first, Haiku fallback; optional work, so gated at 90% budget and the daily ceiling). Model output is checked: links stripped, bogus citations removed, uncited bullets flagged, citation-free text rejected; pages that look like they instruct an AI are never shown to the model. Without a model, or if it fails, you still get the quotes-only draft |
+| Free-form revisions (model) | ✅ | "make this clearer" etc. on a highlighted passage or the whole draft (≤24k chars). Simple commands (remove / replace: / note:) never call the model. Guards: quoted source text and the Sources list can never change, no new links, no wholesale rewrites; always a new version for review, never auto-accepted |
 | Accept ≠ publish; publish/delete need their own approval | ✅ | Publish is internal-only (nothing external) |
 | Budget ledger: fixed-first, reservations, 75/90/cap, optional-work gating | ✅ | Provider bills not integrated (none connected) |
 | Hash-chained audit log + tamper detection; secret redaction | ✅ | |

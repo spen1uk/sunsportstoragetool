@@ -39,3 +39,7 @@ Expected steady state: **≈ $10–35/mo**, with the $100 cap as the backstop ra
 - **Setup cost today: $0.** No key is configured, so nothing can be billed.
 
 - **Chat context snapshot (added 2026-10-11):** every non-private chat message now carries a read-only summary of your tasks, approvals, projects and briefing items (capped at ~4,500 characters ≈ 1,300 tokens). On Haiku 5.5 that is ≈ **$0.00013 extra per message**: 100 messages a day ≈ +$0.40/month. The $1/day ceiling still applies.
+
+
+## Research summaries and revisions (model-written)
+One research summary sends at most ~12,000 characters of quoted passages (~3k tokens) and returns <350 words: roughly $0.01–0.03 on Sonnet, less on the Haiku fallback. A free-form revision of one passage is a few hundred tokens each way; a whole-document rewrite is bounded by the 24k-character cap. All of it is "optional" work: it stops at 90% of the monthly budget and at the $1/day model ceiling, and research then falls back to the quotes-only draft.

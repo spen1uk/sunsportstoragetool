@@ -17,7 +17,7 @@ export async function tick(db: DB, workerId: string, deps: Deps = {}): Promise<b
   const hb = setInterval(() => heartbeat(db, task.id, workerId), 15_000);
   try {
     if (task.kind === 'research') await runResearch(db, task, deps);
-    else if (task.kind === 'revision') runRevision(db, task);
+    else if (task.kind === 'revision') await runRevision(db, task);
     settle(db, res.id, est);
   } catch (e) {
     releaseReservation(db, res.id);
