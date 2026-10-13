@@ -26,6 +26,8 @@ import * as notify from './notify.ts';
 import * as ms from './milestones.ts';
 import * as cal from './calendar.ts';
 import * as nts from './notes.ts';
+import * as life from './life.ts';
+import * as ws from './workspace.ts';
 import { MacError, isMac } from './mac.ts';
 
 type Ctx = { req: http.IncomingMessage; res: http.ServerResponse; db: DB; session: auth.Session | null; params: Record<string, string>; body: any; url: URL };
@@ -113,7 +115,7 @@ route('POST', '/api/tasks/:id/tonight', ({ db, params, body }) => {
 });
 route('GET', '/api/projects', ({ db }) => ms.listProjects(db));
 route('GET', '/api/projects/:id', ({ db, params }) => { const d = ms.projectDetail(db, params.id); if (!d) throw new HttpError(404, 'not found'); return { ...d, tasks: rows(db, "SELECT id,title,state,kind,milestone_id FROM tasks WHERE project_id=? AND state!='canceled' ORDER BY created_at", params.id) }; });
-const guard = <T,>(f: () => T): T => { try { return f(); } catch (e) { throw bad((e as Error).message); } };
+const guard = <T,>(f: () => T): T => { try { return f(); } catch (e) { throw bad(e instanceof z.ZodError ? (e.issues[0]?.message ?? 'invalid input') : (e as Error).message); } };
 route('POST', '/api/projects/:id/milestones', ({ db, params, body }) => {
   const b = parse(z.object({ title: z.string().min(1).max(200), description: z.string().max(2000).optional(), due: z.number().int().nullish(), dependsOn: z.string().nullish() }), body);
   return { id: guard(() => ms.createMilestone(db, { projectId: params.id, title: b.title, description: b.description, due: b.due, dependsOn: b.dependsOn })) };
@@ -211,6 +213,19 @@ route('GET', '/api/calendar', ({ db, url }) => {
 });
 route('GET', '/api/notes', ({ db, url }) => ({ state: cal.syncState(db, 'notes'), items: nts.listNotes(db, (url.searchParams.get('q') ?? '').slice(0, 100)) }));
 route('GET', '/api/notes/:id', ({ db, params }) => { const n = nts.getNote(db, params.id); if (!n) throw new HttpError(404, 'not found'); return n; });
+// ---- My Life (habits, people) and Modular Workspace layouts ----
+route('GET', '/api/life', ({ db }) => ({ habits: life.listHabits(db), people: life.listPeople(db) }));
+route('POST', '/api/habits', ({ db, body }) => guard(() => ({ id: life.createHabit(db, body) })));
+route('POST', '/api/habits/:id/toggle', ({ db, params, body }) => guard(() => life.toggleHabit(db, params.id, Date.now(), parse(z.object({ day: z.string().optional() }), body).day)));
+route('DELETE', '/api/habits/:id', ({ db, params }) => ({ ok: life.archiveHabit(db, params.id) }));
+route('POST', '/api/people', ({ db, body }) => guard(() => ({ id: life.createPerson(db, body) })));
+route('PATCH', '/api/people/:id', ({ db, params, body }) => guard(() => ({ ok: life.updatePerson(db, params.id, body) })));
+route('POST', '/api/people/:id/contacted', ({ db, params }) => ({ ok: life.markContacted(db, params.id) }));
+route('DELETE', '/api/people/:id', ({ db, params }) => ({ ok: life.deletePerson(db, params.id) }));
+route('GET', '/api/workspaces', ({ db }) => ws.getWorkspaces(db));
+route('PUT', '/api/workspaces/:name', ({ db, params, body }) => guard(() => { ws.saveLayout(db, decodeURIComponent(params.name), body); return { ok: true }; }));
+route('POST', '/api/workspaces/:name/activate', ({ db, params }) => guard(() => { ws.setActive(db, decodeURIComponent(params.name)); return { ok: true }; }));
+route('DELETE', '/api/workspaces/:name', ({ db, params }) => guard(() => { ws.deleteLayout(db, decodeURIComponent(params.name)); return { ok: true }; }));
 route('GET', '/api/budget', ({ db }) => ({ summary: budget.summary(db), ledger: rows(db, 'SELECT * FROM budget_ledger ORDER BY at DESC LIMIT 100') }));
 route('POST', '/api/budget/fixed', ({ db, body }) => {
   const b = parse(z.object({ category: z.string().min(1).max(60), usd: z.number().min(0).max(1000), note: z.string().max(200).default('') }), body);

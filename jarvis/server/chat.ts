@@ -7,6 +7,7 @@ import { setPaused, pauseStatus } from './pause.ts';
 import { publish } from './events.ts';
 import { upcoming, syncState } from './calendar.ts';
 import { listNotes } from './notes.ts';
+import { findHabit, findPerson, toggleHabit, markContacted } from './life.ts';
 import { chicagoParts, chicagoInstant, addDays } from './tz.ts';
 
 export type ChatReply = { text: string; action?: { navigate?: string }; persisted: boolean; fallback?: boolean; source?: 'command' | 'model'; model?: string; costMicroUsd?: number };
@@ -21,6 +22,8 @@ const NAV: [RegExp, string][] = [
   [/(show|open) (the )?(review|ready for review)/i, '#/review'],
   [/(show|open|bring up) (my )?(calendar|schedule)\b/i, '#/calendar'],
   [/(show|open|bring up) (my )?notes\b/i, '#/notes'],
+  [/(show|open|bring up) (my )?(life|habits|people)\b/i, '#/life'],
+  [/(show|open|bring up) (my |the )?workspace\b/i, '#/workspace'],
 ];
 
 /**
@@ -86,6 +89,18 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
     const fmt = (e: any) => `${e.allDay ? 'all day' : new Date(e.start).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' })} — ${e.title}`;
     const stale = cs.status === 'stale' ? ' (My copy is stale, so this may be out of date; recurring events can be missing.)' : ' (Unusual repeat patterns can be missing from my copy.)';
     return reply(ev.length ? `${/next/i.test(text) ? 'Coming up' : tomorrow ? 'Tomorrow' : 'Today'}, sir:\n${ev.map(fmt).join('\n')}${stale}` : `Nothing on the calendar ${/next/i.test(text) ? 'in the next three days' : tomorrow ? 'tomorrow' : 'for the rest of today'}, sir.${stale}`);
+  }
+  if ((m = text.match(/^(?:i )?(?:did|logged|log|worked out|went to)\s+(?:my\s+)?(.+?)(?:\s+today)?[.!]*$/i))) {
+    const h = findHabit(db, m[1]);
+    if (h) {   // only when the sentence clearly names exactly one of Luke's habits; otherwise it falls through to normal chat
+      if (priv) return reply('Private mode does not modify records, sir.');
+      if (h.doneToday) return reply(`"${h.name}" is already checked off today, sir. ${h.streak} day streak.`);
+      toggleHabit(db, h.id); return reply(`Logged "${h.name}" for today, sir. ${h.streak + 1} day streak.`);
+    }
+  }
+  if ((m = text.match(/^(?:i )?(?:talked to|spoke (?:to|with)|called|texted|contacted|caught up with)\s+(.+?)[.!]*$/i))) {
+    const pr = findPerson(db, m[1]);
+    if (pr) { if (priv) return reply('Private mode does not modify records, sir.'); markContacted(db, pr.id); return reply(`Noted, sir: you were in touch with ${pr.name} today.`); }
   }
   if ((m = text.match(/^(?:search|find)(?: my)? notes?(?: for| about)?\s+(.+)$/i))) {
     const ns = syncState(db, 'notes');

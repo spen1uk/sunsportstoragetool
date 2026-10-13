@@ -94,3 +94,8 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 ## Calendar & Notes (read-only, via the Mac)
 - Pages: Calendar, Notes. Connections rows update to connected / stale / disconnected from real sync results.
 - **Moving to a server:** macOS scripting does not exist there, so syncs fail and the last copy is shown STALE then disconnected. See README for the options (Mac bridge, or CalDAV for calendar).
+
+## My Life and Modular Workspace
+- **My Life** ✅ (tested): habits you check off yourself (Chicago days, streak, weekly count, 14-day back-fill, reversible) and people you want to stay in touch with ("every N days", overdue shown, "in touch today"). All typed in by you; never inferred, never sent to the language model; chat understands "I did gym" / "I talked to David" when exactly one thing matches (not in private mode). Overdue contacts appear as suggestions in the briefing. **Health stays ⚪ planned**: no health data is connected.
+- **Modular Workspace** ✅ (tested server side, verified in headless Chromium): 10 panel types (conversation, today, next-up calendar, tasks, decisions, ready for review, habits, stay-in-touch, spend, systems) on a 12-column grid; Arrange mode to drag, resize, add and remove panels (others are pushed out of the way); up to 12 named saved layouts, one active; Main can be reset but not deleted. Layouts only change what you see.
+- Not done: touch-device drag tuning, per-panel settings, cross-device layout sync beyond what the server stores.

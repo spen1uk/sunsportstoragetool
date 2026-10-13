@@ -6,13 +6,15 @@ import { Chat, useConversation } from './Chat.tsx';
 import { CommandCenter } from './CommandCenter.tsx';
 import { Detail } from './Detail.tsx';
 import { CalendarPage, NotesPage } from './mac.tsx';
+import { LifePage } from './life.tsx';
+import { WorkspacePage } from './workspace.tsx';
 import { BriefingsPage, OvernightPage, ModeControl, Notifications } from './today.tsx';
 import { TasksPage, ReviewPage, ApprovalsPage, MemoryPage, ConnectionsPage, ActivityPage, SettingsPage, PlannedPage } from './pages.tsx';
 
 export const NAV: { hash: string; label: string; planned?: string }[] = [
   { hash: '#/command', label: 'Command Center' },
-  { hash: '#/life', label: 'My Life', planned: 'Phase 2. Personal life command center: habits, health and family context. Nothing is connected yet.' },
-  { hash: '#/workspace', label: 'Modular Workspace', planned: 'Phase 2. Movable, resizable panels (conversation, calendar, previews, reports, files, tasks, charts, approvals) with saved layouts.' },
+  { hash: '#/life', label: 'My Life' },
+  { hash: '#/workspace', label: 'Modular Workspace' },
   { hash: '#/universe', label: 'Agent Universe' },
   { hash: '#/tasks', label: 'Tasks & Projects' },
   { hash: '#/calendar', label: 'Calendar' },
@@ -172,6 +174,8 @@ function Shell({ onLogout }: { onLogout: () => void }) {
           </section>
         )}
         {!isUniverse && pageNav?.planned && <PlannedPage title={pageNav.label} text={pageNav.planned} />}
+        {hash === '#/life' && <LifePage />}
+        {hash === '#/workspace' && st && <WorkspacePage st={st} convo={convo} />}
         {hash === '#/calendar' && <CalendarPage />}
         {hash === '#/notes' && <NotesPage />}
         {hash === '#/briefings' && <BriefingsPage />}

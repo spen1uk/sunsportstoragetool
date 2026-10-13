@@ -6,6 +6,7 @@ import { getMode } from './modes.ts';
 import { clients } from './events.ts';
 import { summary as budgetSummary } from './budget.ts';
 import { projectDetail } from './milestones.ts';
+import { listPeople } from './life.ts';
 import { busyIntervals, upcoming, calendarConnected, syncState } from './calendar.ts';
 
 const rows = (db: DB, sql: string, ...p: any[]) => db.prepare(sql).all(...p) as any[];
@@ -64,6 +65,7 @@ export function buildBriefing(db: DB, now = Date.now()) {
   const next = [...openManual(db)][0];
   if (next && !recs.length) recs.push({ text: `Start with "${next.title}" — highest priority${next.deadline ? ', due ' + fmtDay(next.deadline) : ''}.`, link: '#/tasks', level: 'info' });
   if (!openManual(db).length && !urgent.length) recs.push({ text: 'Nothing is pending. Good moment to assign research or set tomorrow\'s priorities.', level: 'info' });
+  for (const pr of listPeople(db, now).filter((x) => x.due).slice(0, 3)) recs.push({ text: `Stay in touch: ${pr.name}${pr.relationship ? ` (${pr.relationship})` : ''} — ${pr.never ? 'not contacted yet' : `${pr.daysSince} days since you were in touch`}; you wanted every ${pr.everyDays} days.`, link: '#/life', level: 'info' });
 
   // Narration under the cap: urgent first, then updates, schedule, recommendations; overflow stays visible in the dashboard.
   const calOn = calendarConnected(db, now), calState = syncState(db, 'calendar', now);
