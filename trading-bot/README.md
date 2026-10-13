@@ -51,7 +51,7 @@ it never loses is either lying or hiding risk.
 
 ## Quick start (on your computer)
 
-Needs Python 3.10+. No other packages are required.
+Needs Python 3.8+ (the Python that comes with a Mac works). No other packages are required.
 
 ```bash
 cd trading-bot
