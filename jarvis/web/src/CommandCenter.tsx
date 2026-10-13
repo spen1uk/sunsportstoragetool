@@ -3,6 +3,7 @@ import { api, useLive, usd, type AppState } from './api.ts';
 import { greeting, statusLine } from './greeting.ts';
 import type { Conversation } from './Chat.tsx';
 import { supported, speechState, emitSpeech } from './speech.ts';
+import { ProposalTray } from './Proposals.tsx';
 import type { CoreState } from './Universe.tsx';
 
 const TZ = 'America/Chicago';
@@ -145,6 +146,7 @@ export function CommandCenter(p: { away: boolean; st: AppState; coreState: CoreS
         {lines.length > 0 && <div className="cc-lines" role="log" aria-live="polite">
           {lines.map((m) => <div key={m.id} className={`cl ${m.role}`}><b>{m.role === 'jarvis' ? 'JARVIS' : 'YOU'}</b><span><Typed id={m.id} text={m.content} animate0={!reduced && m.role === 'jarvis' && m.id === lastJarvis?.id && !away && seen.current !== null && !seen.current.has(m.id)} /></span></div>)}
         </div>}
+        <ProposalTray className="cc-props" />
         <div className="cc-chips">{chips.map(([l, f]) => <button key={l} className="chip" disabled={convo.busy && l !== 'Open the Agent Universe'} onClick={f}>{l}</button>)}</div>
         <form className={`cc-input ${convo.priv ? 'private' : ''}`} onSubmit={(e) => { e.preventDefault(); void convo.send(); }}>
           <input autoFocus value={convo.text} onChange={(e) => convo.setText(e.target.value)} placeholder={convo.busy ? 'Jarvis is thinking…' : `Speak to Jarvis, ${sir}…`} aria-label="Message to Jarvis" maxLength={2000} />

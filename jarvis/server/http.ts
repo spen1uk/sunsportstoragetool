@@ -29,6 +29,7 @@ import * as nts from './notes.ts';
 import * as life from './life.ts';
 import * as ws from './workspace.ts';
 import * as links from './links.ts';
+import * as props from './proposals.ts';
 import { MacError, isMac } from './mac.ts';
 
 type Ctx = { req: http.IncomingMessage; res: http.ServerResponse; db: DB; session: auth.Session | null; params: Record<string, string>; body: any; url: URL };
@@ -233,6 +234,9 @@ route('GET', '/api/workspaces', ({ db }) => ws.getWorkspaces(db));
 route('PUT', '/api/workspaces/:name', ({ db, params, body }) => guard(() => { ws.saveLayout(db, decodeURIComponent(params.name), body); return { ok: true }; }));
 route('POST', '/api/workspaces/:name/activate', ({ db, params }) => guard(() => { ws.setActive(db, decodeURIComponent(params.name)); return { ok: true }; }));
 route('DELETE', '/api/workspaces/:name', ({ db, params }) => guard(() => { ws.deleteLayout(db, decodeURIComponent(params.name)); return { ok: true }; }));
+route('GET', '/api/proposals', ({ db }) => props.listPending(db));
+route('POST', '/api/proposals/:id/confirm', ({ db, params }) => props.confirm(db, params.id));
+route('POST', '/api/proposals/:id/dismiss', ({ db, params }) => ({ ok: props.dismiss(db, params.id) }));
 route('GET', '/api/budget', ({ db }) => ({ summary: budget.summary(db), ledger: rows(db, 'SELECT * FROM budget_ledger ORDER BY at DESC LIMIT 100') }));
 route('POST', '/api/budget/fixed', ({ db, body }) => {
   const b = parse(z.object({ category: z.string().min(1).max(60), usd: z.number().min(0).max(1000), note: z.string().max(200).default('') }), body);

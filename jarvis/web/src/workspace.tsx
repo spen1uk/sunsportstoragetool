@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, useLive, usd, type AppState } from './api.ts';
 import type { Conversation } from './Chat.tsx';
+import { ProposalTray } from './Proposals.tsx';
 import { HabitsList, PeopleList, LearningList, LinksList } from './life.tsx';
 
 export type Widget = { id: string; type: string; x: number; y: number; w: number; h: number };
@@ -36,6 +37,7 @@ function Body({ type, st, convo }: { type: string; st: AppState; convo: Conversa
   if (type === 'conversation') {
     const lines = convo.msgs.slice(-14);
     return <div className="ws-chat"><div className="ws-lines" ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}>{lines.length === 0 ? <Empty>Say something to Jarvis below.</Empty> : lines.map((m) => <div key={m.id} className={`wl ${m.role}`}><b>{m.role === 'jarvis' ? 'JARVIS' : 'YOU'}</b><span>{m.content}</span></div>)}{convo.busy && <div className="wl jarvis"><b>JARVIS</b><span className="muted">thinking…</span></div>}</div>
+      <ProposalTray />
       <form className="row" onSubmit={(e) => { e.preventDefault(); if (convo.text.trim()) void convo.send(convo.text); }}><input className="grow" value={convo.text} onChange={(e) => convo.setText(e.target.value)} placeholder="Speak to Jarvis, sir…" aria-label="Message Jarvis" /><button className="primary" disabled={convo.busy || !convo.text.trim()}>Send</button></form></div>;
   }
   if (type === 'today') {

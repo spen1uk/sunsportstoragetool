@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, useLive, usd } from './api.ts';
+import { ProposalTray } from './Proposals.tsx';
 import { speak, stop, supported } from './speech.ts';
 
 export type Msg = { id: number | string; role: 'luke' | 'jarvis'; content: string };
@@ -54,6 +55,7 @@ export function Chat({ open, setOpen, convo, hidden }: { open: boolean; setOpen:
         {msgs.map((m) => <div key={m.id} className={`msg ${m.role}`}>{m.content}{m.role === 'jarvis' && supported() && persona && <button className="link small say" onClick={() => speakMsg(m.content)} aria-label="Read aloud">🔊</button>}</div>)}
         <div ref={end} />
       </div>
+      <ProposalTray className="dock-props" />
       <form onSubmit={(e) => { e.preventDefault(); void send(); }} className="chat-form">
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type to Jarvis…" aria-label="Message" maxLength={2000} />
         <button type="button" disabled title="Push-to-talk arrives with the voice adapter (Phase 2). Not faked here.">🎙 soon</button>

@@ -7,6 +7,7 @@ import { buildContext } from './context.ts';
 import { keywords } from './extract.ts';
 import { publish } from './events.ts';
 import type { ChatMessage } from './llm/types.ts';
+import { extractProposals, createProposals } from './proposals.ts';
 
 function relevantMemories(db: DB, text: string): string[] {
   const rows = new Map<string, string>();
@@ -38,13 +39,16 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean } 
   const messages: ChatMessage[] = [...(priv ? [] : history(db)), { role: 'user', content: prompt }];
   publish({ type: 'thinking', on: true });
   try {
-    const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt), context: priv ? undefined : buildContext(db) }), messages, strong });
-    const reply = r.ok ? r.text.trim() || '…' : `I couldn't reach a language model just now, sir (${r.error}). Command mode is still available: type "help".`;
+    const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt), context: priv ? undefined : buildContext(db), proposals: !priv }), messages, strong });
+    const raw = r.ok ? r.text.trim() || '…' : `I couldn't reach a language model just now, sir (${r.error}). Command mode is still available: type "help".`;
+    // The model may PROPOSE actions; they become Confirm cards and do nothing until Luke clicks. In private mode nothing is stored, so proposals are dropped.
+    const ex = r.ok ? extractProposals(raw) : { text: raw, actions: [], dropped: 0 };
+    const reply = ex.text; const proposals = r.ok && !priv ? createProposals(db, ex.actions) : [];
     if (!priv) {
       db.prepare('INSERT INTO messages(role,content,at) VALUES(?,?,?)').run('luke', text, now());
       db.prepare('INSERT INTO messages(role,content,at) VALUES(?,?,?)').run('jarvis', reply, now());
       publish({ type: 'chat' });
     }
-    return { text: reply, persisted: !priv, source: r.ok ? 'model' : 'command', model: r.ok ? r.model : undefined, costMicroUsd: r.ok ? r.costMicroUsd : 0 };
+    return { text: reply, persisted: !priv, source: r.ok ? 'model' : 'command', model: r.ok ? r.model : undefined, costMicroUsd: r.ok ? r.costMicroUsd : 0, proposals };
   } finally { publish({ type: 'thinking', on: false }); }
 }

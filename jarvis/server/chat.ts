@@ -10,7 +10,7 @@ import { listNotes } from './notes.ts';
 import { findHabit, findPerson, toggleHabit, markContacted, findGoal, logLearning } from './life.ts';
 import { chicagoParts, chicagoInstant, addDays } from './tz.ts';
 
-export type ChatReply = { text: string; action?: { navigate?: string }; persisted: boolean; fallback?: boolean; source?: 'command' | 'model'; model?: string; costMicroUsd?: number };
+export type ChatReply = { proposals?: { id: string; kind: string; summary: string }[]; text: string; action?: { navigate?: string }; persisted: boolean; fallback?: boolean; source?: 'command' | 'model'; model?: string; costMicroUsd?: number };
 
 const NAV: [RegExp, string][] = [
   [/(go (back )?to|back to|open|show( me)?|return to) (the )?(command center|jarvis( home)?|home)\b/i, '#/command'],
