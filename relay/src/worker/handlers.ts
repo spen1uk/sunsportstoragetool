@@ -4,6 +4,7 @@ import { executeScheduled } from '../domain/scheduling.js';
 import { recomputeAll, recomputeForContact } from '../domain/inventory.js';
 import { handleAutoResponse } from '../domain/autoresponse.js';
 import { advanceRun, handleWorkflowEvent, scanNoResponse, scheduleWorkflowScan } from '../domain/workflows.js';
+import { runBroadcastTick } from '../domain/broadcasts.js';
 import { buildSummary } from '../domain/summary.js';
 import { purgeExpiredMedia, scheduleMaintenance } from '../domain/voice.js';
 
@@ -17,5 +18,6 @@ export const handlers: Record<string, Handler> = {
   workflow_event: async (j) => { await handleWorkflowEvent(j.payload); },
   workflow_step: async (j) => { await advanceRun(j.payload.runId); },
   workflow_scan: async () => { try { await scanNoResponse(); } finally { await scheduleWorkflowScan(); } },
+  broadcast_tick: async (j) => { await runBroadcastTick(j.payload.broadcastId); },
   scheduled_send: async (j) => executeScheduled(j.payload.id),
 };

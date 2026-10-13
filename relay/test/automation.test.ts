@@ -12,8 +12,8 @@ import { listNotifications } from '../src/domain/notifications.js';
 import { runOne } from '../src/domain/queue.js';
 import { handlers } from '../src/worker/handlers.js';
 
-let s: Seeded; let sam: ReturnType<typeof actor>; let owner: ReturnType<typeof actor>; let fin: ReturnType<typeof actor>;
-beforeEach(async () => { s = await resetDb(); sam = { ...actor(s, 'sam', 'staff', ['sales']), name: 'Sam' }; owner = { ...actor(s, 'owner', 'owner'), name: 'Owner' }; fin = { ...actor(s, 'fin', 'manager', ['financing', 'sales']), name: 'Fran' }; });
+let s: Seeded; let sam: ReturnType<typeof actor>; let owner: ReturnType<typeof actor>
+beforeEach(async () => { s = await resetDb(); sam = { ...actor(s, 'sam', 'staff', ['sales']), name: 'Sam' }; owner = { ...actor(s, 'owner', 'owner'), name: 'Owner' }; });
 afterAll(() => pool.end());
 
 // ----- helpers -----

@@ -344,7 +344,7 @@ export async function advanceRun(runId: string): Promise<void> {
               // We owe the customer something. Customer follow-ups are paused; remind, then escalate, the assigned employee.
               const since = run.staff_wait_since ? new Date(run.staff_wait_since) : new Date();
               const remindMs = def.limits.staffWaitReminderHours * 3600_000, escMs = def.limits.staffWaitEscalateHours * 3600_000;
-              let detail = 'Customer follow-up is ON HOLD: Sun Sport Marine owes the customer a response or information';
+              const detail = 'Customer follow-up is ON HOLD: Sun Sport Marine owes the customer a response or information';
               if (!run.staff_wait_since) { await c.query('UPDATE workflow_runs SET staff_wait_since=now() WHERE id=$1', [runId]); run.staff_wait_since = new Date(); await log('follow_up', 'held', detail); }
               if (!run.staff_wait_reminded_at && Date.now() - since.getTime() >= remindMs) {
                 const to = await recipientsForConversation(c, run.conversation_id);
