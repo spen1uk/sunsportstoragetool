@@ -27,3 +27,4 @@ All outbound texts (staff, scheduled, broadcast, automation, Sandra) go through 
 - Operate: [docs/RUNBOOK.md](docs/RUNBOOK.md) · deploy: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (`npm run build`, Dockerfile/compose/systemd) · security: [docs/SECURITY.md](docs/SECURITY.md) · retention/erasure: [docs/DATA_RETENTION.md](docs/DATA_RETENTION.md) · costs (formulas only): [docs/COST_MODEL.md](docs/COST_MODEL.md).
 - Drills with real processes on throwaway databases: `npm run drill:restore` (backup → fresh restore → boot) and `npm run drill:recovery` (SIGKILL worker/server). Backups: `scripts/backup.sh`, `scripts/restore.sh`.
 - `/health` liveness · `/ready` · Settings → System health · `/metrics` (needs `METRICS_TOKEN`).
+- Migration prep: [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md) · [docs/IMPORT_GUIDE.md](docs/IMPORT_GUIDE.md) · app: **Kenect Migration** (owner/admin). Synthetic fixtures: `fixtures/kenect-synthetic/`. Nothing live has been changed.

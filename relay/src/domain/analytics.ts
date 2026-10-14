@@ -24,7 +24,7 @@ export async function buildAnalytics(a: Actor, r: Range) {
   const v = visibilitySql(a, 'c', 4); const scope = isAdmin(a) ? 'whole workspace' : 'conversations visible to you';
   const base = [a.workspaceId, r.from, r.to, ...v.params]; // $1 ws, $2 from, $3 to, then visibility params from $4
   const tzIdx = base.length + 1;
-  const msgFilter = `m.workspace_id=$1 AND m.created_at >= $2 AND m.created_at < $3 AND ${v.sql}`;
+  const msgFilter = `m.workspace_id=$1 AND m.imported_batch_id IS NULL AND m.created_at >= $2 AND m.created_at < $3 AND ${v.sql}`;
   const join = `FROM messages m JOIN conversations c ON c.id=m.conversation_id`;
 
   const [byDay, byDept, byChannel, byUser, latest] = await Promise.all([
@@ -32,7 +32,7 @@ export async function buildAnalytics(a: Actor, r: Range) {
     pool.query(`SELECT COALESCE(d.name,'Unrouted') AS department, count(*) FILTER (WHERE m.direction='inbound')::int AS inbound, count(*) FILTER (WHERE m.direction='outbound' AND m.status<>'suppressed')::int AS outbound ${join} LEFT JOIN departments d ON d.id=c.department_id WHERE ${msgFilter} GROUP BY 1 ORDER BY 2 DESC`, base),
     pool.query(`SELECT ch.kind || CASE WHEN ch.is_simulated THEN ' (demo)' ELSE '' END AS channel, count(*) FILTER (WHERE m.direction='inbound')::int AS inbound, count(*) FILTER (WHERE m.direction='outbound' AND m.status<>'suppressed')::int AS outbound ${join} JOIN channels ch ON ch.id=c.channel_id WHERE ${msgFilter} GROUP BY 1`, base),
     atLeastManager(a) ? pool.query(`SELECT u.name AS user, count(*)::int AS sent ${join} JOIN users u ON u.id=m.sender_user_id WHERE ${msgFilter} AND m.direction='outbound' AND m.sender_type='staff' AND m.status<>'suppressed' GROUP BY 1 ORDER BY 2 DESC`, base) : Promise.resolve({ rows: [] }),
-    pool.query(`SELECT max(m.created_at) AS t ${join} WHERE m.workspace_id=$1 AND ${v.sql.replace(/\$4/g, '$2').replace(/\$5/g, '$3')}`, [a.workspaceId, ...v.params]),
+    pool.query(`SELECT max(m.created_at) AS t ${join} WHERE m.workspace_id=$1 AND m.imported_batch_id IS NULL AND ${v.sql.replace(/\$4/g, '$2').replace(/\$5/g, '$3')}`, [a.workspaceId, ...v.params]),
   ]);
 
   const unanswered = (await pool.query(
@@ -43,7 +43,7 @@ export async function buildAnalytics(a: Actor, r: Range) {
   const turns = (await pool.query(
     `WITH ordered AS (
        SELECT m.id, m.conversation_id, m.seq, m.direction, m.created_at, lag(m.direction) OVER (PARTITION BY m.conversation_id ORDER BY m.seq) AS prev_dir
-       FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE m.workspace_id=$1 AND m.status NOT IN ('suppressed','failed') AND ${v.sql.replace(/\$4/g, '$2').replace(/\$5/g, '$3')}),
+       FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE m.workspace_id=$1 AND m.imported_batch_id IS NULL AND m.status NOT IN ('suppressed','failed') AND ${v.sql.replace(/\$4/g, '$2').replace(/\$5/g, '$3')}),
      t AS (SELECT * FROM ordered WHERE direction='inbound' AND (prev_dir IS NULL OR prev_dir='outbound') AND created_at >= $${o} AND created_at < $${o + 1})
      SELECT t.id, t.conversation_id, t.created_at, (SELECT min(r.created_at) FROM messages r WHERE r.conversation_id=t.conversation_id AND r.seq>t.seq AND r.direction='outbound' AND r.sender_type='staff' AND r.auto_kind IS NULL AND r.status NOT IN ('suppressed','failed')) AS replied_at FROM t`, [a.workspaceId, ...v.params, r.from, r.to])).rows;
   const mins = turns.filter((t) => t.replied_at).map((t) => (new Date(t.replied_at).getTime() - new Date(t.created_at).getTime()) / 60000).sort((x, y) => x - y);

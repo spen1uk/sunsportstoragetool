@@ -62,7 +62,7 @@ export async function getConversationFor(ctx: ServiceContext, id: string, opts: 
   out.humanRequiredTopics = flags;   // topics the customer raised that the owner reserved for people
   if (ctx.scopes.has('messages:read')) {
     const lim = Math.min(opts.messageLimit ?? 50, 200);
-    const rows = (await pool.query(`SELECT m.* FROM messages m WHERE m.conversation_id=$1 AND m.redacted_at IS NULL AND m.status<>'suppressed' ${opts.beforeSeq ? 'AND m.seq<$3' : ''} ORDER BY m.seq DESC LIMIT $2`, opts.beforeSeq ? [id, lim, opts.beforeSeq] : [id, lim])).rows;
+    const rows = (await pool.query(`SELECT m.* FROM messages m WHERE m.conversation_id=$1 AND m.redacted_at IS NULL AND m.status<>'suppressed' ${opts.beforeSeq ? 'AND (m.created_at, m.seq) < (SELECT created_at, seq FROM messages WHERE seq=$3)' : ''} ORDER BY m.created_at DESC, m.seq DESC LIMIT $2`, opts.beforeSeq ? [id, lim, opts.beforeSeq] : [id, lim])).rows;
     out.messages = rows.reverse().map(messageDto);
   }
   return out;

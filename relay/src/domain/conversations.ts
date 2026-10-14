@@ -26,7 +26,7 @@ export async function listConversations(a: Actor, q: { status?: string; responsi
     const i = params.length;
     where.push(`(ct.first_name ILIKE $${i} OR ct.last_name ILIKE $${i} OR ct.company ILIKE $${i} OR c.last_preview ILIKE $${i} OR EXISTS (SELECT 1 FROM contact_identities ci WHERE ci.contact_id=ct.id AND ci.original_value ILIKE $${i}) OR EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.body ILIKE $${i}))`);
   }
-  const unread = `COALESCE((SELECT count(*) FROM messages m WHERE m.conversation_id=c.id AND m.direction='inbound' AND m.seq > COALESCE(cr.last_read_seq,0)),0)`;
+  const unread = `COALESCE((SELECT count(*) FROM messages m WHERE m.conversation_id=c.id AND m.direction='inbound' AND m.imported_batch_id IS NULL AND m.seq > COALESCE(cr.last_read_seq,0)),0)`;
   if (q.unreadOnly) where.push(`${unread} > 0`);
   params.push(Math.min(q.limit ?? 100, 200));
   const r = await pool.query(
@@ -46,9 +46,9 @@ export async function getThread(a: Actor, conversationId: string) {
   const conv = (await pool.query(
     `SELECT c.*, ch.is_simulated, ch.provider, ch.address AS channel_address, trim(coalesce(ct.first_name,'')||' '||coalesce(ct.last_name,'')) AS contact_name FROM conversations c JOIN channels ch ON ch.id=c.channel_id JOIN contacts ct ON ct.id=c.contact_id WHERE c.id=$1`, [conversationId])).rows[0];
   const messages = (await pool.query(
-    `SELECT m.id, m.seq, m.direction, m.sender_type, m.sender_user_id, u.name AS sender_name, m.purpose, m.body, m.status, m.status_detail, m.created_at, m.source_ts,
+    `SELECT m.id, m.seq, m.direction, m.sender_type, m.sender_user_id, u.name AS sender_name, m.purpose, m.body, m.status, m.status_detail, m.created_at, m.source_ts, m.imported_batch_id,
        COALESCE((SELECT json_agg(json_build_object('id', a.id, 'filename', a.filename, 'content_type', a.content_type) ORDER BY a.created_at) FROM message_attachments ma JOIN media_assets a ON a.id=ma.media_id WHERE ma.message_id=m.id), '[]'::json) AS attachments
-     FROM messages m LEFT JOIN users u ON u.id=m.sender_user_id WHERE m.conversation_id=$1 ORDER BY m.seq`, [conversationId])).rows;
+     FROM messages m LEFT JOIN users u ON u.id=m.sender_user_id WHERE m.conversation_id=$1 ORDER BY m.created_at, m.seq`, [conversationId])).rows;
   const notes = (await pool.query(
     `SELECT n.id, n.body, n.created_at, u.name AS author_name FROM notes n LEFT JOIN users u ON u.id=n.author_user_id WHERE n.contact_id=$1 ORDER BY n.created_at DESC`, [conv.contact_id])).rows;
   return { conversation: conv, messages, notes };

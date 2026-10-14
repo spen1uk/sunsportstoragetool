@@ -11,6 +11,7 @@ import { Automations } from './Automations';
 import { Broadcasts } from './Broadcasts';
 import { Analytics } from './Analytics';
 import { Connections } from './Connections';
+import { Migration } from './Migration';
 import { Payments } from './Payments';
 import { Reviews } from './Reviews';
 
@@ -27,6 +28,7 @@ const NAV: { key: string; label: string; icon: string; setup?: { phase: string; 
   { key: 'media', label: 'Media', icon: '▣' },
   { key: 'analytics', label: 'Analytics', icon: '▥' },
   { key: 'connections', label: 'Connections', icon: '⇄' },
+  { key: 'migration', label: 'Kenect Migration', icon: '⇆' },
   { key: 'settings', label: 'Settings', icon: '☰' },
 ];
 
@@ -45,7 +47,7 @@ export function App() {
     <div className="shell">
       <nav className="rail" aria-label="Main">
         <div className="brand"><span className="logo">≈</span><span className="brand-text">Relay</span></div>
-        {NAV.map((n) => (
+        {NAV.filter((n) => n.key !== 'migration' || me.user.role === 'owner' || me.user.role === 'admin').map((n) => (
           <button key={n.key} className={`navbtn ${tab === n.key ? 'active' : ''}`} onClick={() => setTab(n.key)} aria-current={tab === n.key ? 'page' : undefined} title={n.label}>
             <span className="navicon" aria-hidden>{n.icon}</span><span className="navlabel">{n.label}</span>
           </button>
@@ -71,6 +73,7 @@ export function App() {
           {tab === 'payments' && <Payments me={me} onCompose={(c) => { setCompose(c); setFocus(c.conversationId); setTab('inbox'); }} />}
           {tab === 'connections' && <Connections me={me} />}
           {tab === 'media' && <MediaLibrary />}
+          {tab === 'migration' && <Migration me={me} />}
           {tab === 'settings' && <Settings me={me} />}
           {tab === 'customers' && <Customers me={me} />}
           {cur.setup && <Setup title={cur.label} phase={cur.setup.phase} needs={cur.setup.needs} />}

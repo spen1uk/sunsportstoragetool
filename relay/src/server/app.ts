@@ -24,6 +24,7 @@ import { registerPhase3 } from './phase3.js';
 import { registerPhase4 } from './phase4.js';
 import { registerPhase5 } from './phase5.js';
 import { registerPhase6, registerSandraApi } from './phase6.js';
+import { registerPhase7 } from './phase7.js';
 import { httpStats, metricsText, readiness, sseStats, systemStatus } from '../domain/ops.js';
 import type { Writable } from 'node:stream';
 
@@ -159,6 +160,7 @@ export async function buildApp(opts: { logger?: boolean; logStream?: Writable } 
   registerPhase4(app, A);
   registerPhase5(app, A);
   registerPhase6(app, A);
+  registerPhase7(app, A);
   registerSandraApi(app);
 
   // ---------- contacts ----------

@@ -69,7 +69,7 @@ export async function queueOutboundTx(c: PoolClient, req: OutboundRequest): Prom
       const ws = await c.query('SELECT global_automation_pause FROM workspaces WHERE id=$1', [req.workspaceId]);
       if (ws.rows[0]?.global_automation_pause) return { ok: false as const, reason: 'global_pause' };
     } else if (req.senderType === 'staff' && req.ifLastSeq !== undefined && !req.force) {
-      const newer = await c.query(`SELECT 1 FROM messages WHERE conversation_id=$1 AND seq>$2 AND (direction='inbound' OR sender_user_id IS DISTINCT FROM $3) LIMIT 1`,
+      const newer = await c.query(`SELECT 1 FROM messages WHERE conversation_id=$1 AND seq>$2 AND imported_batch_id IS NULL AND (direction='inbound' OR sender_user_id IS DISTINCT FROM $3) LIMIT 1`,
         [req.conversationId, req.ifLastSeq, req.senderUserId ?? null]);
       if (newer.rowCount) return { ok: false as const, reason: 'newer_messages' };
     }

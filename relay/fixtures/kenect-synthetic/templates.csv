@@ -1,0 +1,5 @@
+Name,Message,Category
+Welcome,"Hi [First Name], thanks for contacting {{business_name}}!",Sales
+Directions,Visit us at %BUSINESS%. See you soon.,General
+Weird,"Hi <<Customer Nickname>>, your boat is ready",Service
+Welcome,Duplicate name in file,Sales

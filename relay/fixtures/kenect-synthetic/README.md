@@ -1,0 +1,3 @@
+# SYNTHETIC test fixtures — not real customers, not a real Kenect export
+
+All names, numbers (555-01xx / 555-014x ranges) and messages are invented. **Kenect's real export layouts have not been seen**: these files use generic CSV layouts with plausible column names so the import tool, mapping step and edge cases can be exercised. Real files will probably have different headers; the mapping step exists for that. Each file deliberately contains problems (duplicates, shared numbers, bad numbers, mixed date formats, opt-outs, quoting) so the preview and reconciliation report have something to find.

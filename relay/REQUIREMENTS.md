@@ -24,3 +24,5 @@ Legend: [ ] todo · [~] partial · [x] done+verified (evidence in BUILD_STATUS.m
 ## §15 Security   [x] roles ✓ dept scope ✓ rate limits ✓ audit ✓ · [ ] retention/export/delete · [ ] secret mgmt (Phase 5)
 ## §16 Phases 0–7 gates  (see BUILD_STATUS.md)
 ## §17 Final report, cost model, runbook, migration checklist
+
+## §16 Phase 7  [x] import tooling (map/preview/stage/commit/reconcile/rollback, originals preserved, opt-outs retained, history-coverage disclosure) · [x] cutover checklist with gates · [x] plan docs (SMS-only feasibility, voice preservation, timing, tests, pilot, rollback) · [B] actual Kenect exports (availability unknown) · [B] live number steps, test-number evidence, pilot, cutover (owner approval + provider) · Kenect never cancelled by Relay

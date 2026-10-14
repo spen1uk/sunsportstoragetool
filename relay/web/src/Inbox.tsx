@@ -126,7 +126,7 @@ function Thread({ id, tz, compose, onComposeUsed, tick, typing, onBack, onInfo, 
         {data.messages.length === 0 && <p className="muted pad">No messages yet. Write the first one below.</p>}
         {data.messages.map((m: any) => (
           <div key={m.id} className={`bubble ${m.direction}`}>
-            <div className="meta">{m.direction === 'inbound' ? 'Customer' : m.sender_type === 'staff' ? (m.sender_name ?? 'Staff') : m.sender_type === 'sandra' ? 'Sandra' : m.sender_type === 'automation' ? 'Automation' : 'System'}{m.purpose !== 'conversational' ? ` · ${m.purpose}` : ''} · {fmtTime(m.created_at)}</div>
+            <div className="meta">{m.direction === 'inbound' ? 'Customer' : m.sender_type === 'staff' ? (m.sender_name ?? 'Staff') : m.sender_type === 'sandra' ? 'Sandra' : m.sender_type === 'automation' ? 'Automation' : 'System'}{m.purpose !== 'conversational' ? ` · ${m.purpose}` : ''} · {fmtTime(m.created_at)}{m.imported_batch_id ? ' · imported history' : ''}</div>
             <div className="text">{m.body}</div>
             {m.attachments?.map((a: any) => <Attachment key={a.id} id={a.id} filename={a.filename} type={a.content_type} />)}
             {m.direction === 'outbound' && <div className={`status s-${m.status}`}>{STATUS[m.status]}{m.status_detail ? ` — ${REASON[m.status_detail] ?? m.status_detail}` : ''}</div>}

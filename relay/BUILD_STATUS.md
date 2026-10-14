@@ -88,6 +88,11 @@ Limitations specific to Phase 5:
 - Erase does not cover team-chat mentions, older backups, or third-party copies (docs/DATA_RETENTION.md).
 - Real SMS/provider sending remains BLOCKED/disabled; nothing was texted, no number changed, Kenect untouched, nothing spent.
 
+## Phase 7 — preparation COMPLETE and tested; all LIVE steps untouched/blocked (owner approval + external accounts)
+**Built (migration 009, `src/migration/`, `/api/migration/*`, UI “Kenect Migration”)**: staged CSV import framework for contacts / message history / opt-outs / templates with column mapping + header suggestions, timezone-explicit timestamp parsing, preview counts, typed-confirmation commit (single transaction), “not imported” reconciliation CSV, provenance on every created row, and conservative rollback; synthetic labelled fixtures; cutover checklist (28 required items) that records evidence and enforces prerequisites, owner-only items, no waivers past prerequisites, an automatic-check layer using Relay's own data, a configurable validation window before the final Kenect-cancel gate; docs/MIGRATION_PLAN.md, docs/IMPORT_GUIDE.md.
+**Evidence** (`test/migration.test.ts`, 38 tests): parser/timestamp/DST/token units; originals preserved byte-for-byte + sha; staging writes nothing; preview counts exact against fixtures; fill-blanks-only matching; shared numbers never merged; opt-outs retained (duplicate rows, history STOP, consent file, newer-STOP-wins, STOP applies to all sharers, never rolled back, enforced by the normal send pipeline); imported history is closed/silent/no jobs/no notifications/no unread/excluded from analytics, ordered by original time even when merged with live traffic, reopens on new inbound; idempotent re-import; rollback keeps opted-out and used records; summaries disclose coverage; HTTP upload→stage→commit, staff refused; checklist gating end to end. Mutation checks (rollback opt-out retention, start-vs-stop ordering, closed-thread rule, validation window, prerequisites) each fail the intended tests. Playwright desktop+mobile: no overflow/console errors.
+**Not done / needs you or an external account — do NOT assume**: Kenect's real export formats and availability are unknown (mapping step, no vendor client); no SMS provider account/test number/adapter (Phase 2 live gate still BLOCKED); no real inbound/outbound, STOP/HELP, MMS or delivery-status evidence; RingCentral baseline/post-change voice tests, line-type and hosting-eligibility checks, contract/notice-period review, provider porting/hosting lead times and revert times are all unverified; staff pilot and rollback rehearsal not run; no cutover plan can be finalized until the provider is chosen. Relay has no code path that changes routing/ports numbers/cancels services; the checklist only records what the owner did elsewhere.
+
 ## Honest limitations
 - Summaries use a regex extractor, not an LLM: good at budgets/boats/dates/questions, weak at nuance; "unanswered" means no staff message followed at all. LLM adapters pending API key (docs/AI_DATA_SHARING.md).
 - Inventory has no live source; import/manual only. "Source of truth" = the imported list, marked stale after 24h unless re-confirmed.
@@ -101,7 +106,10 @@ Limitations specific to Phase 5:
 3. Inventory system access/API details (or approval to treat manual CSV import as source of truth).
 
 ## Next
-Phase 7: Kenect/RingCentral migration preparation (no cutover, no number transfer, no spend without owner approval).
+Owner decisions/accounts unblock the remaining LIVE work: (1) answers to the Discovery items in the Kenect Migration checklist, (2) SMS provider choice + test number + spend approval → build/verify the real SMS adapter and run the Phase 2 live gate, (3) AI provider key if wanted, (4) connect Sandra when ready. Then pilot and cutover per docs/MIGRATION_PLAN.md.
 
 ### Phase 6 report (final)
 `npm run check` (typecheck incl. scripts + eslint + vitest): **363 tests passing across 17 files** (277 prior + 61 assistant + 25 ops/privacy). Drills: restore 18/18, recovery 10/10. Playwright desktop+mobile on Settings → Assistant: no horizontal overflow, no CSP console errors (only the expected pre-login 401).
+
+### Phase 7 report (final)
+`npm run check` (typecheck incl. scripts + eslint + vitest): **401 tests passing across 18 files** (363 prior + 38 migration). Phase 6 drills unchanged. No live system touched.

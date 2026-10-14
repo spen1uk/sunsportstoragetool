@@ -34,3 +34,11 @@ SMS/AI/email/payments/inventory are behind adapter interfaces with a **Simulator
 - **Production refuses dev defaults** (exit 78) and the simulator webhook is 404 in production (it was forgeable with the default secret).
 - **Undici blocks fetch to some ports (e.g. 4190)**: drills use 429x.
 
+## D6 Phase 7 decisions
+- **No vendor client for Kenect**: its export format is unseen, so imports are generic CSV + mapping; completeness is the owner's reconciliation job (the not-imported CSV).
+- **Imports are inert by construction**: closed/unassigned conversations, `imported_batch_id` excluded from unread, analytics and the stale-send guard; no jobs, notifications or sends; commit is one transaction.
+- **Consent is monotonic through imports**: latest-by-original-time wins, STOP wins ties, imports never create opt-in from a number, never roll back an opt-out. Unmapped opt-out-looking columns raise a warning.
+- **Never auto-merge people**: shared numbers become separate `needs-review` contacts; ambiguous multi-contact numbers are skipped, not guessed.
+- **The checklist is a ledger, not a controller**: it cannot (and nothing in Relay can) change routing/port/cancel; owner-only items, prerequisite order, an enforced post-cutover validation window and Relay's own data checks gate the *record*.
+- **Thread ordering is `(created_at, seq)`** so imported history interleaves correctly with live traffic; imported rows carry their original timestamp as `created_at`.
+

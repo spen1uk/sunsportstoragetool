@@ -172,10 +172,19 @@ export function reconcile(evidence: Evidence[], history: SummaryMsg[]): { facts:
 }
 
 // ---------- permission-scoped retrieval ----------
+/** Honest coverage disclosure for imported customers: what the summary can and cannot have seen. */
+async function importNote(contactId: string): Promise<string | null> {
+  const m = (await pool.query(`SELECT count(*)::int n, min(m.created_at) a, max(m.created_at) b FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.contact_id=$1 AND m.imported_batch_id IS NOT NULL`, [contactId])).rows[0];
+  if (m.n > 0) return `Includes ${m.n} imported message${m.n === 1 ? '' : 's'} dated ${new Date(m.a).toISOString().slice(0, 10)} to ${new Date(m.b).toISOString().slice(0, 10)}. Anything said outside the imported export (other channels, calls, media) is not covered.`;
+  const c = (await pool.query('SELECT import_batch_id FROM contacts WHERE id=$1', [contactId])).rows[0];
+  return c?.import_batch_id ? 'This customer came from an imported contact list. Their earlier text history was not imported, so this summary covers only messages since Relay began handling them.' : null;
+}
+
 export async function getSummary(a: Actor, contactId: string) {
   if (!(await canSeeContact(pool, a, contactId))) throw new HttpError(404, 'contact not found');
+  const importCoverage = await importNote(contactId);
   const st = (await pool.query('SELECT * FROM summary_state WHERE contact_id=$1', [contactId])).rows[0];
-  if (!st || !st.current_version) return { status: st?.status ?? 'none', lastError: st?.last_error ?? null, coverage: null, fields: {} as Record<string, any[]>, version: null, provider: null, restricted: false };
+  if (!st || !st.current_version) return { importCoverage, status: st?.status ?? 'none', lastError: st?.last_error ?? null, coverage: null, fields: {} as Record<string, any[]>, version: null, provider: null, restricted: false };
   const sum = (await pool.query('SELECT * FROM conversation_summaries WHERE contact_id=$1 AND version=$2', [contactId, st.current_version])).rows[0];
   const v = visibilitySql(a, 'c', 2);
   const visible = new Set((await pool.query(`SELECT c.id FROM conversations c JOIN contacts ct ON ct.id=c.contact_id WHERE (ct.id=$1 OR ct.merged_into=$1) AND ${v.sql}`, [contactId, ...v.params])).rows.map((r) => r.id as string));
@@ -189,7 +198,7 @@ export async function getSummary(a: Actor, contactId: string) {
     citations: (f.message_ids as string[]).map((id) => msgs.get(id)).filter(Boolean).map((m: any) => ({ messageId: m.id, direction: m.direction, at: m.created_at, snippet: m.body.slice(0, 160) })) });
   const hidden = (sum.coverage.conversationIds as string[]).filter((id) => !visible.has(id)).length;
   const cov = { ...sum.coverage, conversationIds: undefined, conversationsCovered: (sum.coverage.conversationIds as string[]).length - hidden };
-  return { status: st.status, lastError: st.last_error, coverage: cov, fields, version: sum.version, provider: { key: sum.provider, model: sum.model, label: sum.provider === 'heuristic' ? 'Rule-based extractor (no AI model)' : sum.provider }, createdAt: sum.created_at,
+  return { importCoverage, status: st.status, lastError: st.last_error, coverage: cov, fields, version: sum.version, provider: { key: sum.provider, model: sum.model, label: sum.provider === 'heuristic' ? 'Rule-based extractor (no AI model)' : sum.provider }, createdAt: sum.created_at,
     restricted: hidden > 0, restrictedNote: hidden > 0 ? `${hidden} linked conversation(s) are not accessible to you; facts that cite them are hidden.` : null };
 }
 
