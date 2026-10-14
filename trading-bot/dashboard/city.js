@@ -220,7 +220,7 @@ export function createCity(container, { onSelect } = {}) {
 
   // ---------------------------------------------------------------- state -> scene
   let seen = null, last = null;
-  function update(s) {
+  function update(s, { coins = true } = {}) {
     last = s;
     const syms = s.workers.map((w) => w.symbol);
     if ([...towers.keys()].join() !== syms.join()) {
@@ -248,9 +248,9 @@ export function createCity(container, { onSelect } = {}) {
       <div class="vl-s">${s.workers.length} workers on shift</div>`;
     // money flow for trades we haven't seen yet
     const ids = new Set(s.trades.map((t) => t.id));
-    if (seen) {
-      s.trades.filter((t) => !seen.has(t.id)).forEach((t, i) => spawnCoin(t.symbol, t.pnl > 0, i * 0.6));
-    } else if (s.demo) {
+    if (seen && coins) {
+      s.trades.filter((t) => !seen.has(t.id)).slice(0, 4).forEach((t, i) => spawnCoin(t.symbol, t.pnl > 0, i * 0.4));
+    } else if (!seen && s.demo && coins) {
       s.trades.slice(0, 4).forEach((t, i) => spawnCoin(t.symbol, t.pnl > 0, 1 + i * 0.9)); // show the effect in demo mode
     }
     seen = ids;
@@ -304,6 +304,7 @@ export function createCity(container, { onSelect } = {}) {
 
   return {
     update,
+    resetMoney: () => { seen = null; },
     select: (sym) => select(sym, false),
     setAutoRotate: (on) => (controls.autoRotate = on),
     setActive(on) {

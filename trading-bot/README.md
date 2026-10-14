@@ -79,6 +79,9 @@ Four tabs:
   - The ring on top lights one segment per rule that's lined up.
   - Gold coins fly into the Vault on wins; red coins fly out on losses.
   - Drag to orbit, scroll to zoom, click a tower to look inside that bot.
+  - **▶ Replay** plays history through the real trading engine at high speed. Pick 1× to 20× speed
+    and all history or the last year / 6 months / 3 months, then drag the slider to jump around.
+    It ends with a summary of trades and results. It uses BloFin history (simulated prices with `--demo`).
 - **Floor**: the detailed view (below).
 - **Data**: the live pipeline (BloFin → candles → indicators → signals → risk → broker →
   journal → learner) with a health light on each step, price-feed freshness and recent errors.

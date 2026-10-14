@@ -93,3 +93,20 @@ body[data-view="city"] footer { display: none; }
 
 /* ---------------- lab view */
 pre.learn { white-space: pre-wrap; margin: 0; max-height: 420px; overflow: auto; font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-2); }
+
+/* ---------------- replay */
+.btn-replay { color: #2bff88; border-color: rgba(43, 255, 136, .45); }
+.replay-bar { position: absolute; left: 12px; right: 12px; bottom: 46px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; border-radius: 14px; background: rgba(8, 6, 28, .88); border: 1px solid rgba(43, 255, 136, .4); box-shadow: 0 0 18px rgba(43,255,136,.15); z-index: 4; }
+.replay-bar[hidden], .replay-msg[hidden] { display: none; }
+.replay-bar select.btn { padding: 6px 8px; }
+.replay-bar #rp-play { min-width: 42px; font-size: 14px; }
+#rp-seek { flex: 1; min-width: 140px; accent-color: #2bff88; }
+.rp-info { display: flex; flex-direction: column; line-height: 1.2; font-size: 12px; min-width: 120px; font-variant-numeric: tabular-nums; }
+.rp-info b { font-size: 14px; color: var(--ink); }
+.replay-msg br { display: block; content: ""; margin-top: 4px; }
+.replay-msg { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); padding: 14px 20px; border-radius: 14px; z-index: 5;
+  background: rgba(8, 6, 28, .92); border: 1px solid var(--border); box-shadow: var(--glow); font-weight: 700; text-align: center; max-width: 90%; }
+body.replaying .hud-legend { display: none; }
+body.replaying .hud-banner { color: #2bff88; border-color: #2bff88; background: rgba(43,255,136,.08); }
+@media (max-width: 700px) { .rp-info { min-width: 0; } #rp-seek { order: 9; flex-basis: 100%; } }

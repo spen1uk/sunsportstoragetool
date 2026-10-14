@@ -262,6 +262,111 @@ function renderLab(s) {
   $("learning").textContent = L.learning || "No learning cycles yet. The bot reviews itself once a day.";
 }
 
+// ====================================================================== REPLAY (watch history play out in the city)
+const KIND_LABEL = { halted: "Halted", manage: "In a trade", pause: "Paused", fire: "Firing", setup: "Setup forming", scan: "Scanning" };
+const RP = { data: null, active: false, playing: false, idx: 0, start: 0, acc: 0, thoughts: [], lastThought: [], raf: 0, prev: 0 };
+
+function rpState(i) {
+  const R = RP.data, f = R.frames[i], day = f.t.slice(0, 10);
+  const trades = R.trades.slice(0, f.k);
+  const today = trades.filter((t) => t.day === day).reduce((a, t) => a + t.pnl, 0);
+  const workers = R.symbols.map((sym, j) => {
+    const w = f.w[j], cl = R.rules[j].map((name, r) => ({ name, ok: !!w.c[r], detail: "" }));
+    return { symbol: sym, name: R.names[j], slot: j + 1, status_kind: w.k, status: KIND_LABEL[w.k] || w.k,
+      charge: cl.length ? cl.filter((c) => c.ok).length / cl.length : 0, checklist: cl, position: w.pos || null,
+      all: { earned: w.e }, thought: RP.lastThought[j] || "" };
+  });
+  return { replay: true, demo: false, time: f.t, workers, vault: { equity: f.eq, today }, trades: trades.slice().reverse(), thoughts: RP.thoughts, guards: {} };
+}
+
+function rpLog(i) { // add this frame's thoughts and closed trades to the ticker
+  const R = RP.data, f = R.frames[i], prevK = i ? R.frames[i - 1].k : 0;
+  f.w.forEach((w, j) => { if (w.th) { RP.lastThought[j] = w.th; RP.thoughts.unshift({ kind: "thought", message: `${R.names[j]}: ${w.th}` }); } });
+  for (const t of R.trades.slice(prevK, f.k))
+    RP.thoughts.unshift({ kind: "exit", message: `${t.symbol.split("-")[0]} ${t.side} closed ${t.pnl >= 0 ? "+" : "−"}$${Math.abs(t.pnl).toFixed(2)} (${t.r >= 0 ? "+" : ""}${t.r.toFixed(2)}R)` });
+  RP.thoughts.length = Math.min(RP.thoughts.length, 14);
+}
+
+function rpShow(i, sequential) {
+  const R = RP.data;
+  if (!sequential) { // jumped: rebuild the latest thought per coin from earlier frames
+    RP.thoughts = []; RP.lastThought = [];
+    for (let k = i; k >= 0 && RP.lastThought.filter(Boolean).length < R.symbols.length; k--)
+      R.frames[k].w.forEach((w, j) => { if (w.th && !RP.lastThought[j]) RP.lastThought[j] = w.th; });
+    RP.lastThought.forEach((t, j) => t && RP.thoughts.push({ kind: "thought", message: `${R.names[j]}: ${t}` }));
+  } else rpLog(i);
+  RP.idx = i;
+  const s = rpState(i);
+  if (city) city.update(s, { coins: sequential });
+  renderCityHud(s);
+  const base = R.frames[RP.start].eq, ch = (s.vault.equity / base - 1) * 100;
+  $("rp-date").textContent = s.time.slice(0, 10);
+  $("rp-eq").innerHTML = `${usd(s.vault.equity)} <span class="${cls(ch)}">${pct(ch)}</span>`;
+  $("rp-seek").value = i;
+}
+
+function rpTick(now) {
+  if (!RP.playing) return;
+  const dt = Math.min(0.25, (now - (RP.prev || now)) / 1000); RP.prev = now;
+  RP.acc += dt * +$("rp-speed").value;
+  const last = RP.data.frames.length - 1;
+  while (RP.acc >= 1 && RP.idx < last) { RP.acc -= 1; rpShow(RP.idx + 1, true); }
+  if (RP.idx >= last) { rpPause(); rpSummary(); return; }
+  RP.raf = requestAnimationFrame(rpTick);
+}
+function rpPlay() {
+  if (RP.idx >= RP.data.frames.length - 1) rpShow(RP.start, false);
+  $("replay-msg").hidden = true;
+  RP.playing = true; RP.prev = 0; RP.acc = 0; $("rp-play").textContent = "❚❚"; $("rp-play").setAttribute("aria-label", "Pause");
+  RP.raf = requestAnimationFrame(rpTick);
+}
+function rpPause() { RP.playing = false; cancelAnimationFrame(RP.raf); $("rp-play").textContent = "▶"; $("rp-play").setAttribute("aria-label", "Play"); }
+function rpSummary() {
+  const R = RP.data, a = R.frames[RP.start], b = R.frames[R.frames.length - 1], n = b.k - a.k;
+  const wins = R.trades.slice(a.k, b.k).filter((t) => t.pnl > 0).length, ch = (b.eq / a.eq - 1) * 100;
+  rpMsg(`Replay finished: ${a.t.slice(0, 10)} → ${b.t.slice(0, 10)}<br/>
+${n} trades · ${wins} wins · ${usd(a.eq)} → ${usd(b.eq)} <span class="${cls(ch)}">(${pct(ch)})</span>`);
+}
+function rpMsg(html) { $("replay-msg").innerHTML = html; $("replay-msg").hidden = !html; }
+
+function rpRange() {
+  const R = RP.data, v = $("rp-range").value, last = R.frames.length - 1;
+  let start = 0;
+  if (v !== "all") {
+    const cutoff = new Date(R.frames[last].t.replace(" ", "T") + "Z").getTime() - +v * 86400000;
+    start = Math.max(0, R.frames.findIndex((f) => new Date(f.t.replace(" ", "T") + "Z").getTime() >= cutoff));
+  }
+  RP.start = start; $("rp-seek").min = start; $("rp-seek").max = last;
+  if (city) city.resetMoney();
+  rpShow(start, false);
+}
+
+async function rpStart() {
+  if (!city) return;
+  RP.active = true; document.body.classList.add("replaying"); $("replay-bar").hidden = false; closeDrawer();
+  if (!RP.data) {
+    rpMsg("Building the replay from price history…<br><span class='muted small'>The first time can take up to a minute.</span>");
+    for (;;) {
+      const r = await fetch("api/replay", { cache: "no-store" });
+      if (r.status === 202) { await new Promise((ok) => setTimeout(ok, 1500)); if (!RP.active) return; continue; }
+      const d = await r.json();
+      if (d.error || !d.frames || !d.frames.length) { rpMsg(esc(d.error || "No history available to replay.")); return; }
+      RP.data = d; break;
+    }
+  }
+  rpMsg(""); rpRange(); rpPlay();
+}
+function rpExit() {
+  rpPause(); RP.active = false; document.body.classList.remove("replaying"); $("replay-bar").hidden = true; rpMsg("");
+  if (city) { city.resetMoney(); if (lastState) city.update(lastState, { coins: false }); }
+  if (lastState) renderAll(lastState);
+}
+$("btn-replay").onclick = () => (RP.active ? rpExit() : rpStart());
+$("rp-play").onclick = () => (RP.playing ? rpPause() : rpPlay());
+$("rp-exit").onclick = rpExit;
+$("rp-range").onchange = () => { const was = RP.playing; rpPause(); rpRange(); if (was) rpPlay(); };
+$("rp-seek").oninput = () => { rpShow(+$("rp-seek").value, false); };
+
 // ====================================================================== tabs, polling, city glue
 let city = null, cityFailed = false, lastOk = 0, lastState = null;
 const views = ["city", "floor", "data", "lab"];
@@ -296,20 +401,21 @@ function renderCityHud(s) {
     <span class="${cls(w.all.earned)}">${usd(w.all.earned, true)}</span></button>`).join("");
   $("hud-workers").querySelectorAll(".hud-chip").forEach((b) => (b.onclick = () => { city && city.select(b.dataset.sym); openDrawer(b.dataset.sym); }));
   let b = "";
-  if (s.demo) b = "⚠ Demo - simulated prices";
+  if (s.replay) b = `⏪ REPLAY · ${s.time.slice(0, 10)}`;
+  else if (s.demo) b = "⚠ Demo - simulated prices";
   else if (s.guards.halted) b = "⛔ Kill switch on";
   else if (s.guards.paused_until) b = "⏸ Cooling off after losses";
   $("hud-banner").textContent = b; $("hud-banner").hidden = !b;
   const items = s.thoughts.slice(0, 14).map((t) => `<span class="tk"><b class="tag ${esc(t.kind)}">${esc(t.kind)}</b> ${esc(t.message)}</span>`).join("");
   if ($("ticker").dataset.sig !== items) { $("ticker").innerHTML = items + items; $("ticker").dataset.sig = items; }
   $("payroll-city").innerHTML = $("payroll").innerHTML;
-  if ($("drawer").dataset.symbol) openDrawer($("drawer").dataset.symbol);
+  if (!s.replay && $("drawer").dataset.symbol) openDrawer($("drawer").dataset.symbol);
 }
 
 function renderAll(s) {
   renderFloor(s); // also fills shared header + payroll table
   const v = currentView();
-  if (v === "city") { renderCityHud(s); if (city) city.update(s); }
+  if (v === "city" && !RP.active) { renderCityHud(s); if (city) city.update(s); }
   if (v === "data") renderData(s);
   if (v === "lab") renderLab(s);
 }

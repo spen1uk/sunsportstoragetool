@@ -44,10 +44,11 @@ def main():
         return demo(cfg)
     if args.command == "dashboard":
         from tradebot.dashboard import build_demo, serve, write_snapshot
+        from tradebot.replay import ReplayProvider
         if args.demo:
             write_snapshot(build_demo(cfg))
             print("Showing SIMULATED demo data.")
-        return serve(args.host, args.port)
+        return serve(args.host, args.port, replay=ReplayProvider(cfg, demo=args.demo))
     if args.command == "backtest":
         return backtest(cfg, args.bars)
 

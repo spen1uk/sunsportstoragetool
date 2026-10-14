@@ -30,6 +30,7 @@
     <div class="hud-top" id="hud-workers"></div>
     <div class="hud-banner" id="hud-banner"></div>
     <div class="hud-right">
+      <button class="btn btn-replay" id="btn-replay">▶ Replay</button>
       <button class="btn" id="btn-payroll">Payroll</button>
       <button class="btn" id="btn-rotate" aria-pressed="true">Auto-rotate</button>
     </div>
@@ -39,6 +40,19 @@
       <span><i class="lg ring"></i>Ring = rules lined up</span>
       <span class="muted">Drag to orbit · scroll to zoom · click a tower</span>
     </div>
+    <div class="replay-bar" id="replay-bar" hidden>
+      <button class="btn" id="rp-play" aria-label="Play">▶</button>
+      <select class="btn" id="rp-speed" aria-label="Speed">
+        <option value="2">1×</option><option value="6" selected>3×</option><option value="16">8×</option><option value="40">20×</option>
+      </select>
+      <select class="btn" id="rp-range" aria-label="Date range">
+        <option value="all">All history</option><option value="365">Last year</option><option value="180">Last 6 months</option><option value="90">Last 3 months</option>
+      </select>
+      <input type="range" id="rp-seek" min="0" max="0" value="0" aria-label="Replay position">
+      <div class="rp-info"><b id="rp-date">–</b><span id="rp-eq"></span></div>
+      <button class="btn" id="rp-exit">✕ Back to live</button>
+    </div>
+    <div class="replay-msg" id="replay-msg" hidden></div>
     <div class="ticker"><div class="ticker-track" id="ticker"></div></div>
   </div>
   <aside class="drawer" id="drawer" aria-hidden="true">

@@ -221,12 +221,20 @@ class ThoughtLog:
 
 
 # ------------------------------------------------------------------ server
-def serve(host="127.0.0.1", port=8050, snapshot_path=SNAPSHOT):
+def serve(host="127.0.0.1", port=8050, snapshot_path=SNAPSHOT, replay=None):
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
             super().__init__(*a, directory=STATIC_DIR, **kw)
 
         def do_GET(self):
+            if self.path.split("?")[0] == "/api/replay":
+                code, body = replay.get() if replay else (404, b'{"error": "replay not available"}')
+                self.send_response(code)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+                return
             if self.path.split("?")[0] == "/api/state":
                 try:
                     with open(snapshot_path, "rb") as f:

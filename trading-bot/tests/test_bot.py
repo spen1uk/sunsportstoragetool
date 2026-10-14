@@ -282,6 +282,30 @@ class Dashboard(unittest.TestCase):
         srv["s"].shutdown()
 
 
+class Replay(unittest.TestCase):
+    def test_replay_matches_backtest(self):
+        from tradebot.replay import build_replay
+        hist = {"BTC-USDT": synthetic_candles(900, seed=35, bar="1D"), "ETH-USDT": synthetic_candles(900, seed=36, bar="1D"),
+                "SOL-USDT": synthetic_candles(900, seed=37, bar="1D")}
+        rp = build_replay(CFG, hist, CFG["strategy"])
+        self.assertEqual(len(rp["rules"][0]), 4)
+        self.assertTrue(rp["frames"] and rp["trades"])
+        self.assertEqual(rp["frames"][-1]["k"], len(rp["trades"]))
+        ks = [f["k"] for f in rp["frames"]]
+        self.assertEqual(ks, sorted(ks))  # trades only ever accumulate
+        for f in rp["frames"]:
+            self.assertEqual(len(f["w"]), 3)
+        # same engine as the backtester -> same closed trades over the same candles
+        from tradebot.replay import WARMUP
+        start = max(c[WARMUP].ts for c in hist.values())
+        bt = run_backtest(CFG, CFG["strategy"], hist, start_ts=start)["trades"]
+        closed = [t for t in bt if t.exit_reason != "end_of_test"]
+        self.assertEqual(len(rp["trades"]), len(closed))
+        for a, b in zip(closed, rp["trades"]):
+            self.assertAlmostEqual(a.net_pnl, b["pnl"], places=3)
+        json.dumps(rp)
+
+
 class NoLookahead(unittest.TestCase):
     def test_future_bars_do_not_change_past_trades(self):
         c = synthetic_candles(2500, seed=11)
