@@ -32,12 +32,16 @@ Jarvis itself still listens on `127.0.0.1` only. Tailscale is the only thing tha
 - The helper credential opens only the `/api/bridge/*` doors, is stored as a hash, creating one needs step-up, replacing it revokes the old one, repeated wrong guesses lock it briefly. The server discards anything outside the calendars/folders Luke ticked.
 - The systemd unit can only write `/var/lib/jarvis`.
 
+## Passkeys and backups (built)
+- **Passkeys** (Settings → Passkeys): Face ID / Touch ID sign-in and step-up, ES256 only, user verification required. A passkey belongs to the address it was made on: make one at `http://localhost:8788` for the Mac now, and another at `https://jarvis.<your-tailnet>.ts.net` once the server is up (the browser needs a *name*, so use `localhost`, not `127.0.0.1`). "Require a passkey to sign in" turns the passphrase off for sign-in; if every passkey is lost, `npm run setup -- --allow-passphrase` on the machine turns it back on.
+- **Encrypted backups:** `npm run backup:keygen` (once; **save the recovery key it prints**), then `npm run backup -- --to <folder>`; `npm run backup:drill -- <file>` proves a backup opens; `npm run backup:restore -- <file> <new.db>` restores into a *new* file. On the server: `deploy/jarvis-backup.service` + `.timer` run it daily at ~03:15 into `/var/backups/jarvis`, keeping 14. Copy that folder off-site with anything you like (rclone, a synced folder): the files are useless without your recovery key. The server holds only the public key.
+- Do a restore drill **before** relying on any of it, and again after changing keys.
+
 ## NOT built yet (do before real use on the server)
 | Item | Why it matters |
 |---|---|
-| Passkey (Face ID / Touch ID) login | Passphrase-only is fine on loopback, thinner on a network |
-| Encrypted off-site backups + restore drill | Backups are plain files on the same machine today |
-| Independent security review of the server setup | Fresh eyes before it leaves the Mac |
+| Independent security review of the server setup and of `server/passkey.ts` (custom WebAuthn code) | Fresh eyes before it leaves the Mac |
 | Uptime alert (e.g. a free external pinger on the private link, or a daily "I'm alive" notification) | You should hear if it stops |
+| Off-site copy of the backup folder (rclone/sync job) | The timer writes on the same server; copy it elsewhere |
 | Decision: Anthropic data-retention terms | Luke's call; see docs/DEPENDENCIES.md |
 | Test run on the Mac for a few days | Cheapest place to find mistakes |

@@ -36,12 +36,22 @@ export function login(db: DB, pass: string): { token: string; csrf: string } | {
     return { error: 'Invalid credentials' };
   }
   fails.n = 0;
+  const s = startSession(db); audit(db, 'luke', 'auth.login');
+  return s;
+}
+
+/** Create a signed-in session (used after the passphrase or a passkey has proven it is Luke). */
+export function startSession(db: DB): { token: string; csrf: string } {
   const token = crypto.randomBytes(32).toString('base64url');
   const csrf = crypto.randomBytes(24).toString('base64url');
   db.prepare('INSERT INTO sessions(token_hash,csrf,created_at,expires_at) VALUES(?,?,?,?)')
     .run(sha256(token), csrf, Date.now(), Date.now() + config.sessionTtlMs);
-  audit(db, 'luke', 'auth.login');
   return { token, csrf };
+}
+/** Open the step-up window after a passkey (with user verification) approved this action. */
+export function grantStepUp(db: DB, s: Session) {
+  db.prepare('UPDATE sessions SET step_up_until=? WHERE token_hash=?').run(Date.now() + config.stepUpTtlMs, s.tokenHash);
+  audit(db, 'luke', 'auth.stepup', '', { via: 'passkey' });
 }
 
 export function getSession(db: DB, token: string | undefined): Session | null {

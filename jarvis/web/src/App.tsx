@@ -5,6 +5,7 @@ import { Universe, type CoreState, type Route } from './Universe.tsx';
 import { Chat, useConversation } from './Chat.tsx';
 import { CommandCenter } from './CommandCenter.tsx';
 import { Detail } from './Detail.tsx';
+import { passkeySupported, signInWithPasskey } from './passkey.ts';
 import { CalendarPage, NotesPage } from './mac.tsx';
 import { LifePage } from './life.tsx';
 import { WorkspacePage } from './workspace.tsx';
@@ -35,8 +36,10 @@ function useHash() {
   return h;
 }
 
-function Login({ onDone, configured }: { onDone: () => void; configured: boolean }) {
+function Login({ onDone, configured, passkeys, required }: { onDone: () => void; configured: boolean; passkeys: number; required: boolean }) {
   const [pw, setPw] = useState(''), [err, setErr] = useState(''), [busy, setBusy] = useState(false);
+  const pkOk = passkeys > 0 && passkeySupported() && !/^\d{1,3}(\.\d{1,3}){3}$/.test(location.hostname);
+  const withPasskey = async () => { setBusy(true); setErr(''); try { await signInWithPasskey(); onDone(); } catch (x) { setErr((x as Error).message); } finally { setBusy(false); } };
   return (
     <main className="login">
       <form className="glass" onSubmit={async (e) => {
@@ -46,9 +49,12 @@ function Login({ onDone, configured }: { onDone: () => void; configured: boolean
       }}>
         <h1>JARVIS</h1>
         {!configured && <p className="warn">Not set up yet. Run <code>npm run setup</code> in the jarvis folder to create your passphrase.</p>}
-        <label>Owner passphrase<input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus /></label>
+        {pkOk && <button type="button" className="primary" disabled={busy} onClick={() => void withPasskey()}>Sign in with passkey</button>}
+        {passkeys > 0 && !pkOk && <p className="muted small">Passkeys need a named address: open <code>http://localhost:{location.port}</code> rather than 127.0.0.1.</p>}
+        {!required && <><label>Owner passphrase<input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus={!pkOk} /></label>
+        <button className="primary" disabled={busy || !pw}>Unlock</button></>}
+        {required && <p className="muted small">Passphrase sign-in is turned off. To turn it back on, run <code>npm run setup -- --allow-passphrase</code> on the machine Jarvis runs on.</p>}
         {err && <p className="err" role="alert">{err}</p>}
-        <button className="primary" disabled={busy || !pw}>Unlock</button>
       </form>
     </main>
   );
@@ -56,12 +62,13 @@ function Login({ onDone, configured }: { onDone: () => void; configured: boolean
 
 export function App() {
   const [auth, setAuth] = useState<'loading' | 'out' | 'in'>('loading');
-  const [configured, setConfigured] = useState(true);
+  const [configured, setConfigured] = useState(true); const [pkInfo, setPkInfo] = useState({ passkeys: 0, required: false });
   useEffect(() => {
-    api<any>('/api/me').then((m) => { if (m.authenticated) { setCsrf(m.csrf); setAuth('in'); } else { setConfigured(m.configured); setAuth('out'); } }).catch(() => setAuth('out'));
+    api<any>('/api/me').then((m) => { if (m.authenticated) { setCsrf(m.csrf); setAuth('in'); } else { setConfigured(m.configured); setPkInfo({ passkeys: m.passkeys ?? 0, required: !!m.passkeyRequired }); setAuth('out'); } }).catch(() => setAuth('out'));
   }, []);
+  useEffect(() => { if (auth === 'out') api<any>('/api/me').then((m) => { if (!m.authenticated) { setConfigured(m.configured); setPkInfo({ passkeys: m.passkeys ?? 0, required: !!m.passkeyRequired }); } }).catch(() => {}); }, [auth]);   // after Lock, learn what sign-in options exist
   if (auth === 'loading') return <div className="boot">Starting…</div>;
-  if (auth === 'out') return <Login configured={configured} onDone={() => setAuth('in')} />;
+  if (auth === 'out') return <Login configured={configured} passkeys={pkInfo.passkeys} required={pkInfo.required} onDone={() => setAuth('in')} />;
   return <Shell onLogout={async () => { await api('/api/logout', 'POST', {}).catch(() => {}); stopEvents(); setAuth('out'); }} />;
 }
 

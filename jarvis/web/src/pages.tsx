@@ -3,6 +3,8 @@ import { api, ago, usd, useLive, type AppState } from './api.ts';
 import { PersonaCard, ModelsCard } from './ai.tsx';
 import { ProjectsPanel } from './projects.tsx';
 import { MemorySuggestions } from './memsug.tsx';
+import { PasskeyCard, BackupCard } from './passkeycard.tsx';
+import { passkeySupported, stepUpWithPasskey } from './passkey.ts';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 function useAction() {
@@ -162,12 +164,13 @@ export function ReviewPage() {
 export function ApprovalsPage() {
   const { data, reload } = useLive<any>(() => api('/api/approvals'), ['approvals']);
   const a = useAction(); const [pw, setPw] = useState(''); const [stepped, setStepped] = useState(false);
+  const { data: pks } = useLive<any>(() => api('/api/passkeys'), []); const usePasskey = passkeySupported() && (pks?.items?.length ?? 0) > 0;
   const items: any[] = data?.items ?? [];
   const pending = items.filter((i) => i.status === 'pending'), hist = items.filter((i) => i.status !== 'pending');
   const decide = (i: any, decision: 'approve' | 'deny') => a.run(async () => {
     if (decision === 'approve' && i.risk === 'high' && !stepped) {
-      if (!pw) throw new Error('Enter your passphrase to confirm a high-risk approval.');
-      await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); setStepped(true); setTimeout(() => setStepped(false), 4.5 * 60_000);
+      if (!pw) { if (!usePasskey) throw new Error('Enter your passphrase (or use your passkey) to confirm a high-risk approval.'); await stepUpWithPasskey(); }
+      else { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } setStepped(true); setTimeout(() => setStepped(false), 4.5 * 60_000);
     }
     const r = await api(`/api/approvals/${i.id}/decide`, 'POST', { decision, digest: i.digest }); if (r.executed === false) throw new Error(`Approved, but not executed: ${r.outcome}`); reload();
   });
@@ -182,7 +185,7 @@ export function ApprovalsPage() {
             <p className="muted small">{i.action_type} · requested by {i.requested_by} · expires {ago(new Date(i.expires_at).toISOString())} · digest <code>{i.digest.slice(0, 16)}…</code></p>
             <pre className="payload">{JSON.stringify(JSON.parse(i.payload), null, 2)}</pre>
             <p className="muted small">Approving binds to this exact payload. If anything changes, the approval is void.</p>
-            {i.risk === 'high' && !stepped && <label>Passphrase (step-up)<input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} /></label>}
+            {i.risk === 'high' && !stepped && <label>{usePasskey ? 'Passphrase (step-up), or leave blank to use your passkey' : 'Passphrase (step-up)'}<input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} /></label>}
             {data.actions.find((x: any) => x.type === i.action_type && !x.available) && <p className="warn">Executor unavailable: {data.actions.find((x: any) => x.type === i.action_type).reason} Approving records your decision but nothing will run.</p>}
             <div className="row"><button className="primary" onClick={() => decide(i, 'approve')}>Approve this exact action</button><button onClick={() => decide(i, 'deny')}>Deny</button></div>
           </article>
@@ -271,6 +274,8 @@ export function SettingsPage(p: { st: AppState; reload: () => void; quality: str
           <button onClick={p.resetLayout}>Reset universe layout</button>
         </div>
       </div>
+      <PasskeyCard />
+      <BackupCard />
       <PersonaCard />
       <ModelsCard />
       <div className="glass pad section"><h2>Budget — {b.period}</h2>

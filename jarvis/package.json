@@ -20,7 +20,11 @@
     "test": "node --test server/test/*.test.ts",
     "typecheck": "tsc -p server/tsconfig.json && tsc -p web/tsconfig.json",
     "bridge": "node server/bridge-mac.ts",
-    "bridge:setup": "node server/bridge-mac.ts --setup"
+    "bridge:setup": "node server/bridge-mac.ts --setup",
+    "backup": "node server/backup-run.ts run",
+    "backup:keygen": "node server/backup-run.ts keygen",
+    "backup:drill": "node server/backup-run.ts drill",
+    "backup:restore": "node server/backup-run.ts restore"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.133.0",

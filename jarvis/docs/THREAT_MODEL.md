@@ -8,7 +8,7 @@
 |---|---|---|
 | Remote access to API | Binds `127.0.0.1` by default; warns otherwise; no public deployment made | TLS + reverse proxy + passkeys before any exposure |
 | DNS-rebinding / hostile local page driving the API | Host header allow-list (421), SameSite=Strict cookie, Origin check, per-session CSRF header, JSON-only bodies, no CORS | — |
-| Credential guessing | 160-bit random passphrase, scrypt (N=2^15), lockout with exponential backoff | In-memory throttle resets on restart; passkeys later |
+| Credential guessing | 160-bit random passphrase, scrypt (N=2^15), lockout with exponential backoff; optional passkeys (WebAuthn ES256, user verification required) that can replace the passphrase for sign-in | In-memory throttle resets on restart; passkey code is custom and awaits independent review |
 | Session theft | HttpOnly+SameSite=Strict, 12h expiry, hashed token at rest, `Secure` when non-loopback | Device list/revocation UI |
 | High-risk approval by stolen session | Step-up passphrase (5 min window) for high-risk approvals | Hardware key step-up |
 | Approval tampering / replay / double execution | Canonical-JSON digest, digest echoed by client and re-verified at execute, status transition as lock, expiry, pause blocks execution | Tested |
@@ -26,7 +26,7 @@
 | Runaway spend | Reserve-before-dispatch, 75/90/cap gates, fixed costs first, cap changes need high-risk approval | Provider-side limits when providers exist |
 | Dependency compromise | 4 runtime deps pinned exactly; `npm audit` clean at install; no install scripts needed | Add lockfile review + update cadence (DEPENDENCIES.md) |
 | Private-mode leakage | Server creates no message/audit/memory/task rows in private mode (test) | Provider-side retention must be documented per provider before one is added |
-| Data at rest | DB file `0600`, data dir `0700` | Disk encryption relies on the OS (FileVault); encrypted off-box backups TODO |
+| Data at rest | DB file `0600`, data dir `0700` | Disk encryption relies on the OS (FileVault); encrypted backups built (public-key, `npm run backup`); off-site copy job still manual |
 
 ## Retention note (forget/backups)
 `forget` deletes the memory row. Prior snapshots made with **Create local snapshot** still contain it until deleted by you. Policy: keep the 7 most recent snapshots; delete older ones; off-box copies must be encrypted and age out on the same schedule. (Automated pruning is not built yet.)

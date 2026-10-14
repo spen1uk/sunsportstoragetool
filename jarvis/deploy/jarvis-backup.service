@@ -1,0 +1,18 @@
+# Daily encrypted backup. Copy to /etc/systemd/system/ together with jarvis-backup.timer, then: systemctl enable --now jarvis-backup.timer
+# Needs the public key from `npm run backup:keygen` (data/backup.pub). Files in /var/backups/jarvis are safe to copy anywhere.
+[Unit]
+Description=Jarvis encrypted backup
+
+[Service]
+Type=oneshot
+User=jarvis
+Group=jarvis
+WorkingDirectory=/opt/jarvis
+EnvironmentFile=/etc/jarvis.env
+ExecStart=/usr/bin/node server/backup-run.ts run --to /var/backups/jarvis --keep 14
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/jarvis /var/backups/jarvis
+ProtectHome=true
+PrivateTmp=true
+UMask=0077

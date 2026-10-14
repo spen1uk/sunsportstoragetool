@@ -31,6 +31,8 @@ import * as ws from './workspace.ts';
 import * as links from './links.ts';
 import * as props from './proposals.ts';
 import * as bridge from './bridge.ts';
+import * as pk from './passkey.ts';
+import { backupStatus } from './backup-run.ts';
 import * as msug from './memsuggest.ts';
 import { MacError, isMac } from './mac.ts';
 
@@ -49,11 +51,38 @@ const rows = (db: DB, sql: string, ...p: any[]) => db.prepare(sql).all(...p);
 const row = (db: DB, sql: string, ...p: any[]) => db.prepare(sql).get(...p);
 const parse = <T extends z.ZodType>(s: T, v: unknown): z.infer<T> => { const r = s.safeParse(v); if (!r.success) throw bad(r.error.issues[0]?.message ?? 'invalid input'); return r.data; };
 
+// ---- passkeys (WebAuthn). The relying-party id and origin come from the already-validated Host header. ----
+const rpCtx = (req: http.IncomingMessage) => { const host = (req.headers.host ?? '').toLowerCase(); if (/^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(host) || host.startsWith('[')) throw new HttpError(400, 'Passkeys do not work on a numeric address. Open Jarvis at http://localhost:' + config.port + ' (or your server name) instead of 127.0.0.1.'); return { rpId: host.replace(/:\d+$/, ''), origin: `${config.publicHttps ? 'https' : 'http'}://${host}` }; };
+const pkFails = { n: 0, lockedUntil: 0 };
+const pkGuard = <T,>(f: () => T): T => {
+  if (Date.now() < pkFails.lockedUntil) throw new HttpError(429, 'Too many attempts');
+  try { const r = f(); pkFails.n = 0; return r; } catch (e) {
+    pkFails.n++; if (pkFails.n >= 10) { pkFails.lockedUntil = Date.now() + 60_000; pkFails.n = 0; }
+    throw new HttpError(401, e instanceof z.ZodError ? 'invalid passkey response' : 'Passkey check failed: ' + (e as Error).message);
+  }
+};
+route('POST', '/api/passkeys/login/options', ({ db, req }) => { if (!pk.listPasskeys(db).length) throw new HttpError(404, 'No passkeys are set up.'); return pk.authOptions(db, rpCtx(req), 'login', null); }, true);
+route('POST', '/api/passkeys/login/verify', ({ db, req, res, body }) => {
+  pkGuard(() => pk.finishAuthentication(db, rpCtx(req), 'login', null, body));
+  const r = auth.startSession(db); audit(db, 'luke', 'auth.login', '', { via: 'passkey' });
+  const secure = config.host === '127.0.0.1' && !config.publicHttps ? '' : '; Secure';
+  res.setHeader('Set-Cookie', `jarvis_session=${r.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${config.sessionTtlMs / 1000}${secure}`);
+  return { csrf: r.csrf };
+}, true);
+route('GET', '/api/passkeys', ({ db }) => ({ items: pk.listPasskeys(db), required: pk.passkeyRequired(db) }));
+route('POST', '/api/passkeys/register/options', ({ db, req, session }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); return pk.registrationOptions(db, rpCtx(req), session!.tokenHash); });
+route('POST', '/api/passkeys/register/verify', ({ db, req, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); return pkGuard(() => pk.finishRegistration(db, rpCtx(req), session!.tokenHash, body)); });
+route('POST', '/api/passkeys/stepup/options', ({ db, req, session }) => { if (!pk.listPasskeys(db).length) throw new HttpError(404, 'No passkeys are set up.'); return pk.authOptions(db, rpCtx(req), 'stepup', session!.tokenHash); });
+route('POST', '/api/passkeys/stepup/verify', ({ db, req, session, body }) => { pkGuard(() => pk.finishAuthentication(db, rpCtx(req), 'stepup', session!.tokenHash, body)); auth.grantStepUp(db, session!); return { ok: true }; });
+route('PUT', '/api/passkeys/require', ({ db, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); guard(() => pk.setRequired(db, parse(z.object({ required: z.boolean() }), body).required)); return { required: pk.passkeyRequired(db) }; });
+route('DELETE', '/api/passkeys/:id', ({ db, session, params }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); return { ok: pk.removePasskey(db, decodeURIComponent(params.id)) }; });
+
 // Liveness for an outside watcher or the process manager. Reveals nothing but "up".
 route('GET', '/api/health', () => ({ ok: true }), true);
 
 // ---- auth ----
 route('POST', '/api/login', ({ db, body, res }) => {
+  if (pk.passkeyRequired(db)) throw new HttpError(403, 'Passkey sign-in is required. Use your passkey, or on the machine itself run: npm run setup -- --allow-passphrase');
   const { passphrase } = parse(z.object({ passphrase: z.string().min(1).max(200) }), body);
   const r = auth.login(db, passphrase);
   if ('error' in r) throw new HttpError(r.retryAfterMs ? 429 : 401, r.error);
@@ -66,7 +95,7 @@ route('POST', '/api/logout', ({ db, req, res }) => {
   const t = cookie(req); if (t) auth.logout(db, t);
   res.setHeader('Set-Cookie', 'jarvis_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return { ok: true };
 }, true);
-route('GET', '/api/me', ({ session, db }) => session ? { authenticated: true, csrf: session.csrf, stepUp: auth.hasStepUp(session) } : { authenticated: false, configured: auth.isConfigured(db) }, true);
+route('GET', '/api/me', ({ session, db }) => session ? { authenticated: true, csrf: session.csrf, stepUp: auth.hasStepUp(session), passkeys: pk.listPasskeys(db).length } : { passkeys: pk.listPasskeys(db).length, passkeyRequired: pk.passkeyRequired(db), authenticated: false, configured: auth.isConfigured(db) }, true);
 route('POST', '/api/stepup', ({ db, session, body }) => {
   const { passphrase } = parse(z.object({ passphrase: z.string().min(1).max(200) }), body);
   if (!auth.stepUp(db, session!, passphrase)) throw new HttpError(401, 'Invalid credentials');
@@ -257,6 +286,7 @@ route('POST', '/api/memory/suggest', async ({ db }) => msug.suggestFromChat(db))
 route('PUT', '/api/memory/suggest-settings', ({ db, body }) => { msug.setAuto(db, parse(z.object({ auto: z.boolean() }), body).auto); return { auto: msug.autoEnabled(db) }; });
 route('POST', '/api/memory/suggestions/:id/accept', ({ db, params, body }) => { const r = msug.accept(db, params.id, parse(z.object({ content: z.string().min(3).max(300).optional() }), body).content); if (!r.ok) throw bad(r.error ?? 'failed'); return r; });
 route('POST', '/api/memory/suggestions/:id/reject', ({ db, params }) => ({ ok: msug.reject(db, params.id) }));
+route('GET', '/api/backups', ({ db }) => backupStatus(db));
 route('GET', '/api/budget', ({ db }) => ({ summary: budget.summary(db), ledger: rows(db, 'SELECT * FROM budget_ledger ORDER BY at DESC LIMIT 100') }));
 route('POST', '/api/budget/fixed', ({ db, body }) => {
   const b = parse(z.object({ category: z.string().min(1).max(60), usd: z.number().min(0).max(1000), note: z.string().max(200).default('') }), body);
