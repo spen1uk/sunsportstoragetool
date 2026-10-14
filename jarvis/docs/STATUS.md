@@ -113,3 +113,8 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 ## Memory suggestions
 - ✅ (tested with a stand-in model; not yet run against the live model). "Look through recent chats" (Memory page) asks the cheap model (Haiku) to read the saved messages since the last look and propose up to 5 short facts Luke himself stated. They wait in a list; **nothing becomes a memory until Luke accepts it** (he can edit first); declined ones are never suggested again; facts already remembered are skipped; secrets and card-number-like text are filtered before they are shown.
 - Optional auto mode (off by default): at most once a day, only with ≥ 6 new messages, and it backs off an hour after any attempt. Optional work: gated at 90% budget and the daily ceiling. Private-mode chats are never saved, so are never read. Cost: a fraction of a cent per run.
+
+## Server move groundwork (nothing deployed)
+- ✅ (tested) Mac helper bridge: `npm run bridge:setup` / `npm run bridge` reads Calendar/Notes on the Mac (read-only) and pushes to the server; credential created with step-up, stored hashed, revocable, can open only /api/bridge/*; server discards anything outside the ticked calendars/folders; failures show as stale/disconnected. Optional auto-start: `scripts/bridge-autostart.sh`.
+- ✅ (tested) `JARVIS_ALLOWED_HOSTS`, `JARVIS_PUBLIC_HTTPS` (Secure cookies + HSTS), `/api/health`.
+- 📄 docs/DEPLOY.md, deploy/jarvis.service (hardened systemd unit), deploy/jarvis.env.example. **Not executed.** Still open: passkeys, encrypted off-site backups, security review, uptime alert.

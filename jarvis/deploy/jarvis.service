@@ -1,0 +1,30 @@
+# systemd unit for running Jarvis on a small Linux server. Copy to /etc/systemd/system/jarvis.service (see docs/DEPLOY.md).
+[Unit]
+Description=Jarvis (personal assistant, single user)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=jarvis
+Group=jarvis
+WorkingDirectory=/opt/jarvis
+EnvironmentFile=/etc/jarvis.env
+ExecStart=/usr/bin/node server/index.ts
+Restart=always
+RestartSec=5
+# Hardening: it can only write its own data folder, cannot gain privileges, sees no other users' files or devices.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/jarvis
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

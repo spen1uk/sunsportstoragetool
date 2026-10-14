@@ -7,7 +7,7 @@ const root = path.resolve(import.meta.dirname, '..', '..');
 const sh = (args: string[], env: Record<string, string> = {}) => execFileSync('bash', args, { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' });
 
 test('launcher scripts are valid bash and executable', () => {
-  for (const f of ['scripts/launch.sh', 'scripts/autostart.sh', 'Jarvis.command']) {
+  for (const f of ['scripts/launch.sh', 'scripts/autostart.sh', 'scripts/bridge-autostart.sh', 'Jarvis.command']) {
     sh(['-n', f]); assert.ok(fs.statSync(path.join(root, f)).mode & 0o100, `${f} must be executable`);
   }
 });

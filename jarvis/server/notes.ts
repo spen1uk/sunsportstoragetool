@@ -28,26 +28,30 @@ export function parseNotes(raw: string) {
   return out;
 }
 
-export async function detectFolders(db: DB): Promise<string[]> {
-  const names = z.array(z.string()).parse(JSON.parse(await getRunner()(LIST_JS, [], 30_000)));
-  rememberSources(db, 'notes', names); return names;
-}
+export async function listFolderNames(): Promise<string[]> { return z.array(z.string()).parse(JSON.parse(await getRunner()(LIST_JS, [], 30_000))); }
+export async function detectFolders(db: DB): Promise<string[]> { const names = await listFolderNames(); rememberSources(db, 'notes', names); return names; }
 
 let syncing = false;
+/** Read the chosen Notes folders from THIS Mac (only on a Mac; also used by the server-bridge helper). */
+export async function readNotes(want: string[]) {
+  return parseNotes(await getRunner()(NOTES_JS, [JSON.stringify(want), String(MAX_PER_FOLDER)], 180_000)).filter((n) => want.includes(n.folder));
+}
+export function storeNotes(db: DB, notes: ReturnType<typeof parseNotes>, now: number, actor = 'jarvis') {
+  tx(db, () => {
+    db.prepare('DELETE FROM notes_cache').run();
+    const ins = db.prepare('INSERT OR REPLACE INTO notes_cache(id,folder,title,body,modified_ms) VALUES(?,?,?,?,?)');
+    for (const n of notes) ins.run(n.id, n.folder, n.title, n.body, n.modified);
+  });
+  recordSync(db, 'notes', true, notes.length, null, now);
+  audit(db, actor, 'notes.sync', '', { count: notes.length });
+}
 export async function syncNotes(db: DB, now = Date.now()): Promise<{ ok: boolean; count?: number; error?: string }> {
   const want = sources(db, 'notes').filter((s) => s.enabled).map((s) => s.name);
   if (!want.length) return { ok: false, error: 'Choose at least one Notes folder first.' };
   if (syncing) return { ok: false, error: 'A sync is already running.' };
   syncing = true;
   try {
-    const notes = parseNotes(await getRunner()(NOTES_JS, [JSON.stringify(want), String(MAX_PER_FOLDER)], 180_000)).filter((n) => want.includes(n.folder));
-    tx(db, () => {
-      db.prepare('DELETE FROM notes_cache').run();
-      const ins = db.prepare('INSERT OR REPLACE INTO notes_cache(id,folder,title,body,modified_ms) VALUES(?,?,?,?,?)');
-      for (const n of notes) ins.run(n.id, n.folder, n.title, n.body, n.modified);
-    });
-    recordSync(db, 'notes', true, notes.length, null, now);
-    audit(db, 'jarvis', 'notes.sync', '', { count: notes.length });
+    const notes = await readNotes(want); storeNotes(db, notes, now);
     return { ok: true, count: notes.length };
   } catch (e) {
     const msg = e instanceof MacError ? e.message : 'Notes sync failed.';

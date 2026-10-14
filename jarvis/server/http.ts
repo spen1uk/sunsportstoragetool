@@ -30,6 +30,7 @@ import * as life from './life.ts';
 import * as ws from './workspace.ts';
 import * as links from './links.ts';
 import * as props from './proposals.ts';
+import * as bridge from './bridge.ts';
 import * as msug from './memsuggest.ts';
 import { MacError, isMac } from './mac.ts';
 
@@ -48,13 +49,16 @@ const rows = (db: DB, sql: string, ...p: any[]) => db.prepare(sql).all(...p);
 const row = (db: DB, sql: string, ...p: any[]) => db.prepare(sql).get(...p);
 const parse = <T extends z.ZodType>(s: T, v: unknown): z.infer<T> => { const r = s.safeParse(v); if (!r.success) throw bad(r.error.issues[0]?.message ?? 'invalid input'); return r.data; };
 
+// Liveness for an outside watcher or the process manager. Reveals nothing but "up".
+route('GET', '/api/health', () => ({ ok: true }), true);
+
 // ---- auth ----
 route('POST', '/api/login', ({ db, body, res }) => {
   const { passphrase } = parse(z.object({ passphrase: z.string().min(1).max(200) }), body);
   const r = auth.login(db, passphrase);
   if ('error' in r) throw new HttpError(r.retryAfterMs ? 429 : 401, r.error);
   const loopback = config.host === '127.0.0.1' || config.host === 'localhost';
-  const secure = loopback ? '' : '; Secure'; // browsers treat http://localhost as a secure context; anything else must be TLS
+  const secure = loopback && !config.publicHttps ? '' : '; Secure'; // browsers treat http://localhost as a secure context; anything else (or anything behind an HTTPS front door) must be Secure
   res.setHeader('Set-Cookie', `jarvis_session=${r.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${config.sessionTtlMs / 1000}${secure}`);
   return { csrf: r.csrf };
 }, true);
@@ -204,7 +208,17 @@ route('GET', '/api/connections', ({ db }) => ({ items: rows(db, 'SELECT * FROM c
 // ---- Apple Calendar & Notes (read-only, from the Mac Jarvis runs on). Nothing here writes to either app. ----
 const kindOf = (b: any) => parse(z.object({ kind: z.enum(['calendar', 'notes']) }), b).kind;
 const macFail = (e: unknown): never => { if (e instanceof MacError) throw new HttpError(e.kind === 'unavailable' ? 503 : 502, e.message); throw e; };
-route('GET', '/api/mac', ({ db }) => ({ mac: isMac(), calendar: { ...cal.syncState(db, 'calendar'), sources: cal.sources(db, 'calendar') }, notes: { ...cal.syncState(db, 'notes'), sources: cal.sources(db, 'notes') } }));
+// Mac helper bridge. These routes take only the helper's own credential (never a browser session) and can do nothing else.
+const viaBridge = (h: (c: Ctx) => unknown): Handler => (c) => { const v = bridge.verify(c.db, c.req.headers.authorization); if (!v.ok) throw new HttpError(v.status, v.error); return h(c); };
+route('GET', '/api/bridge/config', viaBridge(({ db }) => bridge.helperConfig(db)), true);
+route('POST', '/api/bridge/names', viaBridge(({ db, body }) => guard(() => bridge.reportNames(db, body))), true);
+route('POST', '/api/bridge/calendar', viaBridge(({ db, body }) => guard(() => bridge.ingestCalendar(db, body))), true);
+route('POST', '/api/bridge/notes', viaBridge(({ db, body }) => guard(() => bridge.ingestNotes(db, body))), true);
+route('POST', '/api/bridge/failure', viaBridge(({ db, body }) => { const b = parse(z.object({ kind: z.enum(['calendar', 'notes']), message: z.string().max(300) }), body); bridge.reportFailure(db, b.kind, b.message); return { ok: true }; }), true);
+route('GET', '/api/bridge', ({ db }) => bridge.status(db));
+route('POST', '/api/bridge/token', ({ db, session }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); return { token: bridge.createToken(db) }; });
+route('DELETE', '/api/bridge/token', ({ db }) => ({ ok: bridge.revokeToken(db) }));
+route('GET', '/api/mac', ({ db }) => ({ mac: isMac(), bridge: bridge.status(db), calendar: { ...cal.syncState(db, 'calendar'), sources: cal.sources(db, 'calendar') }, notes: { ...cal.syncState(db, 'notes'), sources: cal.sources(db, 'notes') } }));
 route('POST', '/api/mac/detect', async ({ db, body }) => { const k = kindOf(body); try { const names = k === 'calendar' ? await cal.detectCalendars(db) : await nts.detectFolders(db); return { names, sources: cal.sources(db, k) }; } catch (e) { return macFail(e); } });
 route('PUT', '/api/mac/sources', ({ db, body }) => { const b = parse(z.object({ kind: z.enum(['calendar', 'notes']), enabled: z.array(z.string().max(200)).max(100) }), body); const known = new Set(cal.sources(db, b.kind).map((x) => x.name)); cal.setEnabled(db, b.kind, b.enabled.filter((n) => known.has(n))); return { sources: cal.sources(db, b.kind), state: cal.syncState(db, b.kind) }; });
 route('POST', '/api/mac/sync', async ({ db, body }) => { const k = kindOf(body); const r = k === 'calendar' ? await cal.syncCalendar(db) : await nts.syncNotes(db); if (!r.ok) throw new HttpError(502, r.error ?? 'sync failed'); return { ...r, state: cal.syncState(db, k) }; });
@@ -307,11 +321,12 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
 
   return http.createServer(async (req, res) => {
     for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
+    if (config.publicHttps) res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     const send = (status: number, data: unknown) => { res.statusCode = status; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(data)); };
     try {
       // DNS-rebinding defence: only answer for expected Host headers.
       const host = (req.headers.host ?? '').toLowerCase();
-      const okHosts = opts.allowedHosts ?? [`localhost:${config.port}`, `127.0.0.1:${config.port}`, 'localhost:5173', '127.0.0.1:5173'];
+      const okHosts = opts.allowedHosts ?? [`localhost:${config.port}`, `127.0.0.1:${config.port}`, 'localhost:5173', '127.0.0.1:5173', ...config.allowedHosts];
       if (!okHosts.includes(host)) return send(421, { error: 'unexpected host' });
       const url = new URL(req.url ?? '/', `http://${host}`);
 
@@ -339,7 +354,7 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
       let body: any = undefined;
       if (method !== 'GET' && method !== 'DELETE') {
         const chunks: Buffer[] = []; let n = 0;
-        for await (const c of req) { n += (c as Buffer).length; if (n > 256 * 1024) return send(413, { error: 'body too large' }); chunks.push(c as Buffer); }
+        for await (const c of req) { n += (c as Buffer).length; if (n > (url.pathname.startsWith('/api/bridge/') ? 6 * 1024 * 1024 : 256 * 1024)) return send(413, { error: 'body too large' }); chunks.push(c as Buffer); }
         try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}; } catch { return send(400, { error: 'invalid JSON' }); }
       }
       const m = r.re.exec(url.pathname)!;

@@ -18,7 +18,9 @@
     "secret:set": "node server/secret-set.ts",
     "backup:verify": "node server/backup-verify.ts",
     "test": "node --test server/test/*.test.ts",
-    "typecheck": "tsc -p server/tsconfig.json && tsc -p web/tsconfig.json"
+    "typecheck": "tsc -p server/tsconfig.json && tsc -p web/tsconfig.json",
+    "bridge": "node server/bridge-mac.ts",
+    "bridge:setup": "node server/bridge-mac.ts --setup"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.133.0",

@@ -124,6 +124,7 @@ export function CalendarPage() {
       </div>
       <p className="muted small" style={{ marginTop: 8 }}>A read-only copy of your Apple Calendar (about a month back and two months ahead). Jarvis plans work around these appointments but never changes your calendar. Repeating events are worked out from their repeat rule; a few unusual patterns may still be missed.</p>
       <SourcePicker kind="calendar" noun="calendars" />
+      <BridgeCard />
     </section>
   );
 }
@@ -143,5 +144,24 @@ export function NotesPage() {
       {open && <div className="glass pad section"><div className="row"><h2>{open.title}</h2><button onClick={() => setOpen(null)}>Close</button></div><pre className="wrap">{open.body}</pre></div>}
       <SourcePicker kind="notes" noun="Notes folders" />
     </section>
+  );
+}
+
+/** For when Jarvis runs on a server: a small helper on your Mac reads Calendar/Notes and pushes a read-only copy. This card makes (and revokes) its credential. */
+export function BridgeCard() {
+  const { data, reload } = useLive<any>(() => api('/api/bridge'), ['calendar-sync']);
+  const [pw, setPw] = useState(''), [token, setToken] = useState(''), [err, setErr] = useState(''), [copied, setCopied] = useState(false);
+  if (!data) return null;
+  const make = async () => { setErr(''); try { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); const r = await api<any>('/api/bridge/token', 'POST', {}); setToken(r.token); reload(); } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } };
+  return (
+    <div className="glass pad section">
+      <h2>Mac helper (for when Jarvis lives on a server)</h2>
+      <p className="muted small">A server can't read your Mac's Calendar and Notes. A small helper on your Mac does it instead, read-only, and sends a copy here. It can only read the calendars and folders you ticked above, and its credential can do nothing else in Jarvis. Not needed while Jarvis runs on your Mac.</p>
+      <p className="small">Status: {data.configured ? <><span className="badge connected">credential active</span> <span className="muted">{data.lastSeen ? `helper last seen ${new Date(data.lastSeen).toLocaleString()}` : 'helper has not connected yet'}</span></> : <span className="badge planned">not set up</span>}</p>
+      {token ? <div className="note"><p><b>Copy this now. It is shown once.</b> On your Mac run <code>npm run bridge:setup</code> and paste it when asked.</p><code className="mono" style={{ wordBreak: 'break-all' }}>{token}</code><div className="row" style={{ marginTop: 8 }}><button onClick={() => { void navigator.clipboard?.writeText(token); setCopied(true); }}>{copied ? 'Copied' : 'Copy'}</button><button onClick={() => { setToken(''); setCopied(false); }}>I've saved it</button></div></div>
+        : <div className="row wrap"><input type="password" autoComplete="current-password" placeholder="Your passphrase (to confirm)" value={pw} onChange={(e) => setPw(e.target.value)} aria-label="Passphrase to confirm" /><button className="primary" disabled={!pw} onClick={() => void make()}>{data.configured ? 'Replace credential' : 'Create credential'}</button>
+          {data.configured && <button onClick={async () => { await api('/api/bridge/token', 'DELETE'); reload(); }}>Revoke</button>}</div>}
+      {err && <p className="err small" role="alert">{err}</p>}
+    </div>
   );
 }

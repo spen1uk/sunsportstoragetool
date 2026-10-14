@@ -24,6 +24,8 @@ export type Session = { csrf: string; stepUpUntil: number; tokenHash: string };
 
 // Login throttling (in-memory, per process): 5 failures → 60s lockout, doubling.
 const fails = { n: 0, lockedUntil: 0 };
+/** Tests only: clear the in-memory lockout. */
+export const resetLoginThrottle = () => { fails.n = 0; fails.lockedUntil = 0; };
 
 export function login(db: DB, pass: string): { token: string; csrf: string } | { error: string; retryAfterMs?: number } {
   if (Date.now() < fails.lockedUntil) return { error: 'Too many attempts', retryAfterMs: fails.lockedUntil - Date.now() };

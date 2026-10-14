@@ -106,32 +106,41 @@ export function recordSync(db: DB, kind: 'calendar' | 'notes', ok: boolean, coun
   publish({ type: 'calendar-sync', kind });
 }
 
-export async function detectCalendars(db: DB): Promise<string[]> {
-  const names = z.array(z.string()).parse(JSON.parse(await getRunner()(LIST_JS, [], 30_000)));
-  rememberSources(db, 'calendar', names); return names;
-}
+export async function listCalendarNames(): Promise<string[]> { return z.array(z.string()).parse(JSON.parse(await getRunner()(LIST_JS, [], 30_000))); }
+export async function detectCalendars(db: DB): Promise<string[]> { const names = await listCalendarNames(); rememberSources(db, 'calendar', names); return names; }
 
 let syncing = false;
-/** Pull the next two weeks (and yesterday) for the chosen calendars. On failure the old copy stays, labelled stale. */
+export const WINDOW = { past: PAST_DAYS * DAY, ahead: AHEAD_DAYS * DAY };
+
+/** Read the chosen calendars from THIS Mac and expand repeating events (runs only on a Mac; also used by the server-bridge helper). */
+export async function readCalendar(want: string[], from: number, to: number) {
+  const scan = parseScan(await getRunner()(EVENTS_JS, [String(from), String(to), JSON.stringify(want)], 240_000));
+  const occ = occurrences(scan, from, to);
+  const events = occ.events.filter((e) => want.includes(e.calendar));
+  const scanned = Object.values(scan.stats).reduce((n, x) => n + x.total, 0);
+  return { events, detail: { scanned, calendars: scan.stats, repeatingSeries: occ.repeating, unsupportedRules: occ.unsupported } };
+}
+/** Replace the stored copy with a freshly read one and record the sync. */
+export function storeCalendar(db: DB, events: CalEvent[], detail: unknown, now: number, actor = 'jarvis') {
+  tx(db, () => {
+    db.prepare('DELETE FROM calendar_events').run();
+    const ins = db.prepare('INSERT OR REPLACE INTO calendar_events(calendar,uid,title,start_ms,end_ms,all_day,location) VALUES(?,?,?,?,?,?,?)');
+    for (const e of events) ins.run(e.calendar, e.uid, e.title, e.start, e.end, e.allDay ? 1 : 0, e.location);
+  });
+  recordSync(db, 'calendar', true, events.length, null, now, detail);
+  audit(db, actor, 'calendar.sync', '', { count: events.length, scanned: (detail as any)?.scanned });
+}
+
+/** Pull the chosen calendars (yesterday-35d .. +62d). On failure the old copy stays, labelled stale. */
 export async function syncCalendar(db: DB, now = Date.now()): Promise<{ ok: boolean; count?: number; error?: string }> {
   const want = sources(db, 'calendar').filter((s) => s.enabled).map((s) => s.name);
   if (!want.length) return { ok: false, error: 'Choose at least one calendar first.' };
   if (syncing) return { ok: false, error: 'A sync is already running.' };
-  syncing = true; let detail: unknown = null;
+  syncing = true;
   try {
-    const from = now - PAST_DAYS * DAY, to = now + AHEAD_DAYS * DAY;
-    const scan = parseScan(await getRunner()(EVENTS_JS, [String(from), String(to), JSON.stringify(want)], 240_000));
-    const occ = occurrences(scan, from, to), events = occ.events.filter((e) => want.includes(e.calendar));
-    tx(db, () => {
-      db.prepare('DELETE FROM calendar_events').run();
-      const ins = db.prepare('INSERT OR REPLACE INTO calendar_events(calendar,uid,title,start_ms,end_ms,all_day,location) VALUES(?,?,?,?,?,?,?)');
-      for (const e of events) ins.run(e.calendar, e.uid, e.title, e.start, e.end, e.allDay ? 1 : 0, e.location);
-    });
-    const scanned = Object.values(scan.stats).reduce((n, x) => n + x.total, 0);
-    detail = { scanned, calendars: scan.stats, repeatingSeries: occ.repeating, unsupportedRules: occ.unsupported };
-    recordSync(db, 'calendar', true, events.length, null, now, detail);
-    audit(db, 'jarvis', 'calendar.sync', '', { count: events.length, scanned });
-    return { ok: true, count: events.length };
+    const r = await readCalendar(want, now - WINDOW.past, now + WINDOW.ahead);
+    storeCalendar(db, r.events, r.detail, now);
+    return { ok: true, count: r.events.length };
   } catch (e) {
     const msg = e instanceof MacError ? e.message : 'Calendar sync failed.';
     recordSync(db, 'calendar', false, 0, msg, now); audit(db, 'jarvis', 'calendar.sync_failed', '', { kind: (e as any)?.kind ?? 'failed' });
