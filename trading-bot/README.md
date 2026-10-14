@@ -49,6 +49,21 @@ profits) are built in as optional rules the learner can switch on. See `playbook
 goal is small, controlled losses (about 1% each) and winners bigger than losers. A bot claiming
 it never loses is either lying or hiding risk.
 
+### Memory Keeper (remembering mistakes)
+
+The bot keeps a notebook of its mistakes in `data/memory.json`, so it remembers them across restarts:
+
+1. **Spot:** the loss autopsy finds what losing trades had in common.
+2. **Caution:** with strong evidence, new trades matching that pattern are taken at **half size**.
+3. **Avoid:** if trades *after* the discovery keep losing (5+ trades, -3R or worse), matching setups
+   are **skipped**. It needs that new evidence, so it never acts on hindsight alone.
+4. **Fix or clear:** a filter that passes walk-forward testing becomes a rule ("fixed"). If newer
+   matching trades make money, the caution is lifted ("cleared").
+5. **Don't repeat:** every rule change it tests is remembered. Rejected ideas wait 14-30 days
+   before being tested again; the wait resets when the rules change.
+
+Half-size and skip only ever *reduce* risk; the risk limits themselves never change.
+
 ## Quick start (on your computer)
 
 Needs Python 3.8+ (the Python that comes with a Mac works). No other packages are required.
@@ -85,6 +100,7 @@ Four tabs:
 - **Floor**: the detailed view (below).
 - **Data**: the live pipeline (BloFin → candles → indicators → signals → risk → broker →
   journal → learner) with a health light on each step, price-feed freshness and recent errors.
+- **Memory**: the Memory Keeper's notebook of mistakes (see below).
 - **Lab**: strategy stats, drawdown, a histogram of trade results, results by month, the
   current rules, rule-version history and the learning log.
 

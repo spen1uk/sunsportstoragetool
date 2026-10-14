@@ -144,7 +144,16 @@ def build_snapshot(cfg, engine, journal, market, now_ms=None, demo=False, health
         "thoughts": [{"time": ts_iso(e["ts"]), "kind": e["kind"], "message": e["message"]} for e in thoughts],
         "health": _health(cfg, market, health, now_ms),
         "lab": _lab(cfg, engine, trades),
+        "memory": _memory(engine),
     }
+
+
+def _memory(engine):
+    from .memory import Memory
+    try:
+        return (engine.memory or Memory()).summary()
+    except Exception:  # never let the notebook break the dashboard
+        return None
 
 
 def _health(cfg, market, health, now_ms):
@@ -270,16 +279,42 @@ def build_demo(cfg, seed=35):
     from .strategy import btc_regime, compute_indicators
     from .config import load_params
 
+    from .memory import Memory
     params, v = load_params(cfg)
     path = os.path.join(DATA_DIR, "journal.db")
     if os.path.exists(path):
         os.remove(path)
-    j = Journal(path)
-    j.event("start", "DEMO: simulated $100 paper account opened", 0)
-    eng = Engine(cfg, params, v, journal=j, mode="paper")
+    for stale in ("memory.json", "params.json", "learning_log.md"):
+        if os.path.exists(os.path.join(DATA_DIR, stale)):
+            os.remove(os.path.join(DATA_DIR, stale))
     hist = {s: synthetic_candles(900, seed=seed + i, start_price=[60000, 3000, 150, 1.0, 0.5][i % 5],
                                  bar=cfg["timeframe"])
             for i, s in enumerate(cfg["symbols"])}
+
+    # 1) learn from a longer stretch of (simulated) history first, so the Memory Keeper has
+    #    a notebook of past mistakes before the demo account starts trading
+    memory = Memory()
+    learned = False
+    try:
+        from .config import save_new_params
+        from .learner import improve
+        older = {s: synthetic_candles(3000, seed=5 * 7 + i, start_price=[60000, 3000, 150, 1.0, 0.5][i % 5],
+                                      bar=cfg["timeframe"]) for i, s in enumerate(cfg["symbols"])}
+        new_params, rep = improve(cfg, params, older, memory=memory)
+        learned = True
+        if rep["changes"]:
+            v = save_new_params(new_params, "; ".join(c["change"] for c in rep["changes"]), rep["changes"])
+            params = new_params
+        for p in memory.data["patterns"].values():  # patterns count as "found" before the demo trades
+            p["first_seen"] = hist[cfg["symbols"][0]][60].ts
+        memory.save()
+    except Exception:
+        pass
+
+    # 2) trade the demo account with those rules and that memory
+    j = Journal(path)
+    j.event("start", "DEMO: simulated $100 paper account opened", 0)
+    eng = Engine(cfg, params, v, journal=j, mode="paper", memory=memory)
     inds = {s: compute_indicators(c, params) for s, c in hist.items()}
     btc = btc_regime(hist["BTC-USDT"], params) if "BTC-USDT" in hist else {}
     tl = ThoughtLog(j)
@@ -293,16 +328,6 @@ def build_demo(cfg, seed=35):
                 tl.update(s, kind, text, cs[i].ts)
     market = {s: {"candles": cs[:n], "ind": inds[s], "ctx": {"btc_up": btc.get(cs[n - 1].ts)}}
               for s, cs in hist.items()}
-    learned = False
-    try:  # one learning cycle so the LAB view has lessons to show
-        from .config import save_new_params
-        from .learner import improve
-        new_params, rep = improve(cfg, params, hist)
-        learned = True
-        if rep["changes"]:
-            save_new_params(new_params, "; ".join(c["change"] for c in rep["changes"]), rep["changes"])
-    except Exception:
-        pass
     t_end = hist[cfg["symbols"][0]][n - 1].ts
     health = {"started": ts_iso(hist[cfg["symbols"][0]][60].ts), "last_fetch_ok": t_end, "last_tick": t_end,
               "ticks": n - 60, "errors": [],

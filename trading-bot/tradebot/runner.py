@@ -10,6 +10,7 @@ from .dashboard import ThoughtLog, build_snapshot, think, write_snapshot
 from .data import BloFinData, get_history
 from .engine import Engine
 from .journal import Journal
+from .memory import Memory
 from .learner import improve
 from .notify import notify
 from .report import summary_text, write_html
@@ -33,7 +34,8 @@ class PaperBot:
         self.client = client or BloFinData()
         self.journal = Journal()
         params, version = load_params(cfg)
-        self.engine = Engine(cfg, params, version, journal=self.journal, mode="paper")
+        self.memory = Memory()
+        self.engine = Engine(cfg, params, version, journal=self.journal, mode="paper", memory=self.memory)
         self.meta = {"last_report": 0, "last_learn": 0, "started": now_iso()}
         if os.path.exists(STATE_FILE):
             with open(STATE_FILE) as f:
@@ -137,7 +139,7 @@ class PaperBot:
                     f.write(f"\n### Claude review {now_iso()}\n{text}\n")
         except Exception as e:
             log(f"[claude] review skipped: {e}")
-        new_params, report = improve(self.cfg, self.engine.p, hist, live, extra)
+        new_params, report = improve(self.cfg, self.engine.p, hist, live, extra, memory=self.memory)
         if report["changes"]:
             reason = "; ".join(c["change"] for c in report["changes"])
             v = save_new_params(new_params, reason, report["changes"])

@@ -306,6 +306,81 @@ class Replay(unittest.TestCase):
         json.dumps(rp)
 
 
+class MemoryKeeper(unittest.TestCase):
+    def _mem(self):
+        from tradebot.memory import Memory
+        path = os.path.join(TMP, "mem-%d.json" % id(self))
+        if os.path.exists(path):
+            os.remove(path)
+        return Memory(path)
+
+    FINDING = {"key": "extension_atr>", "text": "chasing", "cond": {"feature": "extension_atr", "op": ">", "threshold": 2.0},
+               "fix": {"max_extension_atr": 2.0}, "why": "autopsy: x", "losers": 8, "winners": 2, "r_sum": -6.0, "trades": 10}
+
+    def _trade(self, ext, r, ts):
+        return {"features": json.dumps({"extension_atr": ext}), "entry_ts": ts, "exit_ts": ts + 1,
+                "r_multiple": r, "net_pnl": r}
+
+    def test_strong_evidence_means_half_size_and_survives_restart(self):
+        from tradebot.memory import Memory
+        m = self._mem()
+        m.update_patterns([self.FINDING], now=1000)
+        self.assertEqual(m.pre_trade({"extension_atr": 3.0})[0], "half")
+        self.assertEqual(m.pre_trade({"extension_atr": 1.0})[0], None)
+        self.assertEqual(Memory(m.path).pre_trade({"extension_atr": 3.0})[0], "half")  # remembered on disk
+
+    def test_weak_evidence_only_watches(self):
+        m = self._mem()
+        m.update_patterns([dict(self.FINDING, losers=3, winners=2, r_sum=-2.1)], now=1000)
+        self.assertEqual(m.pre_trade({"extension_atr": 3.0})[0], None)
+
+    def test_avoid_needs_new_losing_trades_and_clear_needs_new_winners(self):
+        m = self._mem()
+        m.update_patterns([self.FINDING], now=1000)
+        m.record_trade(self._trade(3.0, -2.0, 500))          # before discovery: hindsight, ignored
+        self.assertEqual(m.data["patterns"]["extension_atr>"]["live"]["trades"], 0)
+        for i in range(5):
+            m.record_trade(self._trade(3.0, -1.0, 2000 + i))
+        self.assertEqual(m.pre_trade({"extension_atr": 3.0})[0], "skip")
+        for i in range(8):
+            m.record_trade(self._trade(3.0, 1.5, 3000 + i))
+        self.assertEqual(m.data["patterns"]["extension_atr>"]["status"], "cleared")
+        self.assertEqual(m.pre_trade({"extension_atr": 3.0})[0], None)
+
+    def test_rejected_ideas_cool_down_and_adoption_resets(self):
+        m = self._mem()
+        m.record_fix('{"a": 1}', "idea", "rejected", "no gain", "no_gain", now=0)
+        self.assertTrue(m.cooling('{"a": 1}', now=1))
+        self.assertFalse(m.cooling('{"a": 1}', now=15 * 86_400_000))
+        m.record_fix('{"a": 1}', "idea", "rejected", "no gain", "no_gain", now=0)
+        m.reset_cooldowns()
+        self.assertFalse(m.cooling('{"a": 1}', now=1))
+
+    def test_engine_halves_size_for_known_mistake(self):
+        m = self._mem()
+        c = synthetic_candles(3000, seed=4)
+        p = copy.deepcopy(CFG["strategy"])
+        ind = compute_indicators(c, p)
+        i = next(i for i in range(60, 3000) if signal_at(c, ind, i, p))
+        plain = Engine(copy.deepcopy(CFG), p)
+        plain._maybe_enter("A", c, ind, i)
+        m.update_patterns([dict(self.FINDING, cond={"feature": "rsi", "op": ">", "threshold": -1})], now=0)
+        careful = Engine(copy.deepcopy(CFG), p, memory=m)
+        careful._maybe_enter("A", c, ind, i)
+        self.assertAlmostEqual(careful.positions["A"].qty, plain.positions["A"].qty / 2, places=9)
+        self.assertEqual(m.data["stats"]["half_sized"], 1)
+
+    def test_learner_uses_memory(self):
+        from tradebot.learner import improve
+        m = self._mem()
+        hist = {s: synthetic_candles(3000, seed=35 + i, bar="1D") for i, s in enumerate(CFG["symbols"])}
+        improve(CFG, copy.deepcopy(CFG["strategy"]), hist, memory=m)
+        self.assertTrue(m.data["tried"])                     # it remembered what it tested
+        _, rep = improve(CFG, copy.deepcopy(CFG["strategy"]), hist, memory=m)
+        self.assertGreater(m.data["stats"]["ideas_skipped"], 0)  # and didn't repeat rejected ideas
+        self.assertTrue(any("already tested" in l for l in rep["lessons"]))
+
+
 class NoLookahead(unittest.TestCase):
     def test_future_bars_do_not_change_past_trades(self):
         c = synthetic_candles(2500, seed=11)

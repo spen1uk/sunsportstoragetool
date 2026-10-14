@@ -14,8 +14,9 @@ from .util import BAR_MS, new_id, ts_iso, utc_day
 
 
 class Engine:
-    def __init__(self, cfg, params, params_version=0, journal=None, mode="paper", balance=None):
+    def __init__(self, cfg, params, params_version=0, journal=None, mode="paper", balance=None, memory=None):
         self.cfg = cfg
+        self.memory = memory  # Memory Keeper: checks every new setup against known mistakes
         self.fees = cfg["fees"]
         self.risk = cfg["risk"]
         self.bar_ms = BAR_MS[cfg["timeframe"]]
@@ -160,6 +161,17 @@ class Engine:
         sig = signal_at(candles, ind, i, self.p, ctx)
         if not sig:
             return
+        reasons = list(sig.reasons)
+        size_mult = 1.0
+        if self.memory is not None:
+            action, pat = self.memory.pre_trade(sig.features)
+            if action:
+                msg = self.memory.note_action(action, pat, symbol, bar.ts)
+                self._event(bar.ts, "memory", msg)
+                if action == "skip":
+                    return
+                size_mult = 0.5
+                reasons.append(f"memory: half size - looks like a past mistake ({pat['text']})")
         d = sig.side
         fill = sig.entry * (1 + d * self.slip)
         risk_per_unit = (fill - sig.stop) * d
@@ -169,7 +181,7 @@ class Engine:
         risk_amt = self.balance * self.risk["risk_per_trade_pct"] / 100.0
         qty = risk_amt / risk_per_unit
         max_notional = self.balance * self.risk["max_leverage"] / self.risk["max_open_positions"]
-        qty = min(qty, max_notional / fill)
+        qty = min(qty, max_notional / fill) * size_mult  # memory caution halves the final position
         if qty * fill < self.risk["min_notional"]:
             self._event(bar.ts, "skip", f"{symbol} signal skipped: size ${qty * fill:.2f} below exchange minimum")
             return
@@ -178,13 +190,13 @@ class Engine:
         pos = Position(
             id=new_id(), symbol=symbol, side=d, entry_ts=bar.ts, entry_price=fill, qty=qty,
             stop=sig.stop, initial_stop=sig.stop, target=target, risk_per_unit=risk_per_unit,
-            atr=sig.atr, params_version=self.pv, reasons=sig.reasons,
+            atr=sig.atr, params_version=self.pv, reasons=reasons,
             best_price=fill, worst_price=fill, entry_fee=fee, features=sig.features, orig_qty=qty,
         )
         self.positions[symbol] = pos
         if self.journal:
             self.journal.event("entry", f"{'LONG' if d > 0 else 'SHORT'} {symbol} qty={qty:.6f} @ {fill:.4f} "
-                                        f"stop={sig.stop:.4f} target={target:.4f} | " + "; ".join(sig.reasons), bar.ts)
+                                        f"stop={sig.stop:.4f} target={target:.4f} | " + "; ".join(reasons), bar.ts)
 
     def _close(self, pos, ts, px, reason):
         d = pos.side
@@ -213,6 +225,9 @@ class Engine:
         self.closed.append(t)
         if self.journal:
             self.journal.record_trade(t)
+        if self.memory is not None:
+            for note in self.memory.record_trade(t.to_dict()):
+                self._event(ts, "memory", note)
 
         if net < 0:
             self.consec_losses += 1

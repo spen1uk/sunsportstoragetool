@@ -110,3 +110,18 @@ pre.learn { white-space: pre-wrap; margin: 0; max-height: 420px; overflow: auto;
 body.replaying .hud-legend { display: none; }
 body.replaying .hud-banner { color: #2bff88; border-color: #2bff88; background: rgba(43,255,136,.08); }
 @media (max-width: 700px) { .rp-info { min-width: 0; } #rp-seek { order: 9; flex-basis: 100%; } }
+
+/* ---------------- memory view */
+.mem-how { margin-bottom: 14px; }
+.mem-how ol { margin: 0; padding-left: 20px; color: var(--ink-2); font-size: 13px; display: grid; gap: 4px; }
+.patterns { display: grid; gap: 10px; }
+.pattern { background: var(--surface-2); border: 1px solid var(--border); border-left-width: 4px; border-radius: 12px; padding: 10px 12px; font-size: 13px; }
+.st-bad-border { border-left-color: var(--bad); } .st-warn-border { border-left-color: var(--warn); }
+.st-good-border { border-left-color: var(--good); } .st-idle-border { border-left-color: var(--axis); }
+.p-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pill { font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; }
+.p-text { font-weight: 700; font-size: 14px; margin: 6px 0 2px; }
+.p-means { font-size: 12.5px; }
+.p-ev { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 8px 0 0; font-size: 12.5px; }
+.p-ev dt { color: var(--muted); } .p-ev dd { margin: 0; }
+.p-fixes { list-style: none; padding: 8px 0 0; margin: 8px 0 0; border-top: 1px solid var(--grid); font-size: 12px; display: grid; gap: 3px; }

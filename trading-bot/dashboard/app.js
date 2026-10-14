@@ -262,6 +262,49 @@ function renderLab(s) {
   $("learning").textContent = L.learning || "No learning cycles yet. The bot reviews itself once a day.";
 }
 
+// ====================================================================== MEMORY view
+const MEM_STATUS = {
+  avoid: ["bad", "⛔", "Avoiding", "Matching setups are skipped - newer trades confirmed it keeps losing."],
+  caution: ["warn", "▲", "Caution", "Matching setups are taken at half size."],
+  watching: ["idle", "○", "Watching", "Noted - collecting more evidence before acting."],
+  fixed: ["good", "✓", "Fixed", "A rule change that filters it passed testing and was adopted."],
+  cleared: ["good", "●", "Cleared", "Newer matching trades made money, so the caution was lifted."],
+};
+const MEM_TAG = { new: "learn", caution: "pause", avoid: "halt", cleared: "exit", half: "pause", skip: "halt", fix_adopted: "learn", fix_rejected: "thought" };
+
+function renderMemory(s) {
+  const m = s.memory;
+  if (!m) { $("patterns").innerHTML = `<p class="empty">Memory isn't available yet.</p>`; return; }
+  const st = m.stats;
+  $("mem-kpis").innerHTML = `
+    <div class="panel kpi"><div class="k">Mistakes in the notebook</div><div class="v">${st.patterns}</div></div>
+    <div class="panel kpi"><div class="k">Active right now</div><div class="v">${st.active}</div><div class="k">caution or avoid</div></div>
+    <div class="panel kpi"><div class="k">Trades taken at half size</div><div class="v">${st.half_sized}</div></div>
+    <div class="panel kpi"><div class="k">Trades skipped</div><div class="v">${st.skipped}</div></div>
+    <div class="panel kpi"><div class="k">Fixes tested</div><div class="v">${st.tried}</div><div class="k">${m.adopted.length} adopted</div></div>
+    <div class="panel kpi"><div class="k">Repeat tests avoided</div><div class="v">${st.ideas_skipped}</div></div>`;
+  $("patterns").innerHTML = m.patterns.length ? m.patterns.map((p) => {
+    const [k, icon, label, means] = MEM_STATUS[p.status] || MEM_STATUS.watching, e = p.evidence || {}, lv = p.live || {};
+    return `<article class="pattern st-${k}-border">
+      <div class="p-top"><span class="pill st-${k}">${icon} ${label}</span><span class="muted small">found ${p.times_found}× · since ${esc(when(p.first_seen))}</span></div>
+      <div class="p-text">${esc(p.text)}</div>
+      <div class="p-means muted">${esc(means)}</div>
+      <dl class="p-ev">
+        <dt>When found</dt><dd>${e.losers ?? "–"} losers vs ${e.winners ?? "–"} winners · <span class="${cls(e.r_sum)}">${e.r_sum != null ? (e.r_sum >= 0 ? "+" : "−") + Math.abs(e.r_sum).toFixed(1) + "R" : "–"}</span></dd>
+        <dt>Since then</dt><dd>${lv.trades ? `${lv.trades} matching trades · ${lv.wins} won · <span class="${cls(lv.r)}">${lv.r >= 0 ? "+" : "−"}${Math.abs(lv.r).toFixed(1)}R</span>` : "no matching trades yet"}</dd>
+      </dl>
+      ${p.fixes.length ? `<ul class="p-fixes">${p.fixes.slice().reverse().map((f) => `<li><b class="${f.result === "adopted" ? "up" : "muted"}">${f.result === "adopted" ? "✓ adopted" : "✗ rejected"}</b> ${esc(f.desc)}${f.reason ? ` <span class="muted">- ${esc(f.reason)}</span>` : ""}</li>`).join("")}</ul>` : ""}
+    </article>`;
+  }).join("") : `<p class="empty">No mistake patterns yet. The bot needs about 20 closed trades before the loss autopsy can spot one.</p>`;
+  $("mem-events").innerHTML = m.events.length ? m.events.map((ev) =>
+    `<li><span class="t">${esc(when(ev.time))}</span><span class="tag ${MEM_TAG[ev.kind] || ""}">${esc(ev.kind.replace("fix_", ""))}</span><span class="m">${esc(ev.message)}</span></li>`).join("")
+    : `<li class="empty">Nothing yet.</li>`;
+  $("cooldown").innerHTML = m.cooldown.length ? `<thead><tr><th>Idea</th><th>Why rejected</th><th>Retry after</th></tr></thead><tbody>` +
+    m.cooldown.slice(0, 12).map((c) => `<tr><td>${esc(c.desc)}${c.times > 1 ? ` <span class="muted">(${c.times}×)</span>` : ""}</td><td class="muted">${esc(c.reason)}</td><td>${esc(c.retry_after.slice(0, 10))}</td></tr>`).join("") +
+    (m.cooldown.length > 12 ? `<tr><td colspan="3" class="muted">+ ${m.cooldown.length - 12} more ideas waiting out their cooldown</td></tr>` : "") + "</tbody>"
+    : `<tbody><tr><td class="empty">Nothing on cooldown.</td></tr></tbody>`;
+}
+
 // ====================================================================== REPLAY (watch history play out in the city)
 const KIND_LABEL = { halted: "Halted", manage: "In a trade", pause: "Paused", fire: "Firing", setup: "Setup forming", scan: "Scanning" };
 const RP = { data: null, active: false, playing: false, idx: 0, start: 0, acc: 0, thoughts: [], lastThought: [], raf: 0, prev: 0 };
@@ -369,7 +412,7 @@ $("rp-seek").oninput = () => { rpShow(+$("rp-seek").value, false); };
 
 // ====================================================================== tabs, polling, city glue
 let city = null, cityFailed = false, lastOk = 0, lastState = null;
-const views = ["city", "floor", "data", "lab"];
+const views = ["city", "floor", "data", "lab", "memory"];
 function currentView() { const v = location.hash.slice(1); return views.includes(v) ? v : "city"; }
 
 async function showView() {
@@ -418,6 +461,7 @@ function renderAll(s) {
   if (v === "city" && !RP.active) { renderCityHud(s); if (city) city.update(s); }
   if (v === "data") renderData(s);
   if (v === "lab") renderLab(s);
+  if (v === "memory") renderMemory(s);
 }
 
 async function poll() {

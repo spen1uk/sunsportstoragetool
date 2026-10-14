@@ -18,6 +18,7 @@
   <a href="#floor" data-view="floor">Floor</a>
   <a href="#data" data-view="data">Data</a>
   <a href="#lab" data-view="lab">Lab</a>
+  <a href="#memory" data-view="memory">Memory</a>
   <span class="spacer"></span>
   <span class="chip" id="mode">paper</span>
   <span class="chip"><span class="live-dot" id="live"></span><span id="updated">connecting…</span></span>
@@ -116,6 +117,28 @@
     </div>
   </section>
   <section class="panel"><h2>What the bot has learned</h2><pre class="learn" id="learning"></pre></section>
+</main></section>
+
+<!-- ===================== MEMORY ===================== -->
+<section class="view" id="view-memory"><main>
+  <section class="kpis" id="mem-kpis"></section>
+  <div class="panel mem-how">
+    <h2>How the bot remembers its mistakes</h2>
+    <ol>
+      <li><b>Spot it:</b> after trades close, the loss autopsy looks for what losing trades had in common.</li>
+      <li><b>Be careful:</b> with strong evidence, matching trades are taken at <b>half size</b>.</li>
+      <li><b>Avoid it:</b> only if <b>new</b> trades after the discovery keep losing are those setups <b>skipped</b>.</li>
+      <li><b>Fix it or let it go:</b> a fix that passes testing becomes a rule; if newer trades make money, the caution is lifted.</li>
+      <li><b>Don't repeat itself:</b> rejected ideas wait out a cooldown before they're tested again.</li>
+    </ol>
+  </div>
+  <section class="grid2">
+    <div class="panel"><h2>Mistakes notebook</h2><div id="patterns" class="patterns"></div></div>
+    <div class="stack">
+      <div class="panel"><h2>Memory timeline</h2><ul class="feed" id="mem-events"></ul></div>
+      <div class="panel"><h2>Already tried · not repeating yet</h2><div class="tw"><table id="cooldown"></table></div></div>
+    </div>
+  </section>
 </main></section>
 
 <footer>Paper money only · Not financial advice · Refreshes every 5 seconds</footer>

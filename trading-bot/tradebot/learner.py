@@ -116,10 +116,12 @@ AUTOPSY_FLAGS = [
 ]
 
 
-def loss_autopsy(trades, params, min_trades=20, min_saved_r=2.0):
+def loss_autopsy(trades, params, min_trades=20, min_saved_r=2.0, findings=None):
     """Find entry conditions shared by losing trades and propose filters that would skip them.
     Proposals are only *candidates* - they still have to pass the walk-forward test, because
-    a filter that blocks losers usually blocks some winners too."""
+    a filter that blocks losers usually blocks some winners too.
+    If `findings` is a list, structured results are appended to it for the Memory Keeper."""
+    findings = findings if findings is not None else []
     rows = []
     for t in trades:
         try:
@@ -155,7 +157,12 @@ def loss_autopsy(trades, params, min_trades=20, min_saved_r=2.0):
             thr, nl, nw, r_sum = best
             lessons.append(f"Loss autopsy: trades entered with {text.format(thr)} lost {r_sum:+.1f}R in total "
                            f"({nl} losers vs {nw} winners) -> testing a filter that skips them.")
-            proposals.append(({param: thr}, f"autopsy: skip {feat} {side} {thr:.2f}"))
+            why = f"autopsy: skip {feat} {side} {thr:.2f}"
+            proposals.append(({param: thr}, why))
+            findings.append({"key": f"{feat}{'>' if side == 'above' else '<'}", "text": text.format(thr),
+                             "cond": {"feature": feat, "op": ">" if side == "above" else "<", "threshold": thr},
+                             "fix": {param: thr}, "why": why, "losers": nl, "winners": nw, "r_sum": r_sum,
+                             "trades": nl + nw})
 
     for feat, param, text in AUTOPSY_FLAGS:
         if params.get(param):
@@ -166,7 +173,11 @@ def loss_autopsy(trades, params, min_trades=20, min_saved_r=2.0):
             if r_sum <= -min_saved_r:
                 lessons.append(f"Loss autopsy: when {text}, trades lost {r_sum:+.1f}R in total "
                                f"({nl} losers vs {nw} winners) -> testing the '{param}' rule.")
-                proposals.append(({param: True}, f"autopsy: turn on {param}"))
+                why = f"autopsy: turn on {param}"
+                proposals.append(({param: True}, why))
+                findings.append({"key": f"{feat}=false", "text": text,
+                                 "cond": {"feature": feat, "op": "is_false"}, "fix": {param: True}, "why": why,
+                                 "losers": nl, "winners": nw, "r_sum": r_sum, "trades": nl + nw})
     if not proposals:
         lessons.append("Loss autopsy: losing trades didn't share a clear, filterable pattern this cycle.")
     return lessons, proposals
@@ -241,7 +252,7 @@ def evaluate(cfg, params, candles_by_symbol, bounds):
     return {"folds": per_fold, "all": stats(trades, cfg["starting_balance"]), "trades": trades}
 
 
-def improve(cfg, params, candles_by_symbol, live_trades=(), extra_proposals=(), log=print):
+def improve(cfg, params, candles_by_symbol, live_trades=(), extra_proposals=(), log=print, memory=None):
     L = cfg["learning"]
     tunable = L["tunable"]
     warmup = int(params["ema_trend"]) + 50
@@ -253,20 +264,36 @@ def improve(cfg, params, candles_by_symbol, live_trades=(), extra_proposals=(), 
     source = "live paper trades" if len(live_trades) >= 10 else "backtest of recent history"
     lessons, hints = diagnose(review_trades, candles_by_symbol, params)
     lessons.insert(0, f"Review source: {source}.")
-    autopsy_lessons, autopsy_props = loss_autopsy(review_trades, params)
+    findings = []
+    autopsy_lessons, autopsy_props = loss_autopsy(review_trades, params, findings=findings)
     lessons += autopsy_lessons
+    pattern_of = {f["why"]: f["key"] for f in findings}  # which mistake each proposed fix targets
+    if memory is not None:
+        lessons += [f"Memory: {n}" for n in memory.update_patterns(findings)]
     extra_proposals = list(extra_proposals) + autopsy_props
     toggles = L.get("toggles", [])
 
     current, cur_eval = copy.deepcopy(params), base
     changes = []
     tested = 0
+    cooled = set()
+    keys = sorted(set(tunable) | set(toggles))
+
+    def change_key(cand):
+        return json.dumps({k: cand.get(k) for k in keys if cand.get(k) != current.get(k)}, sort_keys=True)
     for _ in range(L["max_param_changes_per_cycle"]):
         best = None
         for cand, why in candidates(current, tunable, hints, extra_proposals, toggles):
+            ck = change_key(cand)
+            if memory is not None and memory.cooling(ck):
+                cooled.add(ck)  # already tried and rejected recently - don't repeat ourselves
+                continue
             tested += 1
             ev = evaluate(cfg, cand, candles_by_symbol, bounds)
             if ev["all"]["trades"] < L["min_trades"]:
+                if memory is not None:
+                    memory.record_fix(ck, why, "rejected", "too few trades to judge", "no_gain",
+                                      pattern_of.get(why), quiet=True)
                 continue
             cur_sel = [f["score"] for f in cur_eval["folds"][:-1]]
             cand_sel = [f["score"] for f in ev["folds"][:-1]]
@@ -274,6 +301,9 @@ def improve(cfg, params, candles_by_symbol, live_trades=(), extra_proposals=(), 
             gain = sum(cand_sel) - sum(cur_sel)
             need = max(L["min_improvement_pct"] / 100 * abs(sum(cur_sel)), 1.0)
             if wins < math.ceil(0.6 * len(select)) or gain < need:
+                if memory is not None:
+                    memory.record_fix(ck, why, "rejected", "didn't beat the current rules on older data",
+                                      "no_gain", pattern_of.get(why), quiet=not why.startswith(("autopsy", "Claude")))
                 continue
             if best is None or gain > best[2]:
                 best = (cand, why, gain, ev)
@@ -284,18 +314,32 @@ def improve(cfg, params, candles_by_symbol, live_trades=(), extra_proposals=(), 
         if hold_new < hold_cur:
             lessons.append(f"Rejected '{why}': looked better on older data (+{gain:.1f}R) but was worse on the "
                            f"most recent unseen period ({hold_new:+.1f}R vs {hold_cur:+.1f}R) - likely curve-fit.")
+            if memory is not None:
+                memory.record_fix(change_key(cand), why, "rejected", "worse on the most recent unseen period (curve-fit)",
+                                  "curve_fit", pattern_of.get(why))
             break
         if ev["all"]["max_dd_pct"] > cur_eval["all"]["max_dd_pct"] + 2.0:
             lessons.append(f"Rejected '{why}': more profitable but deeper drawdown "
                            f"({ev['all']['max_dd_pct']:.1f}% vs {cur_eval['all']['max_dd_pct']:.1f}%).")
+            if memory is not None:
+                memory.record_fix(change_key(cand), why, "rejected", "deeper drawdown", "drawdown", pattern_of.get(why))
             break
         changes.append({
             "change": why, "selection_gain_r": round(gain, 2),
             "holdout_r": [round(hold_cur, 2), round(hold_new, 2)],
             "before": _brief(cur_eval["all"]), "after": _brief(ev["all"]),
         })
+        if memory is not None:
+            memory.record_fix(change_key(cand), why, "adopted", "passed the walk-forward test", pattern_key=pattern_of.get(why))
+            memory.reset_cooldowns()  # the rules changed, so old rejections may no longer apply
         current, cur_eval = cand, ev
 
+    if memory is not None:
+        if cooled:
+            memory.note_ideas_skipped(len(cooled))
+            lessons.append(f"Memory: skipped {len(cooled)} idea(s) already tested and rejected recently "
+                           f"(each is retried after its cooldown).")
+        memory.save()
     report = {
         "at": now_iso(), "lessons": lessons, "candidates_tested": tested, "changes": changes,
         "period": f"{ts_iso(bounds[0][0])} -> {ts_iso(bounds[-1][1] - 1)}",
