@@ -11,7 +11,7 @@ const rawStatus = (port: number, host: string) => new Promise<number>((res, rej)
 const call = (port: number, path: string, o: { method?: string; headers?: Record<string, string>; body?: unknown } = {}) =>
   fetch(`http://127.0.0.1:${port}${path}`, { method: o.method ?? 'GET', headers: { 'content-type': 'application/json', ...o.headers }, body: o.body ? JSON.stringify(o.body) : undefined });
 
-test('API: unexpected Host → 421; unauthenticated → 401; CSRF required; cross-origin blocked; login lockout', async () => {
+test('API: unexpected Host → 421; unauthenticated → 401; CSRF required; cross-origin blocked; wrong passphrases never lock out the owner', async () => {
   const db = makeDb();
   const allowed: string[] = [];
   const srv = createServer(db, { webDir: '/nonexistent', allowedHosts: allowed });
@@ -44,9 +44,9 @@ test('API: unexpected Host → 421; unauthenticated → 401; CSRF required; cros
     const dec = await call(port, `/api/approvals/${approvalId}/decide`, { method: 'POST', headers: { ...h, 'x-jarvis-csrf': csrf }, body: { decision: 'approve', digest: ap.digest } });
     assert.equal(dec.status, 409);
     assert.match((await dec.json() as any).error, /step-up/);
-    // Lockout after repeated failures
-    let last = 0; for (let i = 0; i < 6; i++) last = (await call(port, '/api/login', { method: 'POST', body: { passphrase: 'nope' } })).status;
-    assert.equal(last, 429);
+    // Wrong passphrases are refused, slow down a little, and NEVER lock the real owner out
+    for (let i = 0; i < 5; i++) assert.equal((await call(port, '/api/login', { method: 'POST', body: { passphrase: 'nope' } })).status, 401);
+    assert.equal((await call(port, '/api/login', { method: 'POST', body: { passphrase: 'test-pass' } })).status, 200);
   } finally { srv.closeAllConnections(); srv.close(); }
 });
 void (null as unknown);
@@ -62,6 +62,6 @@ test('server hardening: extra hosts only via config, HTTPS front door makes cook
     const h = await call(port, '/api/health', { headers: { host: 'jarvis.tail1234.ts.net' } }); assert.equal(h.status, 200); assert.deepEqual(await h.json(), { ok: true }); assert.equal(h.headers.get('strict-transport-security'), null);
     config.publicHttps = true;
     const login = await call(port, '/api/login', { method: 'POST', body: { passphrase: 'test-pass' } }); assert.equal(login.status, 200);
-    assert.match(login.headers.get('set-cookie')!, /; Secure/); assert.equal((await call(port, '/api/health')).headers.get('strict-transport-security'), 'max-age=31536000');
+    assert.match(login.headers.get('set-cookie')!, /^__Host-jarvis_session=.*; Secure/); assert.doesNotMatch(login.headers.get('set-cookie')!, /Domain=/); assert.equal((await call(port, '/api/health')).headers.get('strict-transport-security'), 'max-age=31536000');
   } finally { config.publicHttps = false; config.allowedHosts.length = 0; await new Promise((r) => srv.close(r)); }
 });

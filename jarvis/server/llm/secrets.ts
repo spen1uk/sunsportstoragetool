@@ -19,10 +19,9 @@ export const hasSecret = (name: string) => !!getSecret(name);
 export function setSecret(name: string, value: string) {
   fs.mkdirSync(config.dataDir, { recursive: true, mode: 0o700 });
   let cur: Record<string, string> = {};
-  try { cur = JSON.parse(fs.readFileSync(file(), 'utf8')); } catch { /* new file */ }
+  if (fs.existsSync(file())) { try { cur = JSON.parse(fs.readFileSync(file(), 'utf8')); } catch { throw new Error('data/secrets.json is damaged; fix or delete it before saving a new key (not overwriting it silently).'); } }
   cur[name] = value;
-  fs.writeFileSync(file(), JSON.stringify(cur), { mode: 0o600 });
-  fs.chmodSync(file(), 0o600);
+  const tmp = file() + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(cur), { mode: 0o600 }); fs.chmodSync(tmp, 0o600); fs.renameSync(tmp, file());   // atomic: a crash mid-write cannot corrupt the file
 }
 export function clearSecret(name: string) {
   try { const cur = JSON.parse(fs.readFileSync(file(), 'utf8')); delete cur[name]; fs.writeFileSync(file(), JSON.stringify(cur), { mode: 0o600 }); } catch { /* none */ }

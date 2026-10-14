@@ -18,8 +18,9 @@ export function parseRule(text: string): Rule | null {
   const kv = new Map<string, string>();
   for (const part of text.replace(/^RRULE:/i, '').split(';')) { const i = part.indexOf('='); if (i > 0) kv.set(part.slice(0, i).trim().toUpperCase(), part.slice(i + 1).trim()); }
   const freq = kv.get('FREQ'); if (freq !== 'DAILY' && freq !== 'WEEKLY' && freq !== 'MONTHLY' && freq !== 'YEARLY') return null;
-  const byday: { n: number; d: number }[] = [];
-  for (const t of (kv.get('BYDAY') ?? '').split(',').filter(Boolean)) { const m = t.trim().toUpperCase().match(/^([+-]?\d+)?(SU|MO|TU|WE|TH|FR|SA)$/); if (!m) return null; byday.push({ n: m[1] ? Number(m[1]) : 0, d: DOW[m[2]] }); }
+  const byday: { n: number; d: number }[] = [], seen = new Set<string>();
+  for (const t of (kv.get('BYDAY') ?? '').split(',').filter(Boolean).slice(0, 40)) { const m = t.trim().toUpperCase().match(/^([+-]?\d+)?(SU|MO|TU|WE|TH|FR|SA)$/); if (!m) return null; const k = `${m[1] ?? ''}${m[2]}`; if (seen.has(k)) continue; seen.add(k); byday.push({ n: m[1] ? Number(m[1]) : 0, d: DOW[m[2]] }); }   // duplicates are ignored: a hostile rule must not multiply its own output
+  if (byday.length > 14) return null;
   const bymonthday = (kv.get('BYMONTHDAY') ?? '').split(',').filter(Boolean).map(Number); if (bymonthday.some((n) => !Number.isInteger(n) || n === 0 || Math.abs(n) > 31)) return null;
   const interval = Math.max(1, Number(kv.get('INTERVAL') ?? 1) || 1);
   const count = kv.has('COUNT') ? Number(kv.get('COUNT')) : undefined;
@@ -34,7 +35,7 @@ function nthWeekday(y: number, m: number, dow: number, n: number): number | null
   const last = new Date(y, m, dim).getDay(), d = dim - ((last - dow + 7) % 7) + (n + 1) * 7; return d >= 1 ? d : null;
 }
 
-const MAX_STEPS = 40_000;
+const MAX_STEPS = 12_000, MAX_OCCURRENCES = 400;
 export function expand(master: Master, from: number, to: number): { start: number; end: number }[] | 'unsupported' {
   const rule = parseRule(master.rule); if (!rule) return 'unsupported';
   const dur = Math.max(0, master.end - master.start), s0 = new Date(master.start);
@@ -47,7 +48,7 @@ export function expand(master: Master, from: number, to: number): { start: numbe
     if (rule.until !== undefined && t > rule.until) return false;
     n++; if (rule.count !== undefined && n > rule.count) return false;
     if (t > to) return false;
-    if (!excluded.has(Math.round(t / 60_000)) && t + dur >= from) out.push({ start: t, end: t + dur });
+    if (!excluded.has(Math.round(t / 60_000)) && t + dur >= from) { out.push({ start: t, end: t + dur }); if (out.length >= MAX_OCCURRENCES) return false; }
     return true;
   };
   const Y = s0.getFullYear(), M = s0.getMonth(), D = s0.getDate();

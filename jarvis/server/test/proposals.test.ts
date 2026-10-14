@@ -63,7 +63,7 @@ test('each action does exactly what its card says, validated again at confirm ti
   assert.equal(run({ type: 'remember', content: 'Luke prefers texts before 8 AM' }).ok, true); assert.equal((db.prepare('SELECT COUNT(*) c FROM memories').get() as any).c, 1);
   assert.equal(run({ type: 'remember', content: 'my password is hunter2 and api key sk-ant-abcdefghijklmnopqrstuvwxyz0123456789' }).ok, false, 'secrets are refused by memory');
   assert.equal(run({ type: 'add_task', title: 'Alpha plan' }).ok, true); assert.equal(run({ type: 'add_task', title: 'Alpha budget' }).ok, true);
-  assert.match(run({ type: 'complete_task', title: 'alpha' }).message, /matches 2 tasks/); assert.equal(run({ type: 'complete_task', title: 'alpha plan' }).ok, true);
+  assert.equal(createProposals(db, [{ type: 'complete_task', title: 'alpha' }]).length, 0, 'ambiguous: no card is created'); const cp = createProposals(db, [{ type: 'complete_task', title: 'alpha plan' }]); assert.match(cp[0].summary, /Mark done: task "Alpha plan"/); assert.equal(confirm(db, cp[0].id).ok, true);
   assert.equal(tasks(db).filter((t) => t.state === 'completed').length, 1);
   setPaused(db, true); assert.match(run({ type: 'queue_research', question: 'boat storage rates', urls: ['https://example.com/x'] }).message, /paused/); setPaused(db, false);
   assert.equal(run({ type: 'queue_research', question: 'boat storage rates', urls: ['https://example.com/x'] }).ok, true); assert.equal((db.prepare("SELECT COUNT(*) c FROM tasks WHERE kind='research'").get() as any).c, 1);

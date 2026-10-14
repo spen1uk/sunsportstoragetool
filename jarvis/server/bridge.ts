@@ -15,8 +15,8 @@ import { parseNotes, storeNotes } from './notes.ts';
  *  - only a hash of the credential is stored; it can be revoked at any time; Luke needs step-up to create one.
  */
 const sha = (t: string) => crypto.createHash('sha256').update(t).digest('hex');
-const fails = { n: 0, lockedUntil: 0 };
-export const resetBridgeThrottle = () => { fails.n = 0; fails.lockedUntil = 0; };
+/** Kept for tests that import it. There is no lockout: the credential is 256 random bits, and a lockout would let any peer cut off the real helper. */
+export const resetBridgeThrottle = () => {};
 
 export function createToken(db: DB, nowMs = Date.now()) {
   db.prepare('UPDATE bridge_tokens SET revoked_at=? WHERE revoked_at IS NULL').run(nowMs);   // one active helper at a time
@@ -31,14 +31,12 @@ export function status(db: DB) {
 }
 /** Check an Authorization header. Constant-time on the hash; repeated failures lock the bridge door briefly. */
 export function verify(db: DB, header: string | undefined, nowMs = Date.now()): { ok: true } | { ok: false; status: number; error: string } {
-  if (nowMs < fails.lockedUntil) return { ok: false, status: 429, error: 'Too many attempts' };
   const m = /^Bearer (jvb_[A-Za-z0-9_-]{20,100})$/.exec(header ?? '');
   const row = m ? (db.prepare('SELECT id, token_hash FROM bridge_tokens WHERE revoked_at IS NULL AND token_hash=?').get(sha(m[1])) as { id: string; token_hash: string } | undefined) : undefined;
   if (!row || !crypto.timingSafeEqual(Buffer.from(row.token_hash), Buffer.from(sha(m![1])))) {
-    fails.n++; if (fails.n >= 10) { fails.lockedUntil = nowMs + 60_000; fails.n = 0; }
     return { ok: false, status: 401, error: 'invalid bridge credential' };
   }
-  fails.n = 0; db.prepare('UPDATE bridge_tokens SET last_used_at=? WHERE id=?').run(nowMs, row.id); return { ok: true };
+  db.prepare('UPDATE bridge_tokens SET last_used_at=? WHERE id=?').run(nowMs, row.id); return { ok: true };
 }
 
 /** What the helper may read, as decided on the server. */

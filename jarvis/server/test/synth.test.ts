@@ -103,7 +103,7 @@ test('revision guards: quoted text cannot be rewritten; added links, altered sou
   assert.equal(t.state, 'waiting_input'); assert.match(t.waiting_reason, /quoted source text/); assert.equal(r.calls.length, 0);
   r = await reviseSetup(() => 'See https://evil.example for more.');
   t = await reviseAndRun(r.db, r.aid, 'It is complicated.', 'add a reference'); assert.match(t.waiting_reason, /link that was not in the document/);
-  r = await reviseSetup((q) => q.messages[0].content.split('<data kind="document">\n')[1].split('\n</data>')[0].replace('> Marina winter storage rates depend on boat length.', '> Rates are fixed.'));
+  r = await reviseSetup((q) => q.messages[0].content.split('<data kind="document">\n')[1].split('\n</data>')[0].replace('\uE001 Marina winter storage rates depend on boat length.', '\uE001 Rates are fixed.'));
   t = await reviseAndRun(r.db, r.aid, '', 'tighten the whole thing'); assert.match(t.waiting_reason, /changed quoted source text/);
   assert.equal(revisionSafe('a\n> q\n## Sources\n1. A — https://x.example', 'a\n> q\n## Sources\n1. B — https://x.example') !== null, true);
   assert.equal(revisionSafe('word '.repeat(100), 'tiny') !== null, true);

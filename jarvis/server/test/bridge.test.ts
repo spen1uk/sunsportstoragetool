@@ -43,14 +43,21 @@ test('bridge credential: creating one needs step-up, only its hash is stored, it
     assert.equal((await t.api('/api/tasks', { method: 'POST', headers: bearer, body: { title: 'x' } })).status, 401);
     assert.ok((await (await t.api('/api/bridge', { headers: t.me })).json() as any).lastSeen);
     await t.api('/api/bridge/token', { method: 'DELETE', headers: t.me }); assert.equal((await t.api('/api/bridge/config', { headers: bearer })).status, 401);
-    const second = (await (await t.api('/api/bridge/token', { method: 'POST', headers: t.me, body: {} })).json() as any).token; const third = (await (await t.api('/api/bridge/token', { method: 'POST', headers: t.me, body: {} })).json() as any).token;
+    assert.equal((await t.api('/api/bridge/token', { method: 'POST', headers: t.me, body: {} })).status, 403, 'a step-up pays for ONE action; the next needs a new one');
+    const mint = async () => { await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } }); return (await (await t.api('/api/bridge/token', { method: 'POST', headers: t.me, body: {} })).json() as any).token; };
+    const second = await mint(); const third = await mint();
     assert.equal((await t.api('/api/bridge/config', { headers: { authorization: `Bearer ${second}` } })).status, 401, 'a new credential replaces the old'); assert.equal((await t.api('/api/bridge/config', { headers: { authorization: `Bearer ${third}` } })).status, 200);
   } finally { await t.close(); }
 });
 
-test('bridge failures lock the door briefly', async () => {
+test('bad bridge credentials never lock out the real helper (no global lockout for a peer to abuse)', async () => {
   const t = await boot();
-  try { for (let i = 0; i < 10; i++) assert.equal((await t.api('/api/bridge/config', { headers: { authorization: 'Bearer jvb_wrongwrongwrongwrongwrong' } })).status, 401); assert.equal((await t.api('/api/bridge/config', { headers: { authorization: 'Bearer jvb_wrongwrongwrongwrongwrong' } })).status, 429); } finally { await t.close(); }
+  try {
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const { token } = await (await t.api('/api/bridge/token', { method: 'POST', headers: t.me, body: {} })).json() as any;
+    for (let i = 0; i < 25; i++) assert.equal((await t.api('/api/bridge/config', { headers: { authorization: 'Bearer jvb_wrongwrongwrongwrongwrong' } })).status, 401);
+    assert.equal((await t.api('/api/bridge/config', { headers: { authorization: `Bearer ${token}` } })).status, 200);
+  } finally { await t.close(); }
 });
 
 test('end to end: helper reports names, Luke ticks what to share, the helper pushes ONLY that; the server shows it as connected and the UI data works as on a Mac', async () => {

@@ -49,6 +49,7 @@ export const parseScan = (raw: string): { events: (CalEvent & { rule: string; ex
 export function occurrences(scan: ReturnType<typeof parseScan>, from: number, to: number): { events: CalEvent[]; unsupported: number; repeating: number } {
   const out: CalEvent[] = []; let unsupported = 0, repeating = 0;
   for (const e of scan.events) {
+    if (out.length >= 6000 || repeating >= 800) break;   // total bounds: hostile or enormous calendars cannot exhaust memory or time
     const { rule, exclude, ...base } = e;
     if (!rule) { if (e.end >= from && e.start <= to) out.push(base); continue; }
     repeating++;

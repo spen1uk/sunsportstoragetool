@@ -21,7 +21,7 @@ const s = (min: number, max: number) => z.string().min(min).max(max);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('add_task'), title: s(1, 200), minutes: z.number().int().min(5).max(480).optional(), priority: z.number().int().min(1).max(5).optional(), deadline: date.optional() }).strict(),
-  z.object({ type: z.literal('complete_task'), title: s(1, 200) }).strict(),
+  z.object({ type: z.literal('complete_task'), title: s(1, 200), taskId: z.string().max(60).optional() }).strict(),
   z.object({ type: z.literal('queue_research'), question: s(3, 500), urls: z.array(z.string().url().max(2048).refine((u) => /^https?:\/\//i.test(u), 'Only http(s) links')).min(1).max(8) }).strict(),
   z.object({ type: z.literal('remember'), content: s(3, 500) }).strict(),
   z.object({ type: z.literal('add_habit'), name: s(1, 60), perWeek: z.number().int().min(1).max(7).optional() }).strict(),
@@ -51,14 +51,21 @@ export const PROPOSAL_PROMPT = [
   'Only propose when the request is clear; if details are missing, ask instead. Never propose sending, spending, deleting, publishing, trading, settings, permissions or anything not listed.',
 ].join('\n');
 
+/** Characters that make text look different from what it is (zero-width, bidi overrides, soft hyphen, BOM, control codes). A proposal containing any is dropped, so a card can never show something other than what will run. */
+const HIDDEN = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/;
+function normalise(v: unknown): unknown | undefined {
+  if (typeof v === 'string') { if (HIDDEN.test(v)) return undefined; return v.replace(/\s+/g, ' ').trim(); }
+  if (Array.isArray(v)) { const o = v.map(normalise); return o.some((x) => x === undefined) ? undefined : o; }
+  return v;
+}
 const clean = (x: string, n = 200) => x.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
 const fmtDay = (d: string) => { const [y, m, dd] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd, 12)).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }); };
 export function summarize(a: Action): string {
   switch (a.type) {
     case 'add_task': return `Add task: "${clean(a.title)}"${a.minutes ? ` · ${a.minutes} min` : ''}${a.priority ? ` · priority ${a.priority}` : ''}${a.deadline ? ` · due ${fmtDay(a.deadline)}` : ''}`;
-    case 'complete_task': return `Mark done: the open task matching "${clean(a.title)}"`;
-    case 'queue_research': return `Research: "${clean(a.question)}" from ${a.urls.map((u) => { try { return new URL(u).hostname; } catch { return u; } }).join(', ')} (new websites will still ask for your approval)`;
-    case 'remember': return `Remember: "${clean(a.content, 300)}"`;
+    case 'complete_task': return `Mark done: task "${clean(a.title, 200)}"`;
+    case 'queue_research': return `Research: "${clean(a.question, 500)}" — will fetch: ${a.urls.join('  ·  ')} (new websites will still ask for your approval)`;
+    case 'remember': return `Remember: "${clean(a.content, 500)}"`;
     case 'add_habit': return `Add habit: "${clean(a.name)}"${a.perWeek ? ` · ${a.perWeek}/week` : ''}`;
     case 'log_habit': return `Check off today: habit "${clean(a.name)}"`;
     case 'add_person': return `Add person: ${clean(a.name)}${a.relationship ? ` (${clean(a.relationship)})` : ''}${a.everyDays ? ` · remind every ${a.everyDays} days` : ''}`;
@@ -77,7 +84,7 @@ export function extractProposals(reply: string): { text: string; actions: Action
   let raw: unknown; try { raw = JSON.parse(m[1].trim().replace(/^```(?:json)?|```$/g, '').trim()); } catch { return { text, actions: [], dropped: 1 }; }
   if (!Array.isArray(raw)) return { text, actions: [], dropped: 1 };
   const actions: Action[] = []; let dropped = 0;
-  for (const x of raw.slice(0, 6)) { const r = actionSchema.safeParse(x); if (r.success && actions.length < 3) actions.push(r.data); else dropped++; }
+  for (const x0 of raw.slice(0, 6)) { const x = x0 && typeof x0 === 'object' && !Array.isArray(x0) ? Object.fromEntries(Object.entries(x0 as object).map(([k, v]) => [k, normalise(v)])) : x0; if (x && typeof x === 'object' && Object.values(x).some((v) => v === undefined)) { dropped++; continue; } const r = actionSchema.safeParse(x); if (r.success && actions.length < 3) actions.push(r.data); else dropped++; }
   return { text, actions, dropped };
 }
 
@@ -85,8 +92,14 @@ const TTL = 24 * 3_600_000, MAX_PENDING = 10;
 export function createProposals(db: DB, actions: Action[], nowMs = Date.now()): { id: string; kind: string; summary: string }[] {
   expireOld(db, nowMs);
   const out: { id: string; kind: string; summary: string }[] = [];
-  for (const a of actions) {
+  for (const a0 of actions) {
     if ((db.prepare("SELECT COUNT(*) c FROM proposals WHERE status='pending'").get() as any).c >= MAX_PENDING) break;
+    let a: Action = a0;
+    if (a0.type === 'complete_task') {   // decide WHICH task now, show its exact title, and remember its id (it must still be that task when you click)
+      const hits = db.prepare("SELECT id,title FROM tasks WHERE kind='manual' AND state NOT IN ('completed','canceled') AND is_demo=0 AND lower(title) LIKE ? ESCAPE '\\'").all(`%${a0.title.toLowerCase().replace(/[\\%_]/g, (c) => '\\' + c)}%`) as { id: string; title: string }[];
+      if (hits.length !== 1) continue;
+      a = { type: 'complete_task', title: hits[0].title, taskId: hits[0].id };
+    }
     const summary = summarize(a), pid = id();
     db.prepare('INSERT INTO proposals(id,kind,params,summary,created_at,expires_at) VALUES(?,?,?,?,?,?)').run(pid, a.type, JSON.stringify(a), summary, nowMs, nowMs + TTL);
     out.push({ id: pid, kind: a.type, summary });
@@ -110,9 +123,9 @@ function execute(db: DB, a: Action, nowMs: number): string {
       createTask(db, { title: clean(a.title), kind: 'manual', minutes: a.minutes ?? 30, priority: a.priority ?? 3, deadline: dl }); return 'Task added.';
     }
     case 'complete_task': {
-      const hits = db.prepare("SELECT id,title FROM tasks WHERE kind='manual' AND state NOT IN ('completed','canceled') AND is_demo=0 AND lower(title) LIKE ? ESCAPE '\\'").all(`%${a.title.toLowerCase().replace(/[\\%_]/g, (c) => '\\' + c)}%`) as { id: string; title: string }[];
-      if (hits.length === 0) throw new Error('No open task matches that any more.'); if (hits.length > 1) throw new Error(`That matches ${hits.length} tasks (${hits.map((h) => `"${h.title}"`).join('; ')}). Complete the right one from the Tasks page.`);
-      completeTask(db, hits[0].id, 'luke', 'confirmed from a chat proposal'); return `Marked "${hits[0].title}" done.`;
+      const t = a.taskId ? db.prepare("SELECT id,title FROM tasks WHERE id=? AND kind='manual' AND state NOT IN ('completed','canceled')").get(a.taskId) as { id: string; title: string } | undefined : undefined;
+      if (!t) throw new Error('That task is no longer open, so nothing was changed.');
+      completeTask(db, t.id, 'luke', 'confirmed from a chat proposal'); return `Marked "${t.title}" done.`;
     }
     case 'queue_research': {
       if (isPaused(db)) throw new Error('Jarvis is paused. Resume first, then confirm again.');

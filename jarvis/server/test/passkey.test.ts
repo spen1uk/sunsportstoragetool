@@ -104,6 +104,7 @@ test('over HTTP: register needs step-up, sign in with a passkey gives a session,
     assert.equal((await (await api('/api/me', { method: 'GET' })).json() as any).passkeys, 1);
     // sign in with the passkey from a fresh (logged-out) client
     const lo = await (await api('/api/passkeys/login/options')).json() as any; assert.equal(lo.rpId, 'localhost'); assert.equal(lo.userVerification, 'required');
+    for (let i = 0; i < 15; i++) assert.equal((await api('/api/passkeys/login/verify', { body: {} })).status, 401);   // junk never locks out the real owner
     const lv = await api('/api/passkeys/login/verify', { body: p.get({ ...c, challenge: lo.challenge }) }); assert.equal(lv.status, 200); assert.match(lv.headers.get('set-cookie')!, /HttpOnly; SameSite=Strict/);
     const sc = lv.headers.get('set-cookie')!; const s2 = { cookie: sc.split(';')[0], 'x-jarvis-csrf': (await lv.json() as any).csrf }; assert.equal((await api('/api/state', { method: 'GET', headers: s2 })).status, 200);
     // wrong challenge / forged signature → 401 and no session
@@ -113,6 +114,7 @@ test('over HTTP: register needs step-up, sign in with a passkey gives a session,
     assert.equal((await (await api('/api/me', { method: 'GET', headers: s2 })).json() as any).stepUp, true);
     // require passkey → passphrase refused with a recovery hint
     assert.equal((await api('/api/passkeys/require', { method: 'PUT', headers: s2, body: { required: true } })).status, 200);
+    assert.equal((await api('/api/stepup', { headers: s2, body: { passphrase: 'test-pass' } })).status, 403, 'with passkeys required the passphrase cannot grant step-up either');
     resetLoginThrottle(); const refused = await api('/api/login', { body: { passphrase: 'test-pass' } }); assert.equal(refused.status, 403); assert.match((await refused.json() as any).error, /allow-passphrase/);
     assert.equal((await (await api('/api/me', { method: 'GET' })).json() as any).passkeyRequired, true);
     // numeric addresses cannot do passkeys; the message says how to fix it

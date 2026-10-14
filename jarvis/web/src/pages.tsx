@@ -169,10 +169,11 @@ export function ApprovalsPage() {
   const pending = items.filter((i) => i.status === 'pending'), hist = items.filter((i) => i.status !== 'pending');
   const decide = (i: any, decision: 'approve' | 'deny') => a.run(async () => {
     if (decision === 'approve' && i.risk === 'high' && !stepped) {
-      if (!pw) { if (!usePasskey) throw new Error('Enter your passphrase (or use your passkey) to confirm a high-risk approval.'); await stepUpWithPasskey(); }
-      else { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } setStepped(true); setTimeout(() => setStepped(false), 4.5 * 60_000);
+      if (!pw || pks?.required) { if (!usePasskey) throw new Error('Enter your passphrase (or use your passkey) to confirm a high-risk approval.'); await stepUpWithPasskey(); }
+      else { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } setStepped(true);
     }
-    const r = await api(`/api/approvals/${i.id}/decide`, 'POST', { decision, digest: i.digest }); if (r.executed === false) throw new Error(`Approved, but not executed: ${r.outcome}`); reload();
+    let r: any; try { r = await api(`/api/approvals/${i.id}/decide`, 'POST', { decision, digest: i.digest }); } finally { setStepped(false); }   // each confirmation pays for exactly one decision
+    if (r.executed === false) throw new Error(`Approved, but not executed: ${r.outcome}`); reload();
   });
   return (
     <section className="page">

@@ -27,9 +27,9 @@ export function cborDecode(buf: Buffer, start = 0): { value: any; end: number } 
     if (i >= buf.length) throw new Error('cbor truncated');
     const ib = buf[i++], mt = ib >> 5, ai = ib & 31; let n: number;
     if (ai < 24) n = ai;
-    else if (ai === 24) { n = buf[i]; i += 1; }
-    else if (ai === 25) { n = buf.readUInt16BE(i); i += 2; }
-    else if (ai === 26) { n = buf.readUInt32BE(i); i += 4; }
+    else if (ai === 24) { if (i + 1 > buf.length) throw new Error('cbor truncated'); n = buf[i]; i += 1; }
+    else if (ai === 25) { if (i + 2 > buf.length) throw new Error('cbor truncated'); n = buf.readUInt16BE(i); i += 2; }
+    else if (ai === 26) { if (i + 4 > buf.length) throw new Error('cbor truncated'); n = buf.readUInt32BE(i); i += 4; }
     else if (mt === 7) n = ai;
     else throw new Error('cbor unsupported length');
     if (n > buf.length * 8 && mt !== 7) throw new Error('cbor length');
@@ -68,6 +68,7 @@ function parseAuthData(ad: Buffer, ctx: Ctx) {
 // ---- challenges ----
 export function newChallenge(db: DB, purpose: 'register' | 'login' | 'stepup', sessionHash: string | null, now = Date.now()): string {
   db.prepare('DELETE FROM passkey_challenges WHERE created_at<?').run(now - TTL);
+  if (purpose === 'login') db.prepare("DELETE FROM passkey_challenges WHERE purpose='login' AND id NOT IN (SELECT id FROM passkey_challenges WHERE purpose='login' ORDER BY created_at DESC LIMIT 49)").run();   // unauthenticated: bounded, oldest evicted
   const ch = b64u(crypto.randomBytes(32));
   db.prepare('INSERT INTO passkey_challenges(id,challenge,purpose,session_hash,created_at) VALUES(?,?,?,?,?)').run(id(), ch, purpose, sessionHash, now);
   return ch;

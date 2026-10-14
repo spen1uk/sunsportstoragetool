@@ -1,0 +1,38 @@
+# Security review, round 1
+
+**Method.** Three independent reviewers, each given only the code and the threat model (not my conclusions), each asked to *attack* one area: (1) sign-in, sessions, step-up, passkeys, the Mac helper, approvals; (2) untrusted content and the language-model boundary (web pages, Notes/Calendar text, model output, SSRF, parsing); (3) the HTTP API, the web client, data at rest, backups, scripts and deploy files. I checked every finding against the code myself before changing anything. Nothing critical or exploitable-without-credentials was found; one **high** (a denial of service), several **medium**, the rest low.
+
+This is an AI-assisted review, **not** a substitute for a professional penetration test. It found real problems that are now fixed and tested, but it can't prove there are no others. The custom WebAuthn code (`server/passkey.ts`) and the server deployment in particular deserve a human expert before anything sensitive (money, trading keys) is connected.
+
+## Found and fixed (each has a regression test in `server/test/security-fixes.test.ts` or the area's own test file)
+| # | Sev | Finding | Fix |
+|---|---|---|---|
+| 1 | **High** | A hostile web page (about 500 KB of `<script <script …` or `<<<<…`) froze the whole server for minutes: the HTML-to-text regexes backtracked quadratically, and the research worker runs inside the API process. | `htmlToText` is now a single linear pass with an input cap (400 KB); hostile pages finish in milliseconds. |
+| 2 | Med | Anyone who could reach the server could **lock Luke out**: passphrase, passkey and Mac-helper failures all used global lockouts (a correct passphrase was refused during a lock). | No lockouts. Failures slow each attempt a little (≤ 2 s); a correct credential always works. Passphrases are 160 random bits and passkey signatures can't be guessed, so lockouts protected nothing. |
+| 3 | Med | "Require passkey" didn't cover **step-up**: with a passphrase and a stolen session, an attacker could still approve high-risk actions, add their own passkey, turn the requirement off, or mint a helper credential. | `/api/stepup` is refused while passkeys are required; only a passkey can confirm. |
+| 4 | Med | A step-up was a 5-minute general pass: anything done with the session in that window needed no further proof. | Step-up now lasts 2 minutes **and is spent by one protected action** (one approval decision, one passkey add/remove/require change, one helper credential). |
+| 5 | Med | Confirm cards could **hide** what would run: research showed hostnames only (full URLs, including a query string that could carry private text, were hidden), long text was truncated on the card but stored in full, "mark done" resolved to a task up to 24 h later. | Cards show every full URL and the full text; text with zero-width/bidi/control characters is rejected; whitespace is normalised before the card is shown so card = execution; "mark done" resolves to one specific task id when the card is made and refuses if it changed. |
+| 6 | Med | Fetching had only an idle timeout: a server dribbling one byte at a time could stall all research forever. | A 20 s overall limit per hop. |
+| 7 | Med | Free-form revision sent the draft (including quotes from pages flagged as trying to instruct an AI) to the model, and the document wasn't fenced against `</data>` break-outs. | `<` and `>` are swapped for private characters inside the document (and swapped back in the reply); whole-draft rewrites are refused if a flagged page is quoted; flagged context near a highlight is omitted. |
+| 8 | Low-Med | A hostile calendar rule (repeated `BYDAY`) could multiply into millions of events and exhaust memory (needs a poisoned invite or stolen helper credential). | Duplicate day rules ignored, ≤ 14 distinct, ≤ 400 occurrences per event, ≤ 800 series and ≤ 6,000 events in total. |
+| 9 | Low | The private-address check missed hex-form IPv4-mapped IPv6, NAT64, 6to4, site-local, benchmarking and documentation ranges (defence in depth: the resolver already failed closed). | Rewritten with a full IPv6 parser; blocks every tunnelling form; unknown formats count as private. |
+| 10 | Low | The passkey CBOR reader accepted truncated lengths. | Bounds checked; truncation throws. |
+| 11 | Low | Unauthenticated passkey sign-in requests could fill the challenges table. | At most 50 outstanding sign-in challenges (oldest evicted); expired rows and sessions are swept every 30 s. |
+| 12 | Low | The session cookie could be shadowed by a sibling host on the same parent domain. | Behind HTTPS the cookie is `__Host-jarvis_session` (Secure, Path=/, no Domain). |
+| 13 | Low | A restored backup could carry old logins or helper credentials (anyone able to write the backup folder could plant them). | Restore clears sessions and challenges, revokes helper credentials, and tells you to set a fresh passphrase. |
+| 14 | Low | Event streams outlived logout/expiry and were unlimited; plaintext local snapshots and the activity-page chain check grew without bound; `Origin: null` and bad `%` escapes gave 500s; helper uploads of 6 MB were read before the credential was checked; SQLite error text could reach the browser. | Streams re-check the session and cap at 12; 7 snapshots kept; chain check cached; clean 403/400s; helper credential checked before the body; database errors become a generic message. |
+| 15 | Low | Audit redaction missed token shapes (`Bearer …`, `jvb_`, `jvk1_`) and structured keys; `secrets.json` wasn't written atomically and a damaged file was silently overwritten. | Wider redaction (also by key name); atomic write; a damaged file now blocks the write with a clear message. |
+| 16 | Low | Deploy gaps: backup folder never created in the guide, service user owning its own code, thin systemd sandboxing, `assets` path caching quirk. | Guide fixed (root-owned code, folders created); added `RestrictAddressFamilies`, `ProtectKernel*`, `ProtectClock`, `ProtectProc`, `RestrictNamespaces`, `SystemCallFilter`; caching decided by relative path. |
+
+## Known and accepted (not fixed, with reasons)
+- **Passkey code is custom.** It's small and heavily tested (including with Chromium's virtual authenticator), but it is security-critical code that a human specialist should review.
+- **Helper credential has no expiry** (rotate it by creating a new one). A stolen one can only push calendar/notes copies for the sources you ticked, but that text can reach the model, so it is treated as untrusted data everywhere.
+- **Backups don't prove who made them** (anyone with the public key who can write to the backup folder could produce one). Mitigated by clearing credentials on restore and resetting the passphrase; a stronger fix would be signing backups with a key kept elsewhere.
+- **The Anthropic key sits in `data/secrets.json`** (mode 0600, not in backups). On the server prefer systemd `LoadCredential=` or a root-only environment file.
+- **An approval made while paused can't be re-run** (it expires; nothing executes, so it isn't a bypass, just awkward).
+- **Passkeys only work on the exact address they were made on**; with `JARVIS_PUBLIC_HTTPS=1` use the server name, not `localhost`.
+- **systemd hardening is untested on a real server.** Run `systemd-analyze security jarvis` and check `journalctl -u jarvis` on first start.
+- Findings are only as good as what the reviewers looked at; nothing here covers the server's operating system, Tailscale itself, or your devices.
+
+## Next
+Before connecting anything with real money or trading keys: a human expert review of `server/passkey.ts` and the deployed server; then a short real-world run on the server with the Mac helper and backups switched on.

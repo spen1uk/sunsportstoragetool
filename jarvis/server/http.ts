@@ -53,11 +53,9 @@ const parse = <T extends z.ZodType>(s: T, v: unknown): z.infer<T> => { const r =
 
 // ---- passkeys (WebAuthn). The relying-party id and origin come from the already-validated Host header. ----
 const rpCtx = (req: http.IncomingMessage) => { const host = (req.headers.host ?? '').toLowerCase(); if (/^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(host) || host.startsWith('[')) throw new HttpError(400, 'Passkeys do not work on a numeric address. Open Jarvis at http://localhost:' + config.port + ' (or your server name) instead of 127.0.0.1.'); return { rpId: host.replace(/:\d+$/, ''), origin: `${config.publicHttps ? 'https' : 'http'}://${host}` }; };
-const pkFails = { n: 0, lockedUntil: 0 };
+// No lockout here either: a passkey signature cannot be guessed, challenges are single-use, and a lockout would let any peer block Luke.
 const pkGuard = <T,>(f: () => T): T => {
-  if (Date.now() < pkFails.lockedUntil) throw new HttpError(429, 'Too many attempts');
-  try { const r = f(); pkFails.n = 0; return r; } catch (e) {
-    pkFails.n++; if (pkFails.n >= 10) { pkFails.lockedUntil = Date.now() + 60_000; pkFails.n = 0; }
+  try { return f(); } catch (e) {
     throw new HttpError(401, e instanceof z.ZodError ? 'invalid passkey response' : 'Passkey check failed: ' + (e as Error).message);
   }
 };
@@ -65,39 +63,39 @@ route('POST', '/api/passkeys/login/options', ({ db, req }) => { if (!pk.listPass
 route('POST', '/api/passkeys/login/verify', ({ db, req, res, body }) => {
   pkGuard(() => pk.finishAuthentication(db, rpCtx(req), 'login', null, body));
   const r = auth.startSession(db); audit(db, 'luke', 'auth.login', '', { via: 'passkey' });
-  const secure = config.host === '127.0.0.1' && !config.publicHttps ? '' : '; Secure';
-  res.setHeader('Set-Cookie', `jarvis_session=${r.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${config.sessionTtlMs / 1000}${secure}`);
+  res.setHeader('Set-Cookie', sessionCookie(r.token, config.sessionTtlMs / 1000));
   return { csrf: r.csrf };
 }, true);
 route('GET', '/api/passkeys', ({ db }) => ({ items: pk.listPasskeys(db), required: pk.passkeyRequired(db) }));
 route('POST', '/api/passkeys/register/options', ({ db, req, session }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); return pk.registrationOptions(db, rpCtx(req), session!.tokenHash); });
-route('POST', '/api/passkeys/register/verify', ({ db, req, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); return pkGuard(() => pk.finishRegistration(db, rpCtx(req), session!.tokenHash, body)); });
+route('POST', '/api/passkeys/register/verify', ({ db, req, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); const r = pkGuard(() => pk.finishRegistration(db, rpCtx(req), session!.tokenHash, body)); auth.consumeStepUp(db, session!); return r; });
 route('POST', '/api/passkeys/stepup/options', ({ db, req, session }) => { if (!pk.listPasskeys(db).length) throw new HttpError(404, 'No passkeys are set up.'); return pk.authOptions(db, rpCtx(req), 'stepup', session!.tokenHash); });
 route('POST', '/api/passkeys/stepup/verify', ({ db, req, session, body }) => { pkGuard(() => pk.finishAuthentication(db, rpCtx(req), 'stepup', session!.tokenHash, body)); auth.grantStepUp(db, session!); return { ok: true }; });
-route('PUT', '/api/passkeys/require', ({ db, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); guard(() => pk.setRequired(db, parse(z.object({ required: z.boolean() }), body).required)); return { required: pk.passkeyRequired(db) }; });
-route('DELETE', '/api/passkeys/:id', ({ db, session, params }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); return { ok: pk.removePasskey(db, decodeURIComponent(params.id)) }; });
+route('PUT', '/api/passkeys/require', ({ db, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); guard(() => pk.setRequired(db, parse(z.object({ required: z.boolean() }), body).required)); auth.consumeStepUp(db, session!); return { required: pk.passkeyRequired(db) }; });
+route('DELETE', '/api/passkeys/:id', ({ db, session, params }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); const ok = pk.removePasskey(db, decodeURIComponent(params.id)); auth.consumeStepUp(db, session!); return { ok }; });
 
 // Liveness for an outside watcher or the process manager. Reveals nothing but "up".
 route('GET', '/api/health', () => ({ ok: true }), true);
 
 // ---- auth ----
-route('POST', '/api/login', ({ db, body, res }) => {
+route('POST', '/api/login', async ({ db, body, res }) => {
   if (pk.passkeyRequired(db)) throw new HttpError(403, 'Passkey sign-in is required. Use your passkey, or on the machine itself run: npm run setup -- --allow-passphrase');
   const { passphrase } = parse(z.object({ passphrase: z.string().min(1).max(200) }), body);
+  const wait = auth.failureDelayMs(); if (wait) await new Promise((r) => setTimeout(r, wait));
   const r = auth.login(db, passphrase);
-  if ('error' in r) throw new HttpError(r.retryAfterMs ? 429 : 401, r.error);
-  const loopback = config.host === '127.0.0.1' || config.host === 'localhost';
-  const secure = loopback && !config.publicHttps ? '' : '; Secure'; // browsers treat http://localhost as a secure context; anything else (or anything behind an HTTPS front door) must be Secure
-  res.setHeader('Set-Cookie', `jarvis_session=${r.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${config.sessionTtlMs / 1000}${secure}`);
+  if ('error' in r) throw new HttpError(401, r.error);
+  res.setHeader('Set-Cookie', sessionCookie(r.token, config.sessionTtlMs / 1000));
   return { csrf: r.csrf };
 }, true);
 route('POST', '/api/logout', ({ db, req, res }) => {
   const t = cookie(req); if (t) auth.logout(db, t);
-  res.setHeader('Set-Cookie', 'jarvis_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'); return { ok: true };
+  res.setHeader('Set-Cookie', sessionCookie('', 0)); return { ok: true };
 }, true);
 route('GET', '/api/me', ({ session, db }) => session ? { authenticated: true, csrf: session.csrf, stepUp: auth.hasStepUp(session), passkeys: pk.listPasskeys(db).length } : { passkeys: pk.listPasskeys(db).length, passkeyRequired: pk.passkeyRequired(db), authenticated: false, configured: auth.isConfigured(db) }, true);
-route('POST', '/api/stepup', ({ db, session, body }) => {
+route('POST', '/api/stepup', async ({ db, session, body }) => {
+  if (pk.passkeyRequired(db)) throw new HttpError(403, 'A passkey is required to confirm this. Use your passkey (the passphrase is turned off).');
   const { passphrase } = parse(z.object({ passphrase: z.string().min(1).max(200) }), body);
+  const wait = auth.failureDelayMs(); if (wait) await new Promise((r) => setTimeout(r, wait));
   if (!auth.stepUp(db, session!, passphrase)) throw new HttpError(401, 'Invalid credentials');
   return { ok: true, validForMs: config.stepUpTtlMs };
 });
@@ -151,7 +149,7 @@ route('POST', '/api/tasks/:id/tonight', ({ db, params, body }) => {
 });
 route('GET', '/api/projects', ({ db }) => ms.listProjects(db));
 route('GET', '/api/projects/:id', ({ db, params }) => { const d = ms.projectDetail(db, params.id); if (!d) throw new HttpError(404, 'not found'); return { ...d, tasks: rows(db, "SELECT id,title,state,kind,milestone_id FROM tasks WHERE project_id=? AND state!='canceled' ORDER BY created_at", params.id) }; });
-const guard = <T,>(f: () => T): T => { try { return f(); } catch (e) { throw bad(e instanceof z.ZodError ? (e.issues[0]?.message ?? 'invalid input') : (e as Error).message); } };
+const guard = <T,>(f: () => T): T => { try { return f(); } catch (e) { const m = e instanceof z.ZodError ? (e.issues[0]?.message ?? 'invalid input') : (e as Error).message; throw bad(/constraint|sqlite|SQL|no such (table|column)|syntax error/i.test(m) ? 'That could not be saved.' : m); } };
 route('POST', '/api/projects/:id/milestones', ({ db, params, body }) => {
   const b = parse(z.object({ title: z.string().min(1).max(200), description: z.string().max(2000).optional(), due: z.number().int().nullish(), dependsOn: z.string().nullish() }), body);
   return { id: guard(() => ms.createMilestone(db, { projectId: params.id, title: b.title, description: b.description, due: b.due, dependsOn: b.dependsOn })) };
@@ -203,6 +201,7 @@ route('POST', '/api/approvals/:id/decide', ({ db, params, body, session }) => {
   const b = parse(z.object({ decision: z.enum(['approve', 'deny']), digest: z.string().length(64) }), body);
   const d = appr.decide(db, params.id, b.decision, { digest: b.digest, channel: 'dashboard', session });
   if (!d.ok) throw new HttpError(409, d.error);
+  if (b.decision === 'approve') auth.consumeStepUp(db, session!);   // one confirmation, one decision
   if (b.decision === 'deny') { tasks.resumeForApproval(db, params.id, false); return { ok: true }; }
   const ex = appr.execute(db, params.id);
   if (ex.ok) tasks.resumeForApproval(db, params.id, true);
@@ -245,7 +244,7 @@ route('POST', '/api/bridge/calendar', viaBridge(({ db, body }) => guard(() => br
 route('POST', '/api/bridge/notes', viaBridge(({ db, body }) => guard(() => bridge.ingestNotes(db, body))), true);
 route('POST', '/api/bridge/failure', viaBridge(({ db, body }) => { const b = parse(z.object({ kind: z.enum(['calendar', 'notes']), message: z.string().max(300) }), body); bridge.reportFailure(db, b.kind, b.message); return { ok: true }; }), true);
 route('GET', '/api/bridge', ({ db }) => bridge.status(db));
-route('POST', '/api/bridge/token', ({ db, session }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); return { token: bridge.createToken(db) }; });
+route('POST', '/api/bridge/token', ({ db, session }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); const token = bridge.createToken(db); auth.consumeStepUp(db, session!); return { token }; });
 route('DELETE', '/api/bridge/token', ({ db }) => ({ ok: bridge.revokeToken(db) }));
 route('GET', '/api/mac', ({ db }) => ({ mac: isMac(), bridge: bridge.status(db), calendar: { ...cal.syncState(db, 'calendar'), sources: cal.sources(db, 'calendar') }, notes: { ...cal.syncState(db, 'notes'), sources: cal.sources(db, 'notes') } }));
 route('POST', '/api/mac/detect', async ({ db, body }) => { const k = kindOf(body); try { const names = k === 'calendar' ? await cal.detectCalendars(db) : await nts.detectFolders(db); return { names, sources: cal.sources(db, k) }; } catch (e) { return macFail(e); } });
@@ -298,7 +297,12 @@ route('POST', '/api/budget/cap-increase', ({ db, body }) => {
   if (next <= budget.getCap(db)) throw bad('That is not an increase.');
   return { approvalId: appr.requestApproval(db, { actionType: 'budget_increase', payload: { newCapMicroUsd: next }, requestedBy: 'luke' }) };
 });
-route('GET', '/api/activity', ({ db }) => ({ items: rows(db, 'SELECT id,at,actor,action,target,detail FROM audit ORDER BY id DESC LIMIT 200'), chain: verifyAuditChain(db) }));
+let chainCache: { at: number; head: number; v: { ok: boolean; brokenAt?: number } } | null = null;
+route('GET', '/api/activity', ({ db }) => {
+  const head = (row(db, 'SELECT COALESCE(MAX(id),0) m FROM audit') as any).m as number;
+  if (!chainCache || chainCache.head !== head || Date.now() - chainCache.at > 5 * 60_000) chainCache = { at: Date.now(), head, v: verifyAuditChain(db) };   // verifying every row on every page view would grow without bound
+  return { items: rows(db, 'SELECT id,at,actor,action,target,detail FROM audit ORDER BY id DESC LIMIT 200'), chain: chainCache.v };
+});
 route('GET', '/api/layout', ({ db }) => { const r = row(db, "SELECT json FROM layouts WHERE key='universe'") as any; return r ? JSON.parse(r.json) : {}; });
 route('PUT', '/api/layout', ({ db, body }) => {
   const b = parse(z.record(z.string().max(40), z.object({ x: z.number().min(-200).max(200), y: z.number().min(-200).max(200) })), body);
@@ -334,10 +338,15 @@ route('PUT', '/api/llm/config', ({ db, body }) => {
 route('POST', '/api/llm/test', async ({ db }) => { const r = await gw.complete(db, { task: 'ping', system: 'Reply with the single word: ready.', messages: [{ role: 'user', content: 'ping' }] }); return r.ok ? { ok: true, model: r.model, costMicroUsd: r.costMicroUsd } : { ok: false, error: r.error, kind: r.kind }; });
 route('POST', '/api/backup', ({ db }) => {
   const f = path.join(config.dataDir, 'backups', `jarvis-${new Date().toISOString().replace(/[:.]/g, '-')}.db`);
-  backupTo(db, f); audit(db, 'luke', 'backup.created', path.basename(f)); return { file: path.basename(f), note: 'Unencrypted local snapshot. Encrypt before copying off this machine.' };
+  backupTo(db, f); audit(db, 'luke', 'backup.created', path.basename(f));
+  const dir = path.dirname(f); for (const old of fs.readdirSync(dir).filter((x) => /^jarvis-.*\.db$/.test(x)).sort().slice(0, -7)) fs.rmSync(path.join(dir, old), { force: true });   // keep the newest 7 plaintext snapshots return { file: path.basename(f), note: 'Unencrypted local snapshot. Encrypt before copying off this machine.' };
 });
 
-function cookie(req: http.IncomingMessage) { return /(?:^|;\s*)jarvis_session=([^;]+)/.exec(req.headers.cookie ?? '')?.[1]; }
+/** Behind HTTPS the cookie is __Host- prefixed (Secure, Path=/, no Domain): a sibling host on the same parent domain cannot plant or shadow it. */
+const plainCookie = () => (config.host === '127.0.0.1' || config.host === 'localhost') && !config.publicHttps;
+const COOKIE = () => (plainCookie() ? 'jarvis_session' : '__Host-jarvis_session');
+const sessionCookie = (token: string, maxAge: number) => `${COOKIE()}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${plainCookie() ? '' : '; Secure'}`;
+function cookie(req: http.IncomingMessage) { return new RegExp(`(?:^|;\\s*)${COOKIE()}=([^;]+)`).exec(req.headers.cookie ?? '')?.[1]; }
 
 const SECURITY_HEADERS: Record<string, string> = {
   'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
@@ -365,10 +374,13 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
       const session = auth.getSession(db, cookie(req));
       if (url.pathname === '/api/events') {
         if (!session) return send(401, { error: 'login required' });
+        if (clients.n >= 12) return send(429, { error: 'too many open streams' });
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
         res.write(': ok\n\n');
         const on = (e: unknown) => res.write(`data: ${JSON.stringify(e)}\n\n`);
-        clients.n++; bus.on('event', on); const ka = setInterval(() => res.write(': ka\n\n'), 20000);
+        const tok = cookie(req);
+        clients.n++; bus.on('event', on);
+        const ka = setInterval(() => { if (!auth.getSession(db, tok)) { res.end(); return; } res.write(': ka\n\n'); }, 20000);   // a logged-out or expired session stops receiving events
         req.on('close', () => { clients.n--; bus.off('event', on); clearInterval(ka); });
         return;
       }
@@ -378,9 +390,11 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
       if (!r.open && !session) return send(401, { error: 'login required' });
       if (method !== 'GET') {
         const origin = req.headers.origin;
-        if (origin && new URL(origin).host !== host) return send(403, { error: 'cross-origin request blocked' });
+        let originHost = ''; try { originHost = origin ? new URL(origin).host : host; } catch { return send(403, { error: 'cross-origin request blocked' }); }   // 'Origin: null' etc.
+        if (origin && originHost !== host) return send(403, { error: 'cross-origin request blocked' });
         if (session && !r.open && req.headers['x-jarvis-csrf'] !== session.csrf) return send(403, { error: 'missing CSRF token' });
       }
+      if (url.pathname.startsWith('/api/bridge/') && url.pathname !== '/api/bridge/token' && method !== 'GET' || url.pathname === '/api/bridge/config') { const v = bridge.verify(db, req.headers.authorization); if (!v.ok) return send(v.status, { error: v.error }); }   // check the helper's credential BEFORE reading a (possibly 6 MB) body
       let body: any = undefined;
       if (method !== 'GET' && method !== 'DELETE') {
         const chunks: Buffer[] = []; let n = 0;
@@ -388,7 +402,7 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
         try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}; } catch { return send(400, { error: 'invalid JSON' }); }
       }
       const m = r.re.exec(url.pathname)!;
-      const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
+      let params: Record<string, string>; try { params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])); } catch { return send(400, { error: 'bad request' }); }
       const out = await r.h({ req, res, db, session, params, body, url });
       send(200, out ?? { ok: true });
     } catch (e) {
@@ -400,13 +414,13 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
 }
 
 function serveStatic(root: string, pathname: string, res: http.ServerResponse, mime: Record<string, string>) {
-  let rel = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
+  let rel: string; try { rel = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, ''); } catch { res.statusCode = 400; res.end('bad request'); return; }
   if (rel === '/' || rel === '.') rel = 'index.html';
   let file = path.join(root, rel);
   if (!file.startsWith(root)) { res.statusCode = 403; return res.end(); }
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(root, 'index.html'); // SPA fallback
   if (!fs.existsSync(file)) { res.statusCode = 404; return res.end('Web build not found. Run `npm run build`, or use `npm run web` for the dev server.'); }
   res.setHeader('Content-Type', mime[path.extname(file)] ?? 'application/octet-stream');
-  res.setHeader('Cache-Control', file.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'no-store');
+  res.setHeader('Cache-Control', rel.startsWith('/assets/') || rel.startsWith('assets/') ? 'public, max-age=31536000, immutable' : 'no-store');
   fs.createReadStream(file).pipe(res);
 }

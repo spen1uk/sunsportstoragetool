@@ -1,13 +1,13 @@
 import { type DB, now, sha256, canonicalJson } from './db.ts';
 import { publish } from './events.ts';
 
-const SECRET_RE = /(sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(?:password|passphrase|secret|token|api[_-]?key)\s*[:=]\s*\S+)/gi;
+const SECRET_RE = /(jv[bk]\w*_[A-Za-z0-9_-]{20,}|Bearer\s+\S{12,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|(?:password|passphrase|secret|token|api[_-]?key)\s*[:=]\s*\S+)/gi;
 export const redact = (s: string) => s.replace(SECRET_RE, '[REDACTED]');
 
 function redactDeep(v: unknown): unknown {
   if (typeof v === 'string') return redact(v);
   if (Array.isArray(v)) return v.map(redactDeep);
-  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, redactDeep(x)]));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, /pass(word|phrase)|secret|token|api[_-]?key|credential|authorization|recovery/i.test(k) ? '[REDACTED]' : redactDeep(x)]));
   return v;
 }
 

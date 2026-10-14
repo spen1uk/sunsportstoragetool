@@ -45,6 +45,8 @@ export async function restoreBackup(file: string, out: string, recoveryKey: stri
   try {
     await decryptFile(file, part, recoveryKey); const v = verifyBackup(part);
     if (v.integrity !== 'ok') throw new Error(`The backup decrypted but the database inside is damaged (${v.integrity}).`);
+    // A restored database must never carry live logins or helper credentials from the past (or from whoever could write the backup folder).
+    const r = openDb(part); r.exec('DELETE FROM sessions; DELETE FROM passkey_challenges;'); r.prepare('UPDATE bridge_tokens SET revoked_at=? WHERE revoked_at IS NULL').run(Date.now()); r.close();
     fs.renameSync(part, out); fs.chmodSync(out, 0o600); return v;
   } catch (e) { fs.rmSync(part, { force: true }); throw e; }
 }
@@ -75,7 +77,7 @@ if (import.meta.filename === process.argv[1]) {
     } else if (cmd === 'restore' || cmd === 'drill') {
       const file = args[0], out = cmd === 'restore' ? args[1] : undefined; if (!file || (cmd === 'restore' && !out)) throw new Error(cmd === 'restore' ? 'usage: npm run backup:restore -- <file.jvbk> <new-database-file>' : 'usage: npm run backup:drill -- <file.jvbk>');
       const key = await ask('Paste your recovery key (starts with jvk1_; input hidden), then Enter: ');
-      if (cmd === 'restore') { const v = await restoreBackup(file, path.resolve(out!), key); console.log(`Restored to ${out}. Integrity: ${v.integrity}. Audit chain ok: ${v.auditChainOk}. ${v.tasks} tasks, ${v.memories} memories.\nTo use it: stop Jarvis, then copy it over data/jarvis.db.`); }
+      if (cmd === 'restore') { const v = await restoreBackup(file, path.resolve(out!), key); console.log(`Restored to ${out}. Integrity: ${v.integrity}. Audit chain ok: ${v.auditChainOk}. ${v.tasks} tasks, ${v.memories} memories.\nTo use it: stop Jarvis, copy it over data/jarvis.db, then run  npm run setup -- --reset-passphrase  (all sign-ins and helper credentials in a restored copy are cleared, and you should always set a fresh passphrase after a restore).`); }
       else { const v = await drill(file, key); console.log(`RESTORE DRILL PASSED: decrypted, integrity ${v.integrity}, audit chain ok: ${v.auditChainOk}, ${v.tasks} tasks, ${v.memories} memories. (The test copy was deleted.)`); const db = openDb(dbPath()); setMeta(db, 'last_drill', JSON.stringify({ at: Date.now(), file: path.basename(file) })); audit(db, 'luke', 'backup.drill_passed', path.basename(file)); }
     } else console.log('usage: npm run backup:keygen | npm run backup -- --to <folder> | npm run backup:drill -- <file> | npm run backup:restore -- <file> <out>');
   } catch (e) { console.error('Backup: ' + (e as Error).message); process.exit(1); }

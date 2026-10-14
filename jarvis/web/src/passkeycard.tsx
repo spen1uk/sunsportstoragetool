@@ -8,7 +8,7 @@ export function PasskeyCard() {
   const [pw, setPw] = useState(''), [name, setName] = useState('This device'), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [busy, setBusy] = useState(false);
   if (!data) return null;
   const run = async (f: () => Promise<unknown>, ok: string) => { setBusy(true); setMsg(null); try { await f(); setMsg({ ok: true, t: ok }); } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) }); } finally { setBusy(false); reload(); } };
-  const confirmFirst = async () => { if (pw) { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } else if (data.items.length) await stepUpWithPasskey(); else throw new Error('Enter your passphrase to confirm.'); };
+  const confirmFirst = async () => { if (!data.required && pw) { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } else if (data.items.length) { await stepUpWithPasskey(); setPw(''); } else throw new Error('Enter your passphrase to confirm.'); };
   const supported = passkeySupported();
   return (
     <div className="glass pad section">
@@ -21,7 +21,7 @@ export function PasskeyCard() {
           <button disabled={busy} onClick={() => { if (confirm(`Remove "${p.name}"?`)) void run(async () => { await confirmFirst(); await api(`/api/passkeys/${encodeURIComponent(p.id)}`, 'DELETE'); }, 'Removed.'); }}>Remove</button></li>))}</ul>
       <div className="row wrap section">
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} aria-label="Passkey name" style={{ width: 160 }} />
-        <input type="password" autoComplete="current-password" placeholder={data.items.length ? 'Passphrase (or leave blank to use a passkey)' : 'Your passphrase (to confirm)'} value={pw} onChange={(e) => setPw(e.target.value)} aria-label="Passphrase to confirm" className="grow" />
+        <input type="password" autoComplete="current-password" placeholder={data.required ? 'Not needed: a passkey is required' : data.items.length ? 'Passphrase (or leave blank to use a passkey)' : 'Your passphrase (to confirm)'} value={pw} onChange={(e) => setPw(e.target.value)} aria-label="Passphrase to confirm" className="grow" />
         <button className="primary" disabled={busy || !supported || onNumericAddress()} onClick={() => void run(async () => { await confirmFirst(); await registerPasskey(name); }, 'Passkey added.')}>Add a passkey</button>
       </div>
       {data.items.length > 0 && <label className="check" style={{ marginTop: 10 }}><input type="checkbox" checked={data.required} disabled={busy} onChange={(e) => void run(async () => { await confirmFirst(); await api('/api/passkeys/require', 'PUT', { required: e.target.checked }); }, e.target.checked ? 'Passphrase sign-in is now off.' : 'Passphrase sign-in is back on.')} /> Require a passkey to sign in (turns the passphrase off for sign-in)</label>}

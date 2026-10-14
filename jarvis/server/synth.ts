@@ -7,6 +7,11 @@ import * as gw from './llm/gateway.ts';
  * links are stripped, citations must point at real sources, uncited claims are flagged, and source quotes can never be rewritten.
  */
 const URL_RE = /https?:\/\/[^\s)>\]]+/gi;
+// Document text is sent with < and > swapped for private-use characters (and swapped back in the reply), so nothing in it can close a <data> block or open a new one,
+// while the document's own structure (line breaks, "> " quote lines) is preserved exactly.
+const toModel = (s: string) => s.replace(/</g, '\uE000').replace(/>/g, '\uE001');
+const fromModel = (s: string) => s.replace(/\uE000/g, '<').replace(/\uE001/g, '>');
+const FLAG_MARK = 'reads like instructions to an AI agent';
 const fence = (s: string) => s.replace(/[<>]/g, (c) => (c === '<' ? '‹' : '›')).replace(/\s+/g, ' ').trim();
 
 export type SourceForModel = { n: number; title: string; passages: string[] };
@@ -95,13 +100,15 @@ export async function reviseWithModel(db: DB, o: { content: string; anchor: stri
   const touched = anchored ? content.slice(lineStart, content.indexOf(anchor) + anchor.length).split('\n') : [];
   if (anchored && (touched.some((l) => l.trim().startsWith('>')))) return { ok: false, reason: 'That passage is quoted source text, which cannot be rewritten. Use "remove" to take it out, or "note:" to comment on it.' };
   if (!anchored && content.length > 24_000) return { ok: false, reason: 'This document is too long to rewrite as a whole. Highlight the passage to change.' };
+  if (!anchored && content.includes(FLAG_MARK)) return { ok: false, reason: 'This draft quotes a web page that tried to give instructions to an AI, and I will not show that page to the model. Highlight the passage you want changed instead of rewriting the whole draft.' };
   const idx = anchored ? content.indexOf(anchor) : 0;
+  const context = (c: string) => (c.includes(FLAG_MARK) ? '(omitted)' : fence(c));   // nearby text from a flagged page is never sent
   const user = anchored
-    ? `<data kind="before">${fence(content.slice(Math.max(0, idx - 500), idx))}</data>\n<data kind="passage">${anchor}</data>\n<data kind="after">${fence(content.slice(idx + anchor.length, idx + anchor.length + 500))}</data>\n\nInstruction from Luke: ${fence(instruction).slice(0, 800)}\n\nReply with ONLY the replacement for the passage.`
-    : `<data kind="document">\n${content}\n</data>\n\nInstruction from Luke: ${fence(instruction).slice(0, 800)}\n\nReply with ONLY the full revised document.`;
+    ? `<data kind="before">${context(content.slice(Math.max(0, idx - 500), idx))}</data>\n<data kind="passage">${toModel(anchor)}</data>\n<data kind="after">${context(content.slice(idx + anchor.length, idx + anchor.length + 500))}</data>\n\nInstruction from Luke: ${fence(instruction).slice(0, 800)}\n\nReply with ONLY the replacement for the passage.`
+    : `<data kind="document">\n${toModel(content)}\n</data>\n\nInstruction from Luke: ${fence(instruction).slice(0, 800)}\n\nReply with ONLY the full revised document.`;
   const r = await gw.complete(db, { task: 'analysis', system: REVISE_SYSTEM, messages: [{ role: 'user', content: user }], ref: o.taskId, optional: true });
   if (!r.ok) return { ok: false, reason: r.kind === 'budget' || r.kind === 'daily_ceiling' || r.kind === 'paused' ? r.error : `The model could not do this right now (${r.kind}).` };
-  let text = r.text.replace(/^```[a-z]*\n?|\n?```$/g, '').trim();
+  let text = fromModel(r.text.replace(/^```[a-z]*\n?|\n?```$/g, '').trim());
   if (!text) return { ok: false, reason: 'The model returned nothing.' };
   const out = anchored ? content.replace(anchor, () => text) : text;
   const bad = revisionSafe(content, out); if (bad) return { ok: false, reason: bad };

@@ -18,9 +18,10 @@ Jarvis itself still listens on `127.0.0.1` only. Tailscale is the only thing tha
 1. **Create the server** (Ubuntu 24.04 LTS, smallest size). Turn on the provider's automatic security updates; no password logins, SSH keys only.
 2. **Firewall:** deny all incoming (`ufw default deny incoming; ufw allow OpenSSH` until Tailscale SSH is on, then remove it).
 3. **Tailscale:** install on the server, the Mac and the phone (`tailscale up`). Note the server's name, e.g. `jarvis.your-tailnet.ts.net`. Then `tailscale serve --bg 8788` gives it HTTPS on that name (tailnet-only; do **not** use `funnel`).
-4. **Node 22.18+:** install from NodeSource. Create a user: `useradd --system --home /opt/jarvis jarvis`.
-5. **Code:** clone the repo into `/opt/jarvis` (branch `claude/magical-heisenberg-ce1m2m` until merged), `cd jarvis`-folder, `npm ci && npm run build`.
-6. **Config:** `cp deploy/jarvis.env.example /etc/jarvis.env`, edit the Tailscale name, `chmod 600`. `mkdir /var/lib/jarvis; chown jarvis /var/lib/jarvis; chmod 700`.
+4. **Node 22.18+:** install from NodeSource. Create a user: `useradd --system --no-create-home --home-dir /nonexistent jarvis`.
+5. **Code:** clone the repo into `/opt/jarvis` **owned by root** (the service user must be able to read it but not rewrite it); only `/var/lib/jarvis` is writable by `jarvis`. Clone (branch `claude/magical-heisenberg-ce1m2m` until merged), `cd jarvis`-folder, `npm ci && npm run build`.
+6. **Folders:** `mkdir -p /var/backups/jarvis && chown jarvis:jarvis /var/backups/jarvis && chmod 700 /var/backups/jarvis` (the backup unit refuses to start without it).
+6b. **Config:** `cp deploy/jarvis.env.example /etc/jarvis.env`, edit the Tailscale name, `chmod 600`. `mkdir /var/lib/jarvis; chown jarvis /var/lib/jarvis; chmod 700`.
 7. **First run:** as the jarvis user with `JARVIS_DATA_DIR=/var/lib/jarvis`: `npm run setup` (new passphrase, shown once) and `npm run secret:set -- anthropic`.
 8. **Service:** `cp deploy/jarvis.service /etc/systemd/system/; systemctl enable --now jarvis`. It restarts on crash and at boot. `curl http://127.0.0.1:8788/api/health` should say `{"ok":true}`.
 9. **Move your data (optional):** on the Mac stop Jarvis, then copy `data/jarvis.db` (a verified snapshot from `npm run backup:verify` first) to `/var/lib/jarvis/jarvis.db`, owned by jarvis, mode 600. Move `secrets.json` too, or re-enter the key.
@@ -37,10 +38,13 @@ Jarvis itself still listens on `127.0.0.1` only. Tailscale is the only thing tha
 - **Encrypted backups:** `npm run backup:keygen` (once; **save the recovery key it prints**), then `npm run backup -- --to <folder>`; `npm run backup:drill -- <file>` proves a backup opens; `npm run backup:restore -- <file> <new.db>` restores into a *new* file. On the server: `deploy/jarvis-backup.service` + `.timer` run it daily at ~03:15 into `/var/backups/jarvis`, keeping 14. Copy that folder off-site with anything you like (rclone, a synced folder): the files are useless without your recovery key. The server holds only the public key.
 - Do a restore drill **before** relying on any of it, and again after changing keys.
 
+## Security review
+Round 1 (three independent AI-assisted reviews, findings verified and fixed) is in docs/SECURITY_REVIEW.md. It is not a professional penetration test.
+
 ## NOT built yet (do before real use on the server)
 | Item | Why it matters |
 |---|---|
-| Independent security review of the server setup and of `server/passkey.ts` (custom WebAuthn code) | Fresh eyes before it leaves the Mac |
+| A human expert's review of `server/passkey.ts` and the live server (round 1 was AI-assisted: docs/SECURITY_REVIEW.md) | Needed before money or trading keys are ever connected |
 | Uptime alert (e.g. a free external pinger on the private link, or a daily "I'm alive" notification) | You should hear if it stops |
 | Off-site copy of the backup folder (rclone/sync job) | The timer writes on the same server; copy it elsewhere |
 | Decision: Anthropic data-retention terms | Luke's call; see docs/DEPENDENCIES.md |

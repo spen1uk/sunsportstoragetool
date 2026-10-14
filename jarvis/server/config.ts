@@ -11,7 +11,7 @@ export const config = {
   publicHttps: process.env.JARVIS_PUBLIC_HTTPS === '1',
   timezone: 'America/Chicago',
   sessionTtlMs: 12 * 3600_000,
-  stepUpTtlMs: 5 * 60_000,
+  stepUpTtlMs: 2 * 60_000,   // short, and each step-up is spent by ONE protected action (see auth.consumeStepUp)
   leaseMs: 60_000,
 };
 export const dbPath = () => path.join(config.dataDir, 'jarvis.db');

@@ -10,6 +10,8 @@ export type FetchOpts = {
   /** TEST ONLY: permit loopback targets. Never wired to config or request input. */
   allowPrivateForTests?: boolean;
   maxBytes?: number; timeoutMs?: number; maxRedirects?: number;
+  /** Overall time limit per hop (the idle timeout alone can be dodged by a slow trickle). */
+  totalMs?: number;
 };
 
 /** Fetch one document with SSRF protection: allow-list on every redirect hop, public-IP pinning, size/time limits, text types only. */
@@ -21,7 +23,7 @@ export async function fetchSource(url: string, o: FetchOpts): Promise<Fetched> {
     if (!o.isHostAllowed(u.hostname)) throw new Error(`host not allowed: ${u.hostname}`);
     if (u.protocol !== 'https:' && !(o.allowPrivateForTests && u.protocol === 'http:')) throw new Error('https required');
     const ip = o.allowPrivateForTests ? (u.hostname === 'localhost' ? '127.0.0.1' : u.hostname) : await resolvePublic(u.hostname, o.resolver ?? systemResolver);
-    const res = await request(u, ip, maxBytes, timeout);
+    const res = await request(u, ip, maxBytes, timeout, o.totalMs ?? 20_000);
     if (res.status >= 300 && res.status < 400 && res.location) { current = new URL(res.location, u).toString(); continue; }
     if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
     if (!/^(text\/|application\/(xhtml\+xml|json))/i.test(res.contentType)) throw new Error(`unsupported content type: ${res.contentType}`);
@@ -31,8 +33,11 @@ export async function fetchSource(url: string, o: FetchOpts): Promise<Fetched> {
   throw new Error('too many redirects');
 }
 
-function request(u: URL, ip: string, maxBytes: number, timeout: number) {
-  return new Promise<{ status: number; location?: string; contentType: string; buf: Buffer }>((resolve, reject) => {
+function request(u: URL, ip: string, maxBytes: number, timeout: number, totalMs: number) {
+  return new Promise<{ status: number; location?: string; contentType: string; buf: Buffer }>((resolveIn, rejectIn) => {
+    // `timeout` is only an idle timer; a server dribbling one byte every few seconds would hold us forever. This is the overall limit for the hop.
+    const deadline = setTimeout(() => req.destroy(new Error('overall time limit')), totalMs);
+    const resolve = (v: any) => { clearTimeout(deadline); resolveIn(v); }, reject = (e: unknown) => { clearTimeout(deadline); rejectIn(e); };
     const mod = u.protocol === 'https:' ? https : http;
     const req = mod.request({
       host: u.hostname, port: u.port || undefined, path: u.pathname + u.search, method: 'GET', timeout, servername: u.hostname,
