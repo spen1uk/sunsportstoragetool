@@ -1,0 +1,17 @@
+# systemd unit for the Bot City dashboard. Installed by deploy/setup_vps.sh.
+# It only listens on 127.0.0.1 (private); view it from your computer through an SSH tunnel:
+#   ssh -L 8050:127.0.0.1:8050 root@<server-ip>    then open http://127.0.0.1:8050
+[Unit]
+Description=Bot City dashboard
+After=network-online.target tradebot.service
+Wants=network-online.target
+
+[Service]
+User=trader
+WorkingDirectory=/home/trader/trading-bot
+ExecStart=/usr/bin/python3 run.py dashboard --host 127.0.0.1 --port 8050
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

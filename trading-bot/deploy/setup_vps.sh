@@ -21,24 +21,32 @@ fi
 echo "    OK"
 
 echo "==> Running the tests"
-(cd "$BOT_DIR" && python3 -m unittest discover tests >/dev/null 2>&1) && echo "    OK"
+if (cd "$BOT_DIR" && python3 -m unittest discover tests >/dev/null 2>&1); then echo "    OK"
+else echo "!! Some tests failed - run: cd $BOT_DIR && python3 -m unittest discover tests   and send the output to Claude"; exit 1; fi
 
 if [ ! -f "$BOT_DIR/.env" ]; then
   cp "$BOT_DIR/.env.example" "$BOT_DIR/.env"
   echo "==> Created $BOT_DIR/.env - add your Discord/Telegram details there for phone updates"
 fi
 
-echo "==> Installing the always-on service"
-sed -e "s|^User=.*|User=$RUN_USER|" \
-    -e "s|^WorkingDirectory=.*|WorkingDirectory=$BOT_DIR|" \
-    -e "s|^EnvironmentFile=.*|EnvironmentFile=-$BOT_DIR/.env|" \
-    "$BOT_DIR/deploy/tradebot.service" | sudo tee /etc/systemd/system/tradebot.service >/dev/null
+echo "==> Installing the always-on services (bot + dashboard)"
+for unit in tradebot tradebot-dashboard; do
+  sed -e "s|^User=.*|User=$RUN_USER|" \
+      -e "s|^WorkingDirectory=.*|WorkingDirectory=$BOT_DIR|" \
+      -e "s|^EnvironmentFile=.*|EnvironmentFile=-$BOT_DIR/.env|" \
+      "$BOT_DIR/deploy/$unit.service" | sudo tee /etc/systemd/system/$unit.service >/dev/null
+done
 sudo systemctl daemon-reload
-sudo systemctl enable --now tradebot
+sudo systemctl enable --now tradebot tradebot-dashboard
+sudo systemctl restart tradebot tradebot-dashboard   # pick up new code when re-run after an update
 
+IP="$(curl -fsS -m 5 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
 echo
-echo "Done. The bot is running and will restart automatically."
-echo "  Live log:      journalctl -u tradebot -f"
-echo "  Status:        cd $BOT_DIR && python3 run.py status"
-echo "  Stop / start:  sudo systemctl stop tradebot / sudo systemctl start tradebot"
-echo "  After editing .env:  sudo systemctl restart tradebot"
+echo "Done. The bot and dashboard are running and restart automatically (even after a reboot)."
+echo
+echo "  See the dashboard - on your Mac run:   ssh -L 8050:127.0.0.1:8050 $RUN_USER@$IP"
+echo "                     then open:          http://127.0.0.1:8050"
+echo "  Bot status:        cd $BOT_DIR && python3 run.py status"
+echo "  Live log:          journalctl -u tradebot -f      (Ctrl+C to stop watching)"
+echo "  Stop / start:      sudo systemctl stop tradebot / sudo systemctl start tradebot"
+echo "  After editing .env: sudo systemctl restart tradebot"
