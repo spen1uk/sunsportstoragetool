@@ -1,0 +1,11 @@
+# Replace relay.example.com with your hostname (DNS A record must point here). Caddy obtains and renews the certificate automatically.
+relay.example.com {
+	encode zstd gzip
+	request_body { max_size 12MB }
+	# /metrics is for your monitoring system only; it is also token-protected inside Relay.
+	@internal path /metrics
+	respond @internal 404
+	reverse_proxy server:4000 {
+		flush_interval -1   # required so server-sent events (live updates) are not buffered
+	}
+}

@@ -1,0 +1,10 @@
+[Unit]
+Description=Relay backup
+[Service]
+Type=oneshot
+User=relay
+WorkingDirectory=/opt/relay
+EnvironmentFile=/etc/relay/relay.env
+ExecStart=/opt/relay/scripts/backup.sh /var/backups/relay
+# Keep 14 days locally; copy the newest backup OFF this machine (see docs/RUNBOOK.md).
+ExecStartPost=/usr/bin/find /var/backups/relay -maxdepth 1 -name 'relay-backup-*' -mtime +14 -exec rm -rf {} +

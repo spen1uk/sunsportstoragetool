@@ -20,7 +20,7 @@ States: **verified-docs** · **sandbox-tested** · **production-tested** · **un
 | Zoho CRM | not built | Change notifications via `POST /actions/watch` (scope pattern `ZohoCRM.notifications.{op}`); confirm exact scopes via List Available APIs | OAuth client; data-centre region; field mapping |
 | OpenAI / Anthropic | not built (adapter interfaces exist) | n/a | API key + approval; see docs/AI_DATA_SHARING.md |
 | Twilio / Telnyx SMS (Hosted SMS) | not built | Both: **US/CA landline (Twilio also toll-free); mobile numbers excluded**; number already SMS-enabled can't be hosted (Twilio); LOA must match the voice provider's records; ownership verification (Twilio: code call or phone bill) or recent bill (Telnyx); Telnyx needs Level 2 verified account; wireless/Google Voice numbers are a problem | **Eligibility of 262-269-0081 is UNKNOWN** (carrier/line type unverified); provider choice; account; spend approval |
-| Sandra | interface in Phase 6 | n/a | Phase 6 |
+| Sandra | **API built (`/api/v1`), tested with a fake client only; not connected** | Own contract: docs/SANDRA_API.md | Owner creates access in Settings → Assistant after Sandra's runtime is ready |
 | Inventory / service / storage / website | partial | Inventory CSV import ✓; website → signed inbound lead endpoint ✓ | System access details for live feeds; storage tool adapter |
 
 ## Live-number unknowns (unchanged)

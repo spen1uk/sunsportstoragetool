@@ -1,0 +1,17 @@
+[Unit]
+Description=Relay background worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+[Service]
+User=relay
+WorkingDirectory=/opt/relay
+EnvironmentFile=/etc/relay/relay.env
+ExecStart=/usr/bin/node dist/worker/main.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/relay
+PrivateTmp=true
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,33 @@
+# Single-host deployment: Caddy (TLS) → Relay server + worker → PostgreSQL. Copy .env.example to .env and fill EVERY value first.
+# Not exercised in the build environment (no container runtime there); see docs/DEPLOYMENT.md "What has and hasn't been verified".
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment: { POSTGRES_USER: relay, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}", POSTGRES_DB: relay }
+    volumes: [ "pgdata:/var/lib/postgresql/data" ]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U relay"], interval: 10s, retries: 10 }
+  server:
+    build: .
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    env_file: .env
+    environment: { DATABASE_URL: "postgres://relay:${POSTGRES_PASSWORD}@db:5432/relay", TRUST_PROXY: "1", BACKUP_DIR: /backups }
+    volumes: [ "media:/data/media", "./backups:/backups:ro" ]
+    expose: [ "4000" ]
+  worker:
+    build: .
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    env_file: .env
+    environment: { DATABASE_URL: "postgres://relay:${POSTGRES_PASSWORD}@db:5432/relay" }
+    command: ["node", "dist/worker/main.js"]
+    volumes: [ "media:/data/media" ]
+    healthcheck: { disable: true }
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: [ "80:80", "443:443" ]
+    volumes: [ "./deploy/Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data" ]
+    depends_on: [ server ]
+volumes: { pgdata: {}, media: {}, caddy_data: {} }

@@ -21,4 +21,13 @@ export const config = {
   // Versioned keys for rotation: CREDENTIAL_KEYS='{"1":"<64 hex>","2":"<64 hex>"}', CREDENTIAL_KEY_ACTIVE=2. Dev/test fall back to a fixed NON-SECRET key.
   credentialKeysJson: process.env.CREDENTIAL_KEYS ?? '',
   credentialKeyActive: Number(process.env.CREDENTIAL_KEY_ACTIVE ?? 1),
+  // Reverse-proxy trust: 'false' (default; use the socket address), 'true', a hop count (e.g. 1) or a comma-separated list of proxy IPs/CIDRs. Wrong values let clients spoof X-Forwarded-For and dodge rate limits.
+  trustProxy: ((v: string | undefined): boolean | number | string[] => { if (!v || v === 'false') return false; if (v === 'true') return true; if (/^\d+$/.test(v)) return Number(v); return v.split(',').map((x) => x.trim()).filter(Boolean); })(process.env.TRUST_PROXY),
+  // How long a worker may hold a job before another worker may reclaim it (a crashed worker's jobs are re-run after this).
+  jobLeaseSeconds: Number(process.env.JOB_LEASE_SECONDS ?? 60),
+  // /metrics is disabled (404) unless a token is configured; requests must send it as a Bearer token.
+  metricsToken: process.env.METRICS_TOKEN ?? '',
+  backupDir: process.env.BACKUP_DIR ?? '',
+  // Enables jobs that exist only for crash-recovery drills. Never set in production (assertProductionConfig refuses).
+  testJobs: process.env.RELAY_TEST_JOBS === '1',
 };

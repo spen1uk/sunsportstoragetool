@@ -83,7 +83,7 @@ export function App() {
 function Bell({ me, onOpen, onOpenChannel }: { me: Me; onOpen: (conversationId: string) => void; onOpenChannel: (channelId: string) => void }) {
   const [d, setD] = useState<{ items: any[]; unread: number }>({ items: [], unread: 0 }); const [open, setOpen] = useState(false);
   const load = useCallback(() => get('/api/notifications').then(setD).catch(() => {}), []);
-  useEffect(() => { load(); return subscribe((e) => { if (e.type === 'notification' && e.userId === me.user.id) load(); }); }, [load, me.user.id]);
+  useEffect(() => { load(); return subscribe((e) => { if ((e.type === 'notification' && e.userId === me.user.id) || e.type === 'resync') load(); }); }, [load, me.user.id]);
   return (
     <div className="bell right"><button onClick={() => { setOpen(!open); if (!open) post('/api/notifications/read').then(load); }} aria-label={`Notifications, ${d.unread} unread`}>🔔{d.unread > 0 && <span className="chip count">{d.unread}</span>}</button>
       {open && <div className="popover drop">{d.items.length === 0 ? <p className="muted small pad">Nothing yet.</p> : d.items.map((n) => <button key={n.id} className="row" onClick={() => { setOpen(false); if (n.conversation_id) onOpen(n.conversation_id); else if (n.type === 'mention' && n.ref_id) onOpenChannel(n.ref_id); }}><span className={n.read_at ? '' : 'unreadtext'}>{n.title}</span><span className="small muted">{new Date(n.created_at).toLocaleString()}</span></button>)}

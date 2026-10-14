@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { tx, pool } from '../db/pool.js';
 import { type Actor, HttpError, requireConversation, visibilitySql, isAdmin, atLeastManager } from './authz.js';
 import { publish, audit } from './events.js';
+import { emitServiceEvent } from './service-events.js';
 
 export const RESPONSIBILITIES = ['needs_our_reply', 'waiting_on_customer', 'waiting_on_staff', 'scheduled', 'closed'] as const;
 export const HANDLING_MODES = ['human', 'sandra', 'draft_only', 'paused'] as const;
@@ -78,6 +79,7 @@ export async function assign(a: Actor, conversationId: string, assigneeId: strin
     await c.query('UPDATE conversations SET assignee_user_id=$2, revision=revision+1 WHERE id=$1', [conversationId, assigneeId]);
     await timeline(c, a, conv, 'assignment', assigneeId ? 'Conversation assigned' : 'Conversation unassigned');
     await audit(c, { workspaceId: a.workspaceId, actorUserId: a.userId, action: 'conversation.assign', targetType: 'conversation', targetId: conversationId, meta: { assigneeId } });
+    await emitServiceEvent(c, a.workspaceId, 'conversation.assigned', { conversationId, contactId: conv.contact_id, payload: { assigneeId } });
     await publish(c, a.workspaceId, 'conversation.updated', { conversationId });
   });
 }
@@ -91,6 +93,7 @@ export async function takeover(a: Actor, conversationId: string) {
     await c.query(`UPDATE messages SET status='suppressed', status_detail='employee_takeover' WHERE conversation_id=$1 AND status='queued' AND sender_type IN ('sandra','automation')`, [conversationId]);
     await timeline(c, a, conv, 'handling_mode', 'Employee took over (Human handling)');
     await audit(c, { workspaceId: a.workspaceId, actorUserId: a.userId, action: 'conversation.takeover', targetType: 'conversation', targetId: conversationId });
+    await emitServiceEvent(c, a.workspaceId, 'conversation.takeover', { conversationId, contactId: conv.contact_id, payload: {} });
     await publish(c, a.workspaceId, 'conversation.updated', { conversationId });
   });
 }
@@ -104,6 +107,7 @@ export async function setHandlingMode(a: Actor, conversationId: string, mode: st
     if (mode !== 'sandra') await c.query(`UPDATE messages SET status='suppressed', status_detail='handling_mode_changed' WHERE conversation_id=$1 AND status='queued' AND sender_type IN ('sandra','automation')`, [conversationId]);
     await timeline(c, a, conv, 'handling_mode', `Handling mode set to ${mode}`);
     await audit(c, { workspaceId: a.workspaceId, actorUserId: a.userId, action: 'conversation.handling_mode', targetType: 'conversation', targetId: conversationId, meta: { mode } });
+    await emitServiceEvent(c, a.workspaceId, 'conversation.handling_changed', { conversationId, contactId: conv.contact_id, payload: { mode } });
     await publish(c, a.workspaceId, 'conversation.updated', { conversationId });
   });
 }
@@ -127,6 +131,7 @@ export async function setOpen(a: Actor, conversationId: string, open: boolean) {
     await c.query(`UPDATE conversations SET status=$2, responsibility=$3, revision=revision+1 WHERE id=$1`, [conversationId, open ? 'open' : 'closed', open ? 'needs_our_reply' : 'closed']);
     if (!open) await c.query(`UPDATE messages SET status='suppressed', status_detail='conversation_closed' WHERE conversation_id=$1 AND status='queued' AND sender_type IN ('sandra','automation') AND purpose<>'compliance'`, [conversationId]);
     await timeline(c, a, conv, 'status_change', open ? 'Conversation reopened' : 'Conversation closed');
+    await emitServiceEvent(c, a.workspaceId, 'conversation.status_changed', { conversationId, contactId: conv.contact_id, payload: { open } });
     await publish(c, a.workspaceId, 'conversation.updated', { conversationId });
   });
 }

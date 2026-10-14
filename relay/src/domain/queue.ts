@@ -1,5 +1,6 @@
 import type { Db } from '../db/pool.js';
 import { pool } from '../db/pool.js';
+import { config } from '../config.js';
 
 export async function enqueue(db: Db, kind: string, payload: object, opts: { runAt?: Date; workspaceId?: string; dedupeKey?: string; maxAttempts?: number } = {}) {
   const r = await db.query(
@@ -15,7 +16,6 @@ export type Handler = (job: Job) => Promise<void>;
 /** Thrown by handlers when the failure is terminal (do not retry). */
 export class PermanentJobError extends Error {}
 
-const LEASE_SECONDS = 60;
 
 /** Claim one due job (also reclaims jobs whose lease expired after a worker crash). */
 export async function claim(): Promise<Job | null> {
@@ -23,7 +23,7 @@ export async function claim(): Promise<Job | null> {
     `UPDATE jobs SET status='running', attempts=attempts+1, locked_until=now()+($1||' seconds')::interval
      WHERE id = (SELECT id FROM jobs WHERE (status='pending' AND run_at<=now()) OR (status='running' AND locked_until<now())
                  ORDER BY run_at FOR UPDATE SKIP LOCKED LIMIT 1)
-     RETURNING id, kind, payload, attempts, max_attempts, workspace_id`, [LEASE_SECONDS]);
+     RETURNING id, kind, payload, attempts, max_attempts, workspace_id`, [config.jobLeaseSeconds]);
   return r.rows[0] ?? null;
 }
 

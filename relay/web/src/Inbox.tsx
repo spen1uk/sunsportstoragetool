@@ -33,7 +33,7 @@ export function Inbox({ me, focus, compose, onComposeUsed, onOpenTeam }: { me: M
   useEffect(() => subscribe((e) => {
     if (e.type === 'typing' && e.userId !== me.user.id) setTyping((t) => ({ ...t, [e.conversationId]: { name: e.name, at: Date.now() } }));
     else if (e.type === 'notification' || e.type === 'chat.message' || e.type === 'inventory.updated') { /* handled elsewhere */ }
-    else { loadList(); if (e.conversationId === selRef.current) setTick((n) => n + 1); }
+    else { loadList(); if (e.type === 'resync' || e.conversationId === selRef.current) setTick((n) => n + 1); }
   }), [loadList, me.user.id]);
 
   const open = (id: string) => { setSel(id); setPanel('thread'); };
@@ -91,13 +91,14 @@ function Thread({ id, tz, compose, onComposeUsed, tick, typing, onBack, onInfo, 
   const [data, setData] = useState<any>(null); const [draft, setDraft] = useState(''); const [err, setErr] = useState(''); const [loadErr, setLoadErr] = useState(''); const [warn, setWarn] = useState<string | null>(null);
   const [files, setFiles] = useState<{ id: string; name: string }[]>([]); const [showTpl, setShowTpl] = useState(false); const [showSched, setShowSched] = useState(false); const [tpls, setTpls] = useState<any[]>([]); const [tplSearch, setTplSearch] = useState('');
   const [sched, setSched] = useState<any[]>([]); const [when, setWhen] = useState(''); const [tplMissing, setTplMissing] = useState<string[]>([]);
-  const [packageId, setPackageId] = useState<string | null>(null); const [showVoice, setShowVoice] = useState(false);
+  const [packageId, setPackageId] = useState<string | null>(null); const [showVoice, setShowVoice] = useState(false); const [aDrafts, setADrafts] = useState<any[]>([]);
   const keyRef = useRef(uuid());
   useEffect(() => { if (compose) { setDraft(compose.body); setPackageId(compose.packageId || null); setFiles([]); onComposeUsed?.(); } }, [compose]);
   const endRef = useRef<HTMLDivElement>(null); const typingTimer = useRef<number>(0);
   const load = useCallback(() => get(`/api/conversations/${id}`).then((d) => { setData(d); post(`/api/conversations/${id}/read`).catch(() => {}); }).catch((e) => setLoadErr(e.message)), [id]);
+  const loadDrafts = useCallback(() => get(`/api/conversations/${id}/assistant-drafts`).then(setADrafts).catch(() => setADrafts([])), [id]);
   const loadSched = useCallback(() => get(`/api/conversations/${id}/scheduled`).then(setSched).catch(() => {}), [id]);
-  useEffect(() => { load(); loadSched(); }, [load, loadSched, tick]);
+  useEffect(() => { load(); loadSched(); loadDrafts(); }, [load, loadSched, loadDrafts, tick]);
   useEffect(() => { if (showTpl) get('/api/templates?search=' + encodeURIComponent(tplSearch)).then(setTpls); }, [showTpl, tplSearch]);
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [data?.messages?.length]);
   const [, force] = useState(0); useEffect(() => { const t = setInterval(() => force((n) => n + 1), 2000); return () => clearInterval(t); }, []);
@@ -139,6 +140,9 @@ function Thread({ id, tz, compose, onComposeUsed, tick, typing, onBack, onInfo, 
       {sched.filter((x) => x.status === 'pending' || x.status === 'needs_review').map((x) => (
         <div key={x.id} className={`banner ${x.status === 'needs_review' ? 'warn' : ''}`}>Scheduled for {new Date(x.run_at).toLocaleString([], { timeZone: x.timezone, dateStyle: 'medium', timeStyle: 'short' })} ({x.timezone}) by {x.created_by_name}{x.status === 'needs_review' ? ' — NOT sent: customer replied since; review' : ''}: “{x.body.slice(0, 60)}” {x.status === 'pending' && <button onClick={async () => { try { await post(`/api/scheduled/${x.id}/cancel`); loadSched(); load(); } catch (e: any) { setErr(e.message); } }}>Cancel</button>}</div>))}
       {tplMissing.length > 0 && <div className="banner warn" role="alert">This template needs details we don't have: {tplMissing.join(', ')}. Fill them in (Settings / customer record) or edit the text. It cannot be sent with {'{{…}}'} left in.</div>}
+      {aDrafts.map((d) => <div key={d.id} className={`banner ${d.reason ? 'warn' : ''}`} role="note"><strong>{d.assistant_name ?? 'Assistant'} suggests{d.reason ? ` (held for a person: ${String(d.reason).replace('authority:', '').replaceAll('_', ' ')})` : ''}:</strong> “{d.body}”
+        {d.current_revision !== d.base_revision && <div className="small muted">The conversation has changed since this was written — check it still fits.</div>}
+        <div><button className="primary" onClick={async () => { try { const r = await post(`/api/assistant-drafts/${d.id}/use`); setDraft(r.body); loadDrafts(); } catch (e: any) { setErr(e.message); } }}>Use as my draft</button> <button onClick={async () => { await post(`/api/assistant-drafts/${d.id}/dismiss`).catch(() => {}); loadDrafts(); }}>Dismiss</button></div></div>)}
       {packageId && <div className="banner">Boat package draft — review and edit, then Send. Price and availability are re-verified when you send; the send is refused if anything changed.</div>}
       {showVoice && <VoicePanel conversationId={id} onClose={() => setShowVoice(false)} onSent={() => { setShowVoice(false); load(); onChanged(); }} />}
       {showTpl && <div className="popover"><input placeholder="Search templates…" aria-label="Search templates" value={tplSearch} onChange={(e) => setTplSearch(e.target.value)} />

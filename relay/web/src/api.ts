@@ -12,7 +12,12 @@ export const post = <T = any>(u: string, b?: unknown) => api<T>('POST', u, b ?? 
 /** Subscribe to server-sent events; auto-reconnects (EventSource does this natively). */
 export function subscribe(onEvent: (e: any) => void): () => void {
   const es = new EventSource('/api/events');
+  let wasDown = false;
   es.onmessage = (m) => { try { onEvent(JSON.parse(m.data)); } catch { /* ignore */ } };
+  // Events sent while the connection was down are gone. When it comes back (or the server says its own listener was re-established),
+  // synthesize a 'resync' so every screen reloads what it shows instead of staying silently stale.
+  es.onerror = () => { wasDown = true; };
+  es.onopen = () => { if (wasDown) { wasDown = false; onEvent({ type: 'resync' }); } };
   return () => es.close();
 }
 export const uuid = () => crypto.randomUUID();

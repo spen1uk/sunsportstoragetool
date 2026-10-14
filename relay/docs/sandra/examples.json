@@ -1,0 +1,17 @@
+{
+  "Me": { "identity": { "id": "6f1d2c1e-8a3b-4c55-9d0e-1a2b3c4d5e6f", "name": "Sandra" }, "scopes": ["conversations:read", "events:read", "messages:read", "messages:send"], "autonomy": "send", "departmentIds": [], "rateLimitPerMin": 120, "apiVersion": 1 },
+  "ConversationDetail": {
+    "conversation": { "id": "0b9f3a52-6d6e-4a1b-8c3d-5f7e9a1b2c3d", "contactId": "7c1a9e44-2b3d-4f5a-8e6b-0d1c2b3a4f5e", "revision": 14, "status": "open", "responsibility": "needs_our_reply", "handlingMode": "sandra", "assigneeUserId": null, "departmentId": null, "tags": ["new-lead"], "lastInboundAt": "2026-10-13T15:02:11.000Z", "lastOutboundAt": null, "lastTakeoverAt": null },
+    "sms": { "canSend": true },
+    "humanRequiredTopics": [],
+    "messages": [ { "id": "3d2c1b0a-9f8e-4d7c-8b6a-5e4d3c2b1a0f", "seq": 4021, "direction": "inbound", "origin": "customer", "body": "Is the 19 ft Sea Ray still available?", "status": "received", "createdAt": "2026-10-13T15:02:11.000Z", "untrusted": true } ]
+  },
+  "EventsPage": { "events": [ { "seq": 311, "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", "type": "message.received", "createdAt": "2026-10-13T15:02:11.000Z", "conversationId": "0b9f3a52-6d6e-4a1b-8c3d-5f7e9a1b2c3d", "contactId": "7c1a9e44-2b3d-4f5a-8e6b-0d1c2b3a4f5e", "revision": 14, "data": { "messageId": "3d2c1b0a-9f8e-4d7c-8b6a-5e4d3c2b1a0f", "keyword": null } } ], "cursor": 310, "head": 311, "hasMore": false },
+  "SendAccepted": { "messageId": "9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a", "status": "queued", "revision": 15 },
+  "StaleRevision": { "error": "stale_revision", "currentRevision": 16, "handlingMode": "human", "yourRevision": 14, "note": "The conversation changed since you read it (customer reply, staff takeover, or another send). Re-read it before deciding again." },
+  "AuthorityRequired": { "error": "authority_required", "topic": "discounts_and_negotiation", "detail": "message mentions “discount”", "draftId": "5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d", "note": "Not sent. Saved as a draft for staff." },
+  "DraftCreated": { "draftId": "5a4b3c2d-1e0f-4a9b-8c7d-6e5f4a3b2c1d" },
+  "Inventory": { "boats": [ { "id": "11111111-2222-4333-8444-555555555555", "title": "2019 Sea Ray SPX 190", "price": 28995, "availability": "available" } ] },
+  "Business": { "name": "Sun Sport Marine", "timezone": "America/Chicago", "hours": { "configured": false, "note": "Business hours have not been entered; do not state hours." }, "automationPaused": false, "texting": { "live": false } },
+  "ApiError": { "error": "missing scope messages:send", "code": "missing_scope", "scope": "messages:send" }
+}

@@ -63,12 +63,37 @@ Limitations specific to Phase 5:
 - Payments are manager-only to create; staff see statuses for customers they can access. Payment amounts capped at $250,000 per request (our own limit).
 - No accounting integration: Relay cannot verify or change invoice balances.
 
+## Phase 6 — COMPLETE for local/self-contained verification; external pieces listed as NOT verified
+**Gate (§16): stale assistant send rejected after takeover · scoped access & idempotency · backup restored into fresh environment · worker & realtime recovery demonstrated — all evidenced below.**
+
+| Gate item | Evidence |
+|---|---|
+| Stale assistant send rejected after takeover | `test/sandra.test.ts` (GATE: fencing): takeover, customer reply, staff assignment each → `409 stale_revision`, nothing queued/sent; already-queued send suppressed by takeover and by worker; even a fresh revision can't send unless handling=Sandra (paused/draft-only/closed/global pause block). Mutation check: removing the fence (API pre-check **and** pipeline check) fails 5 tests; removing the pipeline check alone is caught by the direct-pipeline test. |
+| Scoped access | each scope gates exactly its endpoints; autonomy ladder (read_only < drafts < send; owner-only `send`); department scoping (Financing invisible: 404 for conversations/contacts/summaries/events/writes); no internal notes in any response; service keys reach nothing outside `/api/v1`, cookies reach nothing inside. |
+| Idempotency | same key+body → one message & replay header; key-order independent; different body → 422; concurrent ×6 → one execution; replay survives state change; per-identity namespace; required on every POST; bad bodies never stored. Mutation check (remove hash compare) fails the test. |
+| Revocation | next-request effect for revoke / disable / expiry; hashed keys only (plaintext absent from every table). Mutation check fails 2 tests. |
+| Backup restored into a fresh environment | `npm run drill:restore` → **18/18**: backup script (pg_dump -Fc + media tar + manifest/checksums); damaged backup refused (exit 3); non-empty target refused (4); fresh DB restore; row counts and message fingerprint identical; media bytes identical; **a real server process on the restored DB** lists the thread, serves media via signed link; stored webhook secret decrypts with the same key and **not** with a different key. |
+| Worker recovery | `npm run drill:recovery` → **10/10** with real processes: SIGKILL worker mid-job → job left leased; text sent while worker dead stays queued; new worker reclaims after lease (`JOB_LEASE_SECONDS`, 5 s in the drill) and completes it exactly once (attempts=2, started=2, completed=1); queued text goes out exactly once. Heartbeats/`/api/admin/status` show worker alive. |
+| Realtime recovery | `test/ops.test.ts`: LISTEN backend terminated → server reconnects, broadcasts `resync`, live events flow again. Drill: SIGKILL server with a browser-style SSE client connected → client reconnects to the restarted server, events flow, no customer message lost; sessions survive (DB-backed). Web client turns reconnect into a `resync` so Inbox/Chat/Bell reload. |
+
+**Built**: migration 008; service identities + hashed revocable keys (rotation overlap, expiry), `/api/v1` (events pull/ack + optional signed SSRF-safe push, conversations/messages/contacts/summary/matches/inventory/business reads; send/drafts/tags/handoff/pause/tasks writes), authority rules (owner-editable keywords + ungrounded `$` amounts → staff draft), fake Sandra client + CLI + zod contract + validated examples; admin API + Settings → Assistant panel (keys shown once, scopes, departments, owner-only autonomy, rules, audit), Inbox assistant-draft banners (Use/Dismiss), Sandra-labelled messages. Ops: worker heartbeats, `/ready`, `/api/admin/status` + System-health card, token-protected `/metrics`, security headers/CSP, log redaction, `TRUST_PROXY` (default off), production boot guard (refuses dev defaults; simulator webhook/dev routes 404 in production — closes a forgeable-inbound hole), configurable job lease, contact export + erase/anonymize (+ retention doc). Deployment: tsc build (`npm run build`; built server boot-tested in production mode), Dockerfile, compose, Caddyfile, systemd units + backup timer, RUNBOOK, DEPLOYMENT, SECURITY, COST_MODEL (formulas only), DATA_RETENTION, SANDRA_API, SANDRA_INTEGRATION_GUIDE.
+**Tests**: see totals in the Phase 6 report at the bottom of this file.
+
+**NOT verified / not done in Phase 6** (do not assume):
+- **No real Sandra exists**; the API is proven only against the fake client. Her real runtime may need contract changes.
+- Docker image build/run and Caddy were **not run** (no container daemon / Caddy in this environment); compose file and systemd units only parse-checked.
+- Offsite backup copy, encryption of backups at rest, monitoring/alert wiring, TLS/DNS, load/capacity testing, malware scanning, MFA — not done. Cost model has **no verified prices**.
+- Keyword authority rules are a heuristic (paraphrases get through); keep autonomy at `drafts` until the owner is comfortable.
+- Assistant rate limit and login limiter are per process.
+- Erase does not cover team-chat mentions, older backups, or third-party copies (docs/DATA_RETENTION.md).
+- Real SMS/provider sending remains BLOCKED/disabled; nothing was texted, no number changed, Kenect untouched, nothing spent.
+
 ## Honest limitations
 - Summaries use a regex extractor, not an LLM: good at budgets/boats/dates/questions, weak at nuance; "unanswered" means no staff message followed at all. LLM adapters pending API key (docs/AI_DATA_SHARING.md).
 - Inventory has no live source; import/manual only. "Source of truth" = the imported list, marked stale after 24h unless re-confirmed.
 - No push notifications; PWA installable manifest + minimal service worker only.
 - Local-disk media store (needs object storage for production); no malware scanner.
-- Not built: presence, bulk actions, contact merge tool, Phases 6–7, cost model, deployment package. ("Groups" are tags.)
+- Not built: presence, bulk actions, contact merge tool, Phase 7. ("Groups" are tags.)
 
 ## Blocked / needs owner
 1. SMS test-number provider choice + account + spend approval (and answers to the live-number questions in INTEGRATION_CAPABILITIES.md).
@@ -76,4 +101,7 @@ Limitations specific to Phase 5:
 3. Inventory system access/API details (or approval to treat manual CSV import as source of truth).
 
 ## Next
-Phase 6: Sandra API (service identity, scoped access, events, fencing, idempotency, fake client, docs), operational hardening (backup/restore into a fresh environment, worker/realtime recovery demos), deployment package. Then Phase 7 migration preparation.
+Phase 7: Kenect/RingCentral migration preparation (no cutover, no number transfer, no spend without owner approval).
+
+### Phase 6 report (final)
+`npm run check` (typecheck incl. scripts + eslint + vitest): **363 tests passing across 17 files** (277 prior + 61 assistant + 25 ops/privacy). Drills: restore 18/18, recovery 10/10. Playwright desktop+mobile on Settings → Assistant: no horizontal overflow, no CSP console errors (only the expected pre-login 401).

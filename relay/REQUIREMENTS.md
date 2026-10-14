@@ -3,7 +3,7 @@ Legend: [ ] todo · [~] partial · [x] done+verified (evidence in BUILD_STATUS.m
 
 ## §3 Architecture
 - [x] Postgres + migrations · [x] authenticated backend · [x] responsive PWA (installable manifest; push not built) · [x] durable jobs · [x] media storage (local-disk adapter; object storage pending hosting choice) · [x] realtime (SSE)
-- [~] provider adapters + simulators (SMS, summarizer, transcriber interfaces done; others pending) · [ ] separate dev/test/prod config · [ ] deployment/backup/restore docs
+- [~] provider adapters + simulators (SMS, summarizer, transcriber interfaces done; others pending) · [x] separate dev/test/prod config (production boot guard) · [x] deployment/backup/restore docs (Docker image & Caddy untested)
 ## §4 Interface (Inbox, Team Chat, Customers, Inventory Matches, Reviews, Payments, Automations, Broadcasts, Media, Analytics, Connections, Settings)
 - [ ] each screen has working local behaviour; unconnected features explain setup
 ## §5 Messaging
@@ -19,8 +19,8 @@ Legend: [ ] todo · [~] partial · [x] done+verified (evidence in BUILD_STATUS.m
 ## §10 Matching   [x] inventory w/ source-of-truth+freshness, explicit prefs, explain/rank, missing vs disqualifying, recalculation on all triggers, sold/unknown excluded, stale flagged, feedback, duplicate-outreach log, draft-only packages re-verified at send, future policy (consent/cap/quiet hours) encoded not wired. [B] no live inventory connection
 ## §11 Templates ✓ (versions, variables, missing-field validation, search, favorites, dept scoping, manager-only edit) · Scheduling ✓ (DST gap/overlap, creator tz, cancel, history, recheck at execution) · [x] automation builder (bounded steps, conditions, branches, delay, stop conditions, preview/dry-run, activate/pause, versions, execution log, idempotency, loop prevention, frequency limits, quiet hours, opt-outs, global pause) · [x] broadcasts · [x] auto-responses/business hours/holidays · [B] external-event triggers need verified adapters
 ## §12 Analytics [x] (appointments/reviews/payments pending connections) · Media [~] library, validation, signed expiring links, revocation, MMS limits; TODO branded share pages, malware scanner · [x] reviews framework (sync, reply workflow w/ approval + audit, manual import, sentiment-blind requests) · [x] payments framework (signed events, reconciliation, refunds) · [B] provider-backed validation needs credentials/adapters
-## §13 Connections framework  [x] adapter contract, encrypted+rotatable creds, OAuth refresh/recovery, scoped read/write, incremental resumable sync, mappings (loop-safe), retries/backoff, reconciliation, disconnect/revoke, last-sync/errors, capability labels, webhook verification, SSRF guard, generic webhooks in/out · [B] real provider adapters (see matrix) · [ ] Relay API keys (Phase 6)
-## §14 Sandra API  [ ] service identity, scopes, events, fencing, idempotency, fake client, docs
+## §13 Connections framework  [x] adapter contract, encrypted+rotatable creds, OAuth refresh/recovery, scoped read/write, incremental resumable sync, mappings (loop-safe), retries/backoff, reconciliation, disconnect/revoke, last-sync/errors, capability labels, webhook verification, SSRF guard, generic webhooks in/out · [B] real provider adapters (see matrix) · [x] Relay API keys (assistant identities)
+## §14 Sandra API  [x] service identity, scopes, events (pull+signed push), fencing, idempotency, authority rules, fake client, docs · [B] real Sandra connection (owner, after build) · [~] rate limit per process
 ## §15 Security   [x] roles ✓ dept scope ✓ rate limits ✓ audit ✓ · [ ] retention/export/delete · [ ] secret mgmt (Phase 5)
 ## §16 Phases 0–7 gates  (see BUILD_STATUS.md)
 ## §17 Final report, cost model, runbook, migration checklist

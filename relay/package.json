@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Relay — Sun Sport Marine communications platform",
+  "description": "Relay \u2014 Sun Sport Marine communications platform",
   "scripts": {
     "dev:server": "tsx watch src/server/main.ts",
     "dev:worker": "tsx watch src/worker/main.ts",
@@ -14,9 +14,17 @@
     "migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/db/seed.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web/tsconfig.json",
-    "lint": "eslint src web/src test",
+    "lint": "eslint src web/src test scripts",
     "test": "vitest run",
-    "check": "npm run typecheck && npm run lint && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run test",
+    "sandra:fake": "tsx src/sandra/cli.ts",
+    "build:server": "tsc -p tsconfig.build.json",
+    "build": "npm run build:server && npm run build:web",
+    "start:prod:server": "node dist/server/main.js",
+    "start:prod:worker": "node dist/worker/main.js",
+    "backup": "scripts/backup.sh",
+    "drill:restore": "tsx scripts/restore-drill.ts",
+    "drill:recovery": "tsx scripts/recovery-drill.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",

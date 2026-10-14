@@ -22,7 +22,7 @@ function Chat({ me, initial }: { me: Me; initial: string | null }) {
   const loadMsgs = useCallback(() => { if (!sel) return; get(`/api/chat/channels/${sel}/messages`).then((m) => { setMsgs(m); post(`/api/chat/channels/${sel}/read`).then(loadCh).catch(() => {}); }).catch((e) => setErr(e.message)); if (thread) get(`/api/chat/channels/${sel}/messages?thread=${thread.id}`).then(setThreadMsgs).catch(() => {}); }, [sel, thread, loadCh]);
   useEffect(() => { loadCh(); get('/api/users').then(setUsers); }, [loadCh]);
   useEffect(() => { loadMsgs(); }, [loadMsgs]);
-  useEffect(() => subscribe((e) => { if (e.type === 'chat.message') { loadCh(); if (e.channelId === sel) loadMsgs(); } }), [sel, loadCh, loadMsgs]);
+  useEffect(() => subscribe((e) => { if (e.type === 'chat.message' || e.type === 'resync') { loadCh(); if (e.type === 'resync' || e.channelId === sel) loadMsgs(); } }), [sel, loadCh, loadMsgs]);
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'end' }); }, [msgs.length]);
   useEffect(() => { if (q.trim().length < 2) { setHits([]); return; } const t = setTimeout(() => get('/api/chat/search?q=' + encodeURIComponent(q)).then(setHits), 250); return () => clearTimeout(t); }, [q]);
   const post1 = async (body: string, parentId?: string) => { setErr(''); try { await post(`/api/chat/channels/${sel}/messages`, { body, parentId: parentId ?? null, mentions: mentions.map((m) => m.id) }); setDraft(''); setMentions([]); loadMsgs(); } catch (e: any) { setErr(e.message); } };

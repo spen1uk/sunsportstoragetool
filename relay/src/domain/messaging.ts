@@ -8,6 +8,7 @@ import { HttpError } from './authz.js';
 import { validateAttachments, signedMediaUrls } from './media.js';
 import { verifyPackageFresh, recordPackageSent } from './outreach.js';
 import { touchSummary } from './summary.js';
+import { emitServiceEvent } from './service-events.js';
 
 export type SenderType = 'staff' | 'sandra' | 'automation' | 'system';
 export interface OutboundRequest {
@@ -25,6 +26,8 @@ export interface OutboundRequest {
   passive?: boolean;
   /** Outreach package snapshot id: boat price/availability are re-verified immediately before queueing. */
   packageId?: string;
+  /** Set for messages sent through the assistant API (audit + emergency-stop suppression). */
+  serviceIdentityId?: string;
 }
 export type OutboundResult =
   | { ok: true; messageId: string; duplicate: boolean; status: string }
@@ -75,9 +78,9 @@ export async function queueOutboundTx(c: PoolClient, req: OutboundRequest): Prom
     if (!verdict.allowed) {
       // Persist the suppression so staff can see WHY nothing was sent (never silently drop).
       const m = await c.query(
-        `INSERT INTO messages (workspace_id, conversation_id, direction, sender_type, sender_user_id, purpose, body, status, status_detail, idempotency_key, fence_revision)
-         VALUES ($1,$2,'outbound',$3,$4,$5,$6,'suppressed',$7,$8,$9) RETURNING id`,
-        [req.workspaceId, req.conversationId, req.senderType, req.senderUserId ?? null, purpose, req.body, verdict.reason, req.idempotencyKey, conv.revision]);
+        `INSERT INTO messages (workspace_id, conversation_id, direction, sender_type, sender_user_id, purpose, body, status, status_detail, idempotency_key, fence_revision, service_identity_id)
+         VALUES ($1,$2,'outbound',$3,$4,$5,$6,'suppressed',$7,$8,$9,$10) RETURNING id`,
+        [req.workspaceId, req.conversationId, req.senderType, req.senderUserId ?? null, purpose, req.body, verdict.reason, req.idempotencyKey, conv.revision, req.serviceIdentityId ?? null]);
       await publish(c, req.workspaceId, 'message.created', { conversationId: req.conversationId });
       return { ok: false as const, reason: verdict.reason, messageId: m.rows[0].id };
     }
@@ -92,9 +95,9 @@ export async function queueOutboundTx(c: PoolClient, req: OutboundRequest): Prom
     }
 
     const m = await c.query(
-      `INSERT INTO messages (workspace_id, conversation_id, direction, sender_type, sender_user_id, purpose, body, status, idempotency_key, fence_revision, from_original, to_original, auto_kind)
-       VALUES ($1,$2,'outbound',$3,$4,$5,$6,'queued',$7,$8,$9,$10,$11) RETURNING id, seq`,
-      [req.workspaceId, req.conversationId, req.senderType, req.senderUserId ?? null, purpose, req.body, req.idempotencyKey, req.passive ? conv.revision : conv.revision + 1, conv.from_addr, conv.to_e164, req.autoKind ?? null]);
+      `INSERT INTO messages (workspace_id, conversation_id, direction, sender_type, sender_user_id, purpose, body, status, idempotency_key, fence_revision, from_original, to_original, auto_kind, service_identity_id)
+       VALUES ($1,$2,'outbound',$3,$4,$5,$6,'queued',$7,$8,$9,$10,$11,$12) RETURNING id, seq`,
+      [req.workspaceId, req.conversationId, req.senderType, req.senderUserId ?? null, purpose, req.body, req.idempotencyKey, req.passive ? conv.revision : conv.revision + 1, conv.from_addr, conv.to_e164, req.autoKind ?? null, req.serviceIdentityId ?? null]);
     const msgId = m.rows[0].id as string;
     for (const mid of req.mediaIds ?? []) await c.query('INSERT INTO message_attachments (message_id, media_id) VALUES ($1,$2)', [msgId, mid]);
     if (req.packageId) await recordPackageSent(c, req.packageId, msgId);
@@ -163,8 +166,11 @@ async function setStatus(messageId: string, status: string, detail: string) {
   await touch(messageId);
 }
 async function touch(messageId: string) {
-  const r = await pool.query('SELECT workspace_id, conversation_id FROM messages WHERE id=$1', [messageId]);
-  if (r.rows[0]) await publish(pool, r.rows[0].workspace_id, 'message.updated', { conversationId: r.rows[0].conversation_id, messageId });
+  const r = await pool.query('SELECT workspace_id, conversation_id, status, status_detail, sender_type FROM messages WHERE id=$1', [messageId]);
+  if (r.rows[0]) {
+    await publish(pool, r.rows[0].workspace_id, 'message.updated', { conversationId: r.rows[0].conversation_id, messageId });
+    if (r.rows[0].sender_type === 'sandra') await emitServiceEvent(pool, r.rows[0].workspace_id, 'message.status_changed', { conversationId: r.rows[0].conversation_id, payload: { messageId, status: r.rows[0].status, detail: r.rows[0].status_detail } });
+  }
 }
 
 export type Db = PoolClient;

@@ -23,3 +23,14 @@ SMS/AI/email/payments/inventory are behind adapter interfaces with a **Simulator
 3. Internal chat is a separate table/type and has no path to the SMS pipeline.
 4. UI never states a provider outcome that the provider hasn't reported; statuses queued/accepted/delivered/failed/unknown are distinct.
 5. RingCentral voice, number 262-269-0081 routing, Kenect: untouched.
+
+## D5 Phase 6 decisions
+- **Assistant = machine identity, not a user.** Separate table, hashed keys, no cookie path; read-side visibility reuses staff rules via a 'staff'-role actor whose id is the identity id (can never match a real assignee). Writes are bespoke functions (not staff functions) so no FK to `users` is faked.
+- **Two guards for fencing**: API pre-check (clean 409 body, audit) and the shared pipeline check (covers every caller). Worker re-checks at execution.
+- **Idempotency ledger shares the write's transaction** (insert-first on a unique key ⇒ concurrent duplicates serialize; thrown errors roll back and are retryable; returned rejections are stored).
+- **Events are a workspace log filtered at read time** (department changes apply immediately); metadata only; cumulative monotonic ack; push is optional and equals pull.
+- **Authority**: keyword lists + ungrounded $ amounts; fails closed into a staff draft. Honest heuristic, not understanding.
+- **Erase = anonymize in place** (keeps FKs, analytics counts, consent proof); number kept only as an opt-out suppression record.
+- **Production refuses dev defaults** (exit 78) and the simulator webhook is 404 in production (it was forgeable with the default secret).
+- **Undici blocks fetch to some ports (e.g. 4190)**: drills use 429x.
+

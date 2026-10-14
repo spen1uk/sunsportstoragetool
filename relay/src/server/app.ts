@@ -17,18 +17,31 @@ import { queueOutbound } from '../domain/messaging.js';
 import { processWebhookEvent } from '../domain/inbound.js';
 import { publish } from '../domain/events.js';
 import { getProvider, signWebhook } from '../providers/sms.js';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import multipart from '@fastify/multipart';
 import { registerPhase2 } from './phase2.js';
 import { registerPhase3 } from './phase3.js';
 import { registerPhase4 } from './phase4.js';
 import { registerPhase5 } from './phase5.js';
+import { registerPhase6, registerSandraApi } from './phase6.js';
+import { httpStats, metricsText, readiness, sseStats, systemStatus } from '../domain/ops.js';
+import type { Writable } from 'node:stream';
 
 declare module 'fastify' { interface FastifyRequest { actor?: Actor } }
 const COOKIE = 'relay_session';
 
-export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
-  const app = Fastify({ logger: opts.logger ?? false, bodyLimit: 1_000_000, trustProxy: true });
+/** Keep secrets out of logs: bearer keys, session cookies, webhook signatures, and signed-URL query tokens. */
+const SCRUB_Q = /([?&](?:sig|signature|token|key|secret|code)=)[^&]*/gi;
+export const scrubUrl = (u: string) => u.replace(SCRUB_Q, '$1[redacted]');
+const loggerOptions = (stream?: Writable) => ({
+  level: process.env.LOG_LEVEL ?? 'info',
+  redact: { paths: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-relay-signature"]', 'req.headers["x-relay-csrf"]', 'res.headers["set-cookie"]'], censor: '[redacted]' },
+  serializers: { req: (r: any) => ({ method: r.method, url: scrubUrl(r.url), remoteAddress: r.ip }), res: (r: any) => ({ statusCode: r.statusCode }) },
+  ...(stream ? { stream } : {}),
+});
+
+export async function buildApp(opts: { logger?: boolean; logStream?: Writable } = {}): Promise<FastifyInstance> {
+  const app = Fastify({ logger: opts.logger || opts.logStream ? loggerOptions(opts.logStream) : false, bodyLimit: 1_000_000, trustProxy: typeof config.trustProxy === 'number' ? ((_addr: string, hop: number) => hop <= (config.trustProxy as number)) : config.trustProxy });
   await app.register(cookie);
   await app.register(multipart, { limits: { files: 1, fields: 10 } });
   await app.register(rateLimit, { global: true, max: 600, timeWindow: '1 minute' });
@@ -40,6 +53,17 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     app.log.error(err); return reply.status(500).send({ error: 'internal error' });
   });
 
+  const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+  app.addHook('onSend', async (req, reply, payload) => {
+    reply.header('x-content-type-options', 'nosniff').header('x-frame-options', 'DENY').header('referrer-policy', 'no-referrer').header('permissions-policy', 'camera=(), geolocation=(), payment=(), microphone=(self)').header('cross-origin-opener-policy', 'same-origin');
+    if (config.env === 'production') reply.header('strict-transport-security', 'max-age=31536000');
+    const ct = String(reply.getHeader('content-type') ?? '');
+    if (ct.startsWith('text/html')) reply.header('content-security-policy', CSP);
+    if (req.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
+    return payload;
+  });
+  app.addHook('onResponse', async (_req, reply) => { httpStats.total++; httpStats.byClass[`${Math.floor(reply.statusCode / 100)}xx`] = (httpStats.byClass[`${Math.floor(reply.statusCode / 100)}xx`] ?? 0) + 1; });
+
   // Raw-body JSON parsing so webhook signatures can be verified over the exact bytes.
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     (req as any).rawBody = body;
@@ -48,7 +72,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   // Auth + CSRF for /api (except login/accept). Webhooks authenticate by signature instead.
   app.addHook('preHandler', async (req: FastifyRequest) => {
-    if (!req.url.startsWith('/api/')) return;
+    if (!req.url.startsWith('/api/') || req.url.startsWith('/api/v1/')) return;   // /api/v1 authenticates by API key (see registerSandraApi), never by cookie
     if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers['x-relay-csrf'] !== '1') throw new HttpError(403, 'missing CSRF header');
     const open = req.url.startsWith('/api/auth/login') || req.url.startsWith('/api/invitations/accept');
     const token = req.cookies[COOKIE];
@@ -59,7 +83,15 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   const A = (req: FastifyRequest) => req.actor!;
   const idParam = (req: FastifyRequest) => z.string().uuid().parse((req.params as any).id);
 
-  app.get('/health', async () => { await pool.query('SELECT 1'); return { ok: true }; });
+  app.get('/health', async () => { await pool.query('SELECT 1'); return { ok: true }; });                       // liveness + db
+  app.get('/ready', async (_req, reply) => { const r = await readiness(); return reply.status(r.ready ? 200 : 503).send(r); });   // takes traffic only when schema is current
+  app.get('/metrics', async (req, reply) => {
+    if (!config.metricsToken) return reply.status(404).send({ error: 'not found' });
+    const h = String(req.headers.authorization ?? ''); const want = `Bearer ${config.metricsToken}`;
+    if (h.length !== want.length || !timingSafeEqual(Buffer.from(h), Buffer.from(want))) return reply.status(401).send({ error: 'unauthorized' });
+    return reply.header('content-type', 'text/plain; version=0.0.4').send(await metricsText());
+  });
+  app.get('/api/admin/status', async (req) => { const a = A(req); if (!isAdmin(a)) throw new HttpError(403, 'admin required'); return systemStatus(a.workspaceId); });
 
   // ---------- auth ----------
   app.post('/api/auth/login', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req, reply) => {
@@ -126,6 +158,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   registerPhase3(app, A);
   registerPhase4(app, A);
   registerPhase5(app, A);
+  registerPhase6(app, A);
+  registerSandraApi(app);
 
   // ---------- contacts ----------
   app.get('/api/contacts', async (req) => contacts.listContacts(A(req), z.object({ search: z.string().max(100).optional(), tag: z.string().optional() }).parse(req.query)));
@@ -141,7 +175,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // ---------- provider webhooks (signature-verified, not cookie-authenticated) ----------
   app.post('/webhooks/sms/:provider', { config: { rateLimit: { max: 1200, timeWindow: '1 minute' } } }, async (req, reply) => {
     const provider = getProvider((req.params as any).provider);
-    if (!provider) throw new HttpError(404, 'unknown provider');
+    if (!provider || (provider.isSimulated && config.env === 'production' && !config.allowSandboxInProduction)) throw new HttpError(404, 'unknown provider');
     let events;
     try { events = provider.verifyAndParse(req.headers, (req as any).rawBody ?? ''); } catch (e) { return reply.status(401).send({ error: `signature rejected: ${(e as Error).message}` }); }
     let duplicates = 0;
@@ -164,15 +198,23 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   // ---------- realtime (SSE) ----------
   const subscribers = new Set<{ workspaceId: string; write: (s: string) => void }>();
-  let listener: pg.Client | null = null;
+  let listener: pg.Client | null = null; let closing = false;
   async function ensureListener() {
     if (listener) return;
-    const c = new pg.Client({ connectionString: config.databaseUrl });
+    const c = new pg.Client({ connectionString: config.databaseUrl, application_name: 'relay-sse-listener' });
     listener = c;
     c.on('notification', (m) => {
       try { const e = JSON.parse(m.payload ?? '{}'); for (const s of subscribers) if (s.workspaceId === e.workspaceId) s.write(`data: ${JSON.stringify({ type: e.type, ...e.data })}\n\n`); } catch { /* ignore malformed */ }
     });
-    c.on('error', () => { listener = null; setTimeout(() => ensureListener().catch(() => {}), 1000); });   // auto-reconnect
+    // If the LISTEN connection drops (database restart, network blip, admin termination) notifications sent meanwhile are LOST. After re-listening we tell every
+    // open browser to resync (reload what it shows) so nothing stays stale. Retries with backoff until the database is back.
+    const lost = () => {
+      if (listener !== c || closing) return;   // pg emits both 'error' and 'end' for one drop; handle once
+      listener = null; c.end().catch(() => {});
+      const again = (): void => { if (closing) return; ensureListener().then(() => { sseStats.listenerReconnects++; sseStats.lastResyncAt = new Date().toISOString(); for (const s of subscribers) s.write(`data: ${JSON.stringify({ type: 'resync' })}\n\n`); }).catch(() => { listener = null; setTimeout(again, 2000); }); };
+      setTimeout(again, 1000);
+    };
+    c.on('error', lost); c.on('end', lost);
     await c.connect(); await c.query('LISTEN relay_events');
   }
   app.get('/api/events', async (req, reply: FastifyReply) => {
@@ -182,11 +224,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
     res.write('retry: 2000\n\n');
     const sub = { workspaceId: a.workspaceId, write: (s: string) => res.write(s) };
-    subscribers.add(sub);
+    subscribers.add(sub); sseStats.subscribers = subscribers.size;
     const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
-    req.raw.on('close', () => { clearInterval(ping); subscribers.delete(sub); });
+    req.raw.on('close', () => { clearInterval(ping); subscribers.delete(sub); sseStats.subscribers = subscribers.size; });
   });
-  app.addHook('onClose', async () => { for (const s of subscribers) s.write(''); if (listener) { const l = listener; listener = null; l.removeAllListeners(); await l.end().catch(() => {}); } });
+  app.addHook('onClose', async () => { closing = true; for (const s of subscribers) s.write(''); if (listener) { const l = listener; listener = null; l.removeAllListeners(); l.on('error', () => {}); await l.end().catch(() => {}); } });
 
   // ---------- static web app ----------
   const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');

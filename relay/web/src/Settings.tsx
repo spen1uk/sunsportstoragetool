@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { get, post, put } from './api';
 import type { Me } from './App';
+import { Assistant, SystemStatus } from './Assistant';
 
 const FIELDS: [string, string][] = [['business_phone', 'Business phone'], ['business_address', 'Address'], ['business_hours', 'Business hours (free text)'], ['directions_link', 'Directions link'], ['review_link', 'Review link'], ['website', 'Website']];
 
@@ -13,6 +14,7 @@ export function Settings({ me }: { me: Me }) {
       <BusinessFacts editable={mgr} />
       <HoursAndAutoResponse editable={mgr} />
       <Templates mgr={mgr} />
+      {(me.user.role === 'owner' || me.user.role === 'admin') && <><SystemStatus /><Assistant isOwner={me.user.role === 'owner'} /></>}
     </div>
   );
 }

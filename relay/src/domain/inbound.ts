@@ -11,6 +11,7 @@ import { HttpError } from './authz.js';
 import { touchSummary } from './summary.js';
 import { enqueue } from './queue.js';
 import { emitEvent } from './outbound-events.js';
+import { emitServiceEvent } from './service-events.js';
 
 const RANK: Record<string, number> = { queued: 0, sending: 1, unknown: 1, provider_accepted: 2, delivered: 3, failed: 3 };
 
@@ -45,6 +46,7 @@ async function handleStatus(c: PoolClient, provider: string, ev: Extract<Normali
     await c.query(`UPDATE messages SET status=$2, status_detail=$3 WHERE id=$1`, [m.id, ev.status, ev.error ?? null]);
     await publish(c, m.workspace_id, 'message.updated', { conversationId: m.conversation_id, messageId: m.id });
     await emitEvent(c, m.workspace_id, 'message.status_changed', { messageId: m.id, conversationId: m.conversation_id, status: ev.status });
+    await emitServiceEvent(c, m.workspace_id, 'message.status_changed', { conversationId: m.conversation_id, payload: { messageId: m.id, status: ev.status } });
   }
 }
 
@@ -128,6 +130,7 @@ async function handleInbound(c: PoolClient, provider: string, ev: Extract<Normal
   }
   await c.query(`INSERT INTO timeline_events (workspace_id, contact_id, conversation_id, type, summary, origin_table, origin_id, occurred_at) VALUES ($1,$2,$3,'message','Inbound text received','messages',$4,$5)`,
     [ws, contact.id, conv.id, msg.rows[0].id, ev.occurredAt]);
+  await emitServiceEvent(c, ws, kw === 'stop' ? 'contact.opted_out' : kw === 'start' && contact.sms_opted_out ? 'contact.opted_in' : 'message.received', { conversationId: conv.id, contactId: contact.id, payload: { messageId: msg.rows[0].id, keyword: kw } });
   await emitEvent(c, ws, 'message.received', { conversationId: conv.id, messageId: msg.rows[0].id, contactId: contact.id, channel: 'sms' }, { body: ev.body, from: e164 });
   await publish(c, ws, 'message.created', { conversationId: conv.id, inbound: true });
 }
