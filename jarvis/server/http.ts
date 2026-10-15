@@ -311,7 +311,7 @@ route('PUT', '/api/layout', ({ db, body }) => {
 });
 route('DELETE', '/api/layout', ({ db }) => { db.prepare("DELETE FROM layouts WHERE key='universe'").run(); return { ok: true }; });
 route('GET', '/api/chat', ({ db }) => rows(db, 'SELECT * FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 100) ORDER BY id'));
-route('POST', '/api/chat', async ({ db, body }) => { const b = parse(z.object({ text: z.string().min(1).max(2000), private: z.boolean().default(false) }), body); return await converse(db, b.text, { private: b.private }); });
+route('POST', '/api/chat', async ({ db, body }) => { const b = parse(z.object({ text: z.string().min(1).max(2000), private: z.boolean().default(false), channel: z.enum(['dashboard', 'phone', 'car', 'sms', 'voice']).default('dashboard') }), body); return await converse(db, b.text, { private: b.private, channel: b.channel }); });
 
 // ---- persona + model layer (keys are never returned; only "configured" flags) ----
 route('GET', '/api/persona', ({ db }) => getPersona(db));

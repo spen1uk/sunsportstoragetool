@@ -127,3 +127,8 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 ## Security review round 1
 - ✅ Three independent AI-assisted reviews (auth/passkeys/bridge/approvals; untrusted content & LLM boundary; API/web/data-at-rest/backups/deploy). 1 high, ~7 medium, the rest low: all verified and **fixed with regression tests** (see docs/SECURITY_REVIEW.md). Highlights: a hostile web page could freeze the server (fixed: linear-time HTML parsing); no more lockout-DoS; step-up is now spent by one action and passkey-required really means passkey; Confirm cards show exactly what will run.
 - ⚪ Still wanted: a human expert's review of `server/passkey.ts` and the deployed server before anything with real money is connected.
+
+## Always-on and Range Rover vision
+- 📄 Requirements preserved and checked against the code in docs/ALWAYS_ON_AND_VEHICLE.md (no car hardware chosen or bought; nothing for the car built).
+- ✅ Groundwork: every message now records its interface (`channel`).
+- ⚠ Findings: device registry with scoped tokens needed; **inbound calls/texts conflict with the private-only link** (decision needed); voice is the main cost risk; greeting and glance/driving-mode APIs should be server-side.

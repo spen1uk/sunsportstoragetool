@@ -30,13 +30,13 @@ const NAV: [RegExp, string][] = [
  * Command mode: deterministic intent handling. NO language model is connected yet, and Jarvis says so rather than improvising.
  * Voice navigation is navigation only — nothing here approves a protected action.
  */
-export function handleChat(db: DB, textIn: string, o: { private?: boolean; deferFallback?: boolean } = {}): ChatReply {
+export function handleChat(db: DB, textIn: string, o: { private?: boolean; deferFallback?: boolean; channel?: string } = {}): ChatReply {
   const text = textIn.trim().slice(0, 2000);
   const priv = !!o.private;
   const persistTurn = (reply: string) => {
     if (priv) return;
-    db.prepare('INSERT INTO messages(role,content,at) VALUES(?,?,?)').run('luke', text, now());
-    db.prepare('INSERT INTO messages(role,content,at) VALUES(?,?,?)').run('jarvis', reply, now());
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard');
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
     publish({ type: 'chat' });
   };
   const reply = (r: string, extra: Partial<ChatReply> = {}): ChatReply => { persistTurn(r); return { text: r, persisted: !priv, ...extra }; };

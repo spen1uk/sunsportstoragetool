@@ -29,10 +29,10 @@ function history(db: DB): ChatMessage[] {
  * Anything else goes to the model if one is configured and allowed; the model returns TEXT ONLY and has no tools,
  * so nothing it says can create, change, approve, send or spend anything. Prefix a message with "deep:" for the stronger model.
  */
-export async function converse(db: DB, textIn: string, o: { private?: boolean } = {}): Promise<ChatReply> {
+export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string } = {}): Promise<ChatReply> {
   const text = textIn.trim().slice(0, 2000), priv = !!o.private, cfg = getConfig(db);
   const modelOk = ready(db, 'chat') && (!priv || cfg.allowInPrivate);
-  const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk });
+  const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk, channel: o.channel });
   if (!cmd.fallback) return { ...cmd, source: 'command' };
 
   const strong = /^deep:\s*/i.test(text); const prompt = text.replace(/^deep:\s*/i, '');
@@ -45,8 +45,8 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean } 
     const ex = r.ok ? extractProposals(raw) : { text: raw, actions: [], dropped: 0 };
     const reply = ex.text; const proposals = r.ok && !priv ? createProposals(db, ex.actions) : [];
     if (!priv) {
-      db.prepare('INSERT INTO messages(role,content,at) VALUES(?,?,?)').run('luke', text, now());
-      db.prepare('INSERT INTO messages(role,content,at) VALUES(?,?,?)').run('jarvis', reply, now());
+      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard');
+      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
       publish({ type: 'chat' });
     }
     return { text: reply, persisted: !priv, source: r.ok ? 'model' : 'command', model: r.ok ? r.model : undefined, costMicroUsd: r.ok ? r.costMicroUsd : 0, proposals };

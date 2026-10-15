@@ -95,3 +95,9 @@ test('chat: "finished a TRW lesson" logs progress toward the one matching goal; 
   assert.equal(listGoals(db)[0].weekTotal, 1);
   assert.doesNotMatch(handleChat(db, 'did TRW lessons', { private: true, deferFallback: true }).text, /Logged/); assert.equal(listGoals(db)[0].weekTotal, 1);
 });
+
+test('messages remember which interface they came from (groundwork for one conversation across dashboard, phone, car and text); history is shared across channels', () => {
+  const db = makeDb(); handleChat(db, 'add task from the dashboard'); handleChat(db, 'add task from the car', { channel: 'car' });
+  const rows = db.prepare('SELECT role, channel, content FROM messages ORDER BY id').all() as any[];
+  assert.deepEqual(rows.map((r) => r.channel), ['dashboard', 'dashboard', 'car', 'car']); assert.equal(rows.length, 4, 'one shared history, not one per device');
+});
