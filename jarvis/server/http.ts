@@ -251,6 +251,11 @@ route('POST', '/api/bridge/failure', viaBridge(({ db, body }) => { const b = par
 // ---- devices (phone, car, text/voice gateways): own limited credentials; session routes manage them, bearer routes serve them ----
 route('GET', '/api/devices', ({ db }) => ({ items: dev.listDevices(db), scopes: dev.SCOPES, kinds: dev.KINDS }));
 route('POST', '/api/devices', ({ db, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); const r = guard(() => dev.createDevice(db, body)); auth.consumeStepUp(db, session!); return r; });
+route('PUT', '/api/devices/:id/limit', ({ db, session, params, body }) => {
+  const up = guard(() => dev.raising(db, params.id, body));   // raising a spend limit needs a fresh confirmation; lowering never does
+  if (up && !auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required to raise a limit');
+  const r = guard(() => dev.setDeviceLimit(db, params.id, body)); if (up) auth.consumeStepUp(db, session!); return r;
+});
 route('DELETE', '/api/devices/:id', ({ db, params }) => ({ ok: dev.revokeDevice(db, params.id) }));
 route('GET', '/api/greeting', ({ db, url }) => buildGreeting(db, { profile: url.searchParams.get('profile') === 'glance' ? 'glance' : 'full' }));   // dashboard preview of what a device will say
 const asDevice = (need: dev.Scope | null, h: (c: Ctx, d: dev.Device) => unknown): Handler => (c) => { const v = dev.authenticate(c.db, c.req.headers.authorization, need); if (!v.ok) throw new HttpError(v.status, v.error); return h(c, v.device); };

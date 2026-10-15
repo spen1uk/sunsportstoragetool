@@ -147,3 +147,4 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 
 ## Plan
 - 📄 Stock-take, server-move phases, rollback, risks and the full open to-do list: **docs/SERVER_MOVE.md** (a plan only; nothing bought or deployed).
+- ✅ (tested) **Edit a device's monthly limit** (Settings → Devices → Limit): lowering is immediate; **raising needs your passphrase or passkey** (spent by that one change) so a stolen browser session can't quietly lift a spending cap. Range $0.50–$50; every change is in the activity log.

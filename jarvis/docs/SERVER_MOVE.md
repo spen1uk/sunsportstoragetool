@@ -64,7 +64,7 @@ Server $5–12/month, Tailscale free tier, outside alert free tier, Anthropic us
 
 **I can build, no input needed**
 - [ ] **The Real World learning tracker (see section 6)**
-- [ ] Edit a device's monthly limit without re-creating it
+- [x] Edit a device's monthly limit without re-creating it (done)
 - [ ] Standing permissions: a creation flow (never inferred, always your click)
 - [ ] Touch/phone tuning of the universe; per-panel settings
 

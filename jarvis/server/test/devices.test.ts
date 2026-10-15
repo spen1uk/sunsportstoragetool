@@ -124,3 +124,22 @@ test('phone/car page: served statically, may use the microphone, and the rest of
     assert.match(go.headers.get('content-security-policy') ?? '', /script-src 'self'/);
   } finally { t.close(); }
 });
+
+test('device limit edit: lowering is free, raising needs step-up (which is spent), bad values and revoked devices are refused', async () => {
+  const t = await boot();
+  try {
+    const step = () => t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    await step(); const { id } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car', monthlyLimitUsd: 5 } })).json() as any;
+    const put = (usd: unknown, did = id) => t.api(`/api/devices/${did}/limit`, { method: 'PUT', headers: t.me, body: { monthlyLimitUsd: usd } });
+    const lim = () => (t.db.prepare('SELECT monthly_limit_micro_usd m FROM devices WHERE id=?').get(id) as any).m;
+    assert.equal((await put(2)).status, 200); assert.equal(lim(), 2_000_000, 'lowering needs no step-up');
+    assert.equal((await put(8)).status, 403); assert.equal(lim(), 2_000_000, 'raising refused without step-up');
+    await step(); assert.equal((await put(8)).status, 200); assert.equal(lim(), 8_000_000);
+    assert.equal((await put(9)).status, 403, 'the step-up was spent by the raise');
+    await step(); for (const bad of [0, 0.1, 51, 'x', null]) assert.equal((await put(bad)).status, 400, `rejects ${bad}`); assert.equal(lim(), 8_000_000);
+    assert.equal((await put(3, 'nope')).status, 400);
+    assert.equal((t.db.prepare("SELECT COUNT(*) c FROM audit WHERE action='device.limit_changed'").get() as any).c, 2);
+    await t.api(`/api/devices/${id}`, { method: 'DELETE', headers: t.me }); assert.equal((await put(1)).status, 400, 'revoked device cannot be edited');
+    assert.equal((await t.api(`/api/devices/${id}/limit`, { method: 'PUT', body: { monthlyLimitUsd: 1 } })).status, 401, 'signed-in only');
+  } finally { t.close(); }
+});

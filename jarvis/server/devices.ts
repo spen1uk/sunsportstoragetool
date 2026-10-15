@@ -30,6 +30,18 @@ export function createDevice(db: DB, raw: unknown, now = Date.now()) {
 }
 export const listDevices = (db: DB, now = Date.now()) => (db.prepare('SELECT id,name,kind,scopes,profile,created_at,expires_at,last_seen_at,revoked_at,monthly_limit_micro_usd FROM devices ORDER BY created_at DESC').all() as any[])
   .map((d) => ({ id: d.id, name: d.name, kind: d.kind, scopes: JSON.parse(d.scopes) as Scope[], profile: d.profile as 'glance' | 'full', createdAt: d.created_at, expiresAt: d.expires_at, lastSeen: d.last_seen_at, monthlyLimitMicroUsd: d.monthly_limit_micro_usd as number, spentMicroUsd: deviceSpend(db, d.id, now), status: d.revoked_at ? 'revoked' : d.expires_at <= now ? 'expired' : 'active' }));
+/** Change a device's monthly limit. Lowering is always allowed; raising it is the caller's job to gate behind step-up (see `raising`). */
+export const limitInput = z.object({ monthlyLimitUsd: z.number().min(0.5).max(50) }).strict();
+export function raising(db: DB, did: string, raw: unknown): boolean {
+  const i = limitInput.parse(raw), r = db.prepare('SELECT monthly_limit_micro_usd m FROM devices WHERE id=? AND revoked_at IS NULL').get(did) as any;
+  if (!r) throw new Error('No such device.'); return Math.round(i.monthlyLimitUsd * 1e6) > r.m;
+}
+export function setDeviceLimit(db: DB, did: string, raw: unknown) {
+  const i = limitInput.parse(raw), micro = Math.round(i.monthlyLimitUsd * 1e6);
+  const r = db.prepare('SELECT monthly_limit_micro_usd m FROM devices WHERE id=? AND revoked_at IS NULL').get(did) as any; if (!r) throw new Error('No such device.');
+  db.prepare('UPDATE devices SET monthly_limit_micro_usd=? WHERE id=?').run(micro, did); audit(db, 'luke', 'device.limit_changed', did, { from: r.m, to: micro });
+  return { ok: true, monthlyLimitMicroUsd: micro };
+}
 export function revokeDevice(db: DB, did: string, now = Date.now()) { const r = db.prepare('UPDATE devices SET revoked_at=? WHERE id=? AND revoked_at IS NULL').run(now, did); if (r.changes) audit(db, 'luke', 'device.revoked', did); return r.changes > 0; }
 
 export type Device = { id: string; name: string; kind: (typeof KINDS)[number]; scopes: Scope[]; profile: 'glance' | 'full'; lastSeen: number | null; monthlyLimitMicroUsd: number };
