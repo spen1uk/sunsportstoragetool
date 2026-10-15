@@ -1,3 +1,4 @@
+import { handoffFor, handoffSpeech } from './handoff.ts';
 import type { DB } from './db.ts';
 import { greeting as timeGreeting, statusLine } from '../web/src/greeting.ts';
 import { getPersona } from './persona.ts';
@@ -35,7 +36,7 @@ function nextAppointment(db: DB, now: number, hours: number) {
   return upcoming(db, now, now + hours * 3_600_000).find((e) => !e.allDay && e.end > now) ?? null;
 }
 
-export function buildGreeting(db: DB, o: { profile?: Profile; now?: number; lastSeen?: number | null } = {}) {
+export function buildGreeting(db: DB, o: { profile?: Profile; now?: number; lastSeen?: number | null; channel?: string } = {}) {
   const now = o.now ?? Date.now(), profile = o.profile ?? 'full', who = getPersona(db).addressAs, c = counts(db);
   const hello = timeGreeting(new Date(now), who), cards: Card[] = [], bits: string[] = [];
   const away = o.lastSeen ? now - o.lastSeen : null;
@@ -54,6 +55,8 @@ export function buildGreeting(db: DB, o: { profile?: Profile; now?: number; last
     const contact = contactNow(db, now); if (profile === 'full' && contact.mode !== 'normal') bits.push(`you are in ${contact.mode} mode`);
     if (profile === 'full') for (const h of healthIssues(db, now).filter((i) => i.level === 'urgent').slice(0, 1)) { bits.push(h.text.replace(/\.$/, '')); cards.push({ kind: 'urgent', text: h.text, link: h.link }); }
   }
+  const hf = profile === 'full' && o.channel ? handoffFor(db, o.channel, now) : null;
+  if (hf) { bits.push(handoffSpeech(hf)); cards.push({ kind: 'info', text: `Continue from ${hf.fromName}: ${hf.lastAsk}` }); }
   const limit = profile === 'glance' ? 2 : 4, picked = bits.slice(0, limit);
   const head = away !== null && away < 20 * 60_000 ? `Welcome back, ${who}.` : hello;
   const body = picked.length ? picked.map((b, i) => (i === 0 ? b[0].toUpperCase() + b.slice(1) : b)).join('. ') + '.' : 'All systems are operational. Nothing needs you right now.';

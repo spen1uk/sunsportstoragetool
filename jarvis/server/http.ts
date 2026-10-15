@@ -1,3 +1,4 @@
+import { handoffFor } from './handoff.ts';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -256,8 +257,9 @@ const asDevice = (need: dev.Scope | null, h: (c: Ctx, d: dev.Device) => unknown)
 route('GET', '/api/device/me', asDevice(null, (_c, d) => ({ name: d.name, kind: d.kind, scopes: d.scopes, profile: d.profile })), true);
 route('GET', '/api/device/greeting', asDevice('greeting', ({ db, url }, d) => {
   const p = url.searchParams.get('profile');
-  return buildGreeting(db, { profile: p === 'glance' || p === 'full' ? p : d.profile, lastSeen: d.lastSeen });
+  return buildGreeting(db, { profile: p === 'glance' || p === 'full' ? p : d.profile, lastSeen: d.lastSeen, channel: d.kind });
 }), true);
+route('GET', '/api/device/handoff', asDevice('chat', ({ db }, d) => ({ handoff: handoffFor(db, d.kind) })), true);
 route('GET', '/api/device/glance', asDevice('glance', ({ db }) => buildGlance(db)), true);
 route('POST', '/api/device/chat', asDevice('chat', async ({ db, body }, d) => {
   if (!dev.allow(d.id, 30)) throw new HttpError(429, 'slow down a little');

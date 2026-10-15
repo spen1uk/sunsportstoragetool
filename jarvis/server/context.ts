@@ -5,6 +5,7 @@ import { decideContact } from './contact.ts';
 import { isPaused } from './pause.ts';
 import { summary as budget } from './budget.ts';
 import { listProjects } from './milestones.ts';
+import { handoffFor, handoffContext } from './handoff.ts';
 
 const rows = (db: DB, sql: string, ...p: any[]) => db.prepare(sql).all(...p) as any[];
 /** User-authored text becomes DATA in the prompt: strip anything that could look like markup, collapse whitespace, cap length. */
@@ -16,7 +17,7 @@ const chicago = (t: number) => new Date(t).toLocaleString('en-US', { timeZone: '
  * the briefing's urgent items, contact mode, budget. Demo records are excluded. The model can read this and nothing else:
  * it still has no tools, so it cannot change any of it. Capped in size so it stays cheap (≈ a few hundred tokens).
  */
-export function buildContext(db: DB, now = Date.now()): string {
+export function buildContext(db: DB, now = Date.now(), channel = 'dashboard'): string {
   const L: string[] = [];
   const mode = getMode(db, now), d = decideContact(now, { mode: mode.mode });
   L.push(`Now: ${chicago(now)} (America/Chicago). Contact mode: ${mode.mode} (${d.hold ? 'interruptions held' : `channels: ${d.channels.join(', ')}`}).${isPaused(db) ? ' JARVIS IS PAUSED: no new automated work.' : ''}`);
@@ -44,5 +45,6 @@ export function buildContext(db: DB, now = Date.now()): string {
   const appts = br.schedule.appointments ?? [];
   if (appts.length) L.push(`APPOINTMENTS from Luke's Apple Calendar, next 2 days (read-only copy${br.schedule.calendar === 'stale' ? ', STALE: may be out of date' : ''}; recurring events may be missing):\n` + appts.slice(0, 8).map((a) => `- ${a.day} ${a.when}: ${clean(a.title, 80)}`).join('\n'));
   if (br.schedule.blocks.length) L.push(`PROPOSED NEXT WORK SLOTS (a proposal only; ${br.schedule.calendar === 'connected' || br.schedule.calendar === 'stale' ? 'planned around his Apple Calendar, which may miss recurring events' : 'no calendar is connected, so appointments are unknown'}):\n` + br.schedule.blocks.slice(0, 6).map((x) => `- ${x.day} ${x.when}: ${clean(x.title, 80)}`).join('\n'));
+  const hf = handoffFor(db, channel, now); if (hf) L.push(handoffContext(hf));
   return L.join('\n\n').slice(0, 4500);
 }
