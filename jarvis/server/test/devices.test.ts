@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeDb } from './helpers.ts';
@@ -54,8 +57,8 @@ test('toSpeech makes replies fit for a speaker', () => {
   assert.ok(toSpeech('A sentence. '.repeat(100), 100).length <= 101); assert.ok(toSpeech('x'.repeat(2000), 50).endsWith('…'));
 });
 
-async function boot() {
-  resetLoginThrottle(); resetRateLimits(); const db = makeDb(), allowed: string[] = []; const srv = createServer(db, { webDir: '/nonexistent', allowedHosts: allowed });
+async function boot(webDir = '/nonexistent') {
+  resetLoginThrottle(); resetRateLimits(); const db = makeDb(), allowed: string[] = []; const srv = createServer(db, { webDir, allowedHosts: allowed });
   await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r)); const port = (srv.address() as any).port; allowed.push(`127.0.0.1:${port}`); const base = `http://127.0.0.1:${port}`;
   const api = (p: string, o: { method?: string; headers?: Record<string, string>; body?: unknown } = {}) => fetch(base + p, { method: o.method ?? 'GET', headers: { 'content-type': 'application/json', ...o.headers }, body: o.body === undefined ? undefined : JSON.stringify(o.body) });
   const login = await api('/api/login', { method: 'POST', body: { passphrase: 'test-pass' } }); const me = { cookie: login.headers.get('set-cookie')!.split(';')[0], 'x-jarvis-csrf': ((await login.json()) as any).csrf };
@@ -109,5 +112,15 @@ test('device chat: model spend is tagged to the device, and a device at its mont
     t.db.prepare('INSERT INTO llm_usage(at,task,provider,model,cost_micro_usd,ok,channel,device_id) VALUES(?,?,?,?,?,1,?,?)').run(Date.now(), 'chat', 'anthropic', 'm', 1_000_000, 'voice', id);
     const r = await t.api('/api/device/chat', { method: 'POST', headers: dv, body: { text: 'again' } }); assert.equal(r.status, 402);
     assert.equal((await t.api('/api/device/greeting', { headers: dv })).status, 200, 'free endpoints still work at the limit');
+  } finally { t.close(); }
+});
+
+test('phone/car page: served statically, may use the microphone, and the rest of the app still may not', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jv-web-')); fs.writeFileSync(path.join(dir, 'index.html'), '<title>Jarvis</title>'); fs.writeFileSync(path.join(dir, 'go.html'), '<title>Jarvis Go</title>');
+  const t = await boot(dir);
+  try {
+    const go = await t.api('/go'); assert.equal(go.status, 200); assert.match(go.headers.get('permissions-policy') ?? '', /microphone=\(self\)/); assert.match(await go.text(), /Jarvis Go|go\.ts|assets\/go/);
+    assert.match((await t.api('/')).headers.get('permissions-policy') ?? '', /microphone=\(\)/);
+    assert.match(go.headers.get('content-security-policy') ?? '', /script-src 'self'/);
   } finally { t.close(); }
 });

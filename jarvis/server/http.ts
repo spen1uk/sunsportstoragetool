@@ -400,6 +400,7 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
       if (!okHosts.includes(host)) return send(421, { error: 'unexpected host' });
       const url = new URL(req.url ?? '/', `http://${host}`);
 
+      if (url.pathname === '/go' || url.pathname === '/go/') res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=()');   // only the phone/car page may ask for the mic (voice input)
       if (!url.pathname.startsWith('/api/')) return serveStatic(webDir, url.pathname, res, MIME);
 
       const session = auth.getSession(db, cookie(req));
@@ -454,6 +455,7 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
 function serveStatic(root: string, pathname: string, res: http.ServerResponse, mime: Record<string, string>) {
   let rel: string; try { rel = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, ''); } catch { res.statusCode = 400; res.end('bad request'); return; }
   if (rel === '/' || rel === '.') rel = 'index.html';
+  if (rel === '/go' || rel === '/go/') rel = 'go.html';   // the phone/car page: static, holds no data, talks to /api/device/* with a device key
   let file = path.join(root, rel);
   if (!file.startsWith(root)) { res.statusCode = 403; return res.end(); }
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(root, 'index.html'); // SPA fallback
