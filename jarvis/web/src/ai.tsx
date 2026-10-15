@@ -53,6 +53,7 @@ export function ModelsCard() {
         <tbody>{Object.entries(data.routes).map(([task, c]: any) => <tr key={task}><td>{task === 'analysis' ? 'deep: / analysis' : task}</td><td>{c.map((x: any) => `${x.model} (${x.effort})`).join(' → ')}</td><td>{c[0].maxTokens} tokens</td></tr>)}</tbody></table>
       <p className="muted small">Fallback: rate limits, outages and key problems move to the next model; refusals and bad requests do not. Prices are from a cached table (Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10 per million tokens): verify before relying on them.</p>
       <dl className="kv"><dt>Today</dt><dd>{u.today.calls} calls · {usd(u.today.cost)} of {usd(cfg.dailyCeilingMicroUsd)} daily ceiling</dd><dt>This month</dt><dd>{u.month.calls} calls · {usd(u.month.cost)} · {u.failures} failed</dd></dl>
+      {u.byChannel?.length > 0 && <p className="muted small">This month by interface: {u.byChannel.map((m: any) => `${m.channel}: ${m.calls} calls, ${usd(m.cost)}`).join(' · ')}</p>}
       {u.byModel.length > 0 && <p className="muted small">{u.byModel.map((m: any) => `${m.model}: ${m.calls} calls, ${usd(m.cost)}`).join(' · ')}</p>}
       <div className="row wrap">
         <label className="inline">Daily ceiling $<input style={{ width: 90 }} type="number" min={0} step={0.25} placeholder={(cfg.dailyCeilingMicroUsd / 1e6).toFixed(2)} value={ceil} onChange={(e) => setCeil(e.target.value)} /></label>

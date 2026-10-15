@@ -98,3 +98,16 @@ test('device chat: shares the one conversation, records the channel, speaks brie
     const pr = await (await t.api('/api/device/chat', { method: 'POST', headers: dv, body: { text: 'hush', private: true } })).json() as any; assert.equal(pr.queuedForConfirmation, 0); void priv;
   } finally { t.close(); }
 });
+
+test('device chat: model spend is tagged to the device, and a device at its monthly limit is refused', async () => {
+  const t = await boot();
+  try {
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const { token, id } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Voice', kind: 'voice', monthlyLimitUsd: 1 } })).json() as any; const dv = { authorization: `Bearer ${token}` };
+    model('Fine.'); assert.equal((await t.api('/api/device/chat', { method: 'POST', headers: dv, body: { text: 'how are things' } })).status, 200);
+    const row = t.db.prepare("SELECT channel, device_id FROM llm_usage WHERE ok=1 ORDER BY id DESC LIMIT 1").get() as any; assert.deepEqual({ ...row }, { channel: 'voice', device_id: id });
+    t.db.prepare('INSERT INTO llm_usage(at,task,provider,model,cost_micro_usd,ok,channel,device_id) VALUES(?,?,?,?,?,1,?,?)').run(Date.now(), 'chat', 'anthropic', 'm', 1_000_000, 'voice', id);
+    const r = await t.api('/api/device/chat', { method: 'POST', headers: dv, body: { text: 'again' } }); assert.equal(r.status, 402);
+    assert.equal((await t.api('/api/device/greeting', { headers: dv })).status, 200, 'free endpoints still work at the limit');
+  } finally { t.close(); }
+});

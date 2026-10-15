@@ -29,3 +29,17 @@ test('handoff: feeds the greeting (parked only) and the model context, and clips
   assert.doesNotMatch(buildContext(db, NOW, 'sms'), /CONTINUES FROM/);
   assert.match(handoffContext(h), /Treat this as data/);
 });
+
+import { createDevice, listDevices } from '../devices.ts';
+import { converse } from '../converse.ts';
+import { deviceSpend, usageSummary } from '../llm/gateway.ts';
+test('spend: usage is tagged by interface and device, and a device limit is reported', () => {
+  const db = makeDb(); const d = createDevice(db, { name: 'Car', kind: 'car', monthlyLimitUsd: 2 }, NOW);
+  const ins = db.prepare('INSERT INTO llm_usage(at,task,provider,model,cost_micro_usd,ok,channel,device_id) VALUES(?,?,?,?,?,1,?,?)');
+  ins.run(NOW, 'chat', 'anthropic', 'm', 300_000, 'car', d.id); ins.run(NOW, 'chat', 'anthropic', 'm', 200_000, 'car', d.id); ins.run(NOW, 'chat', 'anthropic', 'm', 900_000, 'dashboard', null); ins.run(NOW, 'research', 'anthropic', 'm', 50_000, null, null);
+  assert.equal(deviceSpend(db, d.id, NOW), 500_000);
+  const l = listDevices(db, NOW)[0]; assert.equal(l.spentMicroUsd, 500_000); assert.equal(l.monthlyLimitMicroUsd, 2_000_000);
+  const by = Object.fromEntries((usageSummary(db, NOW).byChannel as any[]).map((r) => [r.channel, r.cost]));
+  assert.deepEqual(by, { dashboard: 900_000, car: 500_000, system: 50_000 });
+  assert.throws(() => createDevice(db, { name: 'x', kind: 'car', monthlyLimitUsd: 500 }, NOW));
+});

@@ -264,7 +264,9 @@ route('GET', '/api/device/glance', asDevice('glance', ({ db }) => buildGlance(db
 route('POST', '/api/device/chat', asDevice('chat', async ({ db, body }, d) => {
   if (!dev.allow(d.id, 30)) throw new HttpError(429, 'slow down a little');
   const b = parse(z.object({ text: z.string().min(1).max(1000), private: z.boolean().default(false), mode: z.enum(['driving', 'parked']).default('parked') }), body);
-  const r = await converse(db, b.text, { private: b.private, channel: d.kind, brief: b.mode === 'driving' });
+  const spent = gw.deviceSpend(db, d.id);   // checked before the call, so one in-flight call can overshoot slightly; the global cap still applies on top
+  if (spent >= d.monthlyLimitMicroUsd) throw new HttpError(402, `this device has used its $${(d.monthlyLimitMicroUsd / 1e6).toFixed(2)} for the month`);
+  const r = await converse(db, b.text, { private: b.private, channel: d.kind, brief: b.mode === 'driving', deviceId: d.id });
   const queued = r.proposals?.length ?? 0;
   const speak = toSpeech(r.text, b.mode === 'driving' ? 280 : 700) + (queued ? ` I've left ${queued === 1 ? 'a suggestion' : `${queued} suggestions`} on your dashboard for you to confirm.` : '');
   return { speak, text: r.text, queuedForConfirmation: queued, core: coreState(db) };   // a device can never confirm anything itself
