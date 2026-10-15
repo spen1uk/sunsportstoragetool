@@ -4,7 +4,13 @@ import { now } from './db.ts';
 
 /** Modular Workspace: named panel layouts, stored whole. The browser draws them; the server only validates and keeps them. */
 export const WIDGETS = ['conversation', 'today', 'calendar', 'tasks', 'approvals', 'review', 'habits', 'people', 'learning', 'links', 'spend', 'systems'] as const;
-export const widgetSchema = z.object({ id: z.string().min(1).max(40).regex(/^[a-z0-9-]+$/), type: z.enum(WIDGETS), x: z.number().int().min(0).max(11), y: z.number().int().min(0).max(400), w: z.number().int().min(2).max(12), h: z.number().int().min(3).max(24) }).refine((v) => v.x + v.w <= 12, 'panel runs past the right edge');
+/** Per-panel settings. Only these two knobs exist, only some panels use them, and nothing else can be stored. */
+export const OPTION_RULES: Record<string, { limit?: [number, number]; days?: [number, number] }> = {
+  today: { limit: [1, 10] }, tasks: { limit: [1, 20] }, approvals: { limit: [1, 10] }, review: { limit: [1, 10] }, calendar: { limit: [1, 20], days: [1, 14] },
+};
+export const optsSchema = z.object({ limit: z.number().int().min(1).max(20).optional(), days: z.number().int().min(1).max(14).optional() }).strict();
+export const widgetSchema = z.object({ id: z.string().min(1).max(40).regex(/^[a-z0-9-]+$/), type: z.enum(WIDGETS), x: z.number().int().min(0).max(11), y: z.number().int().min(0).max(400), w: z.number().int().min(2).max(12), h: z.number().int().min(3).max(24), opts: optsSchema.optional() }).refine((v) => v.x + v.w <= 12, 'panel runs past the right edge')
+  .refine((v) => Object.entries(v.opts ?? {}).every(([k, val]) => { const r = (OPTION_RULES[v.type] as any)?.[k] as [number, number] | undefined; return !!r && (val as number) >= r[0] && (val as number) <= r[1]; }), 'that setting does not apply to this panel or is out of range');
 export const layoutSchema = z.array(widgetSchema).max(24).refine((l) => new Set(l.map((w) => w.id)).size === l.length, 'duplicate panel id');
 const nameSchema = z.string().min(1).max(40).regex(/^[A-Za-z0-9 _-]+$/, 'Names can use letters, numbers, spaces, - and _');
 

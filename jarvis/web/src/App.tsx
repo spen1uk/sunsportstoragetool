@@ -81,7 +81,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
   const [, setSpeakTick] = useState(0);
   useEffect(() => subscribe((t, e) => { if (t === 'thinking') setServerThinking(!!e?.on); }), []);
   useEffect(() => onSpeech(() => setSpeakTick((n) => n + 1)), []);
-  const [quality, setQuality] = useState<'low' | 'medium' | 'high'>(() => (localStorage.getItem('jv.quality') as any) || 'medium');
+  const [quality, setQuality] = useState<'low' | 'medium' | 'high'>(() => (localStorage.getItem('jv.quality') as any) || (typeof matchMedia !== 'undefined' && (matchMedia('(pointer: coarse)').matches || innerWidth < 768) ? 'low' : 'medium'));   // phones and tablets start light; Settings can raise it
   const osReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const [reduced, setReduced] = useState(() => (localStorage.getItem('jv.reduced') ?? String(osReduced)) === 'true');
   const [layoutVersion, setLayoutVersion] = useState(0);

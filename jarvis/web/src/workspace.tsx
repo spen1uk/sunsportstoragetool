@@ -4,7 +4,12 @@ import type { Conversation } from './Chat.tsx';
 import { ProposalTray } from './Proposals.tsx';
 import { HabitsList, PeopleList, LearningList, LinksList } from './life.tsx';
 
-export type Widget = { id: string; type: string; x: number; y: number; w: number; h: number };
+export type Opts = { limit?: number; days?: number };
+export type Widget = { id: string; type: string; x: number; y: number; w: number; h: number; opts?: Opts };
+/** Which per-panel settings each panel offers: [min, max, default]. Mirrors the server's rules, which are what actually enforce them. */
+const KNOBS: Record<string, { limit?: [number, number, number]; days?: [number, number, number] }> = {
+  today: { limit: [1, 10, 5] }, tasks: { limit: [1, 20, 10] }, approvals: { limit: [1, 10, 5] }, review: { limit: [1, 10, 6] }, calendar: { limit: [1, 20, 12], days: [1, 14, 3] },
+};
 const COLS = 12, ROW = 40, GAP = 8;
 const TITLES: Record<string, string> = { conversation: 'Conversation', today: 'Today', calendar: 'Next up', tasks: 'My tasks', approvals: 'Decisions', review: 'Ready for review', habits: 'Habits', people: 'Stay in touch', learning: 'Learning', links: 'Quick links', spend: 'Mind & spend', systems: 'Systems' };
 const MIN: Record<string, [number, number]> = { conversation: [3, 6], today: [3, 4], calendar: [3, 4], tasks: [3, 4], approvals: [2, 3], review: [2, 3], habits: [2, 4], people: [2, 4], learning: [3, 4], links: [2, 3], spend: [2, 3], systems: [2, 4] };
@@ -27,12 +32,13 @@ export function resolve(layout: Widget[], movedId?: string): Widget[] {
 function Empty({ children }: { children: ReactNode }) { return <p className="muted small">{children}</p>; }
 const hm = (ms: number) => new Date(ms).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' });
 
-function Body({ type, st, convo }: { type: string; st: AppState; convo: Conversation }) {
+function Body({ type, st, convo, opts = {} }: { type: string; st: AppState; convo: Conversation; opts?: Opts }) {
+  const K = KNOBS[type] ?? {}; const lim = opts.limit ?? K.limit?.[2] ?? 10, days = opts.days ?? K.days?.[2] ?? 3;
   const today = useLive<any>(() => api('/api/today'), ['tasks', 'approvals', 'artifacts', 'system', 'mode', 'calendar-sync'], []);
   const tasks = useLive<any[]>(() => (type === 'tasks' ? api('/api/tasks') : Promise.resolve([])), ['tasks'], [type]);
   const apprs = useLive<any>(() => (type === 'approvals' ? api('/api/approvals') : Promise.resolve(null)), ['approvals'], [type]);
   const arts = useLive<any[]>(() => (type === 'review' ? api('/api/artifacts') : Promise.resolve([])), ['artifacts'], [type]);
-  const cal = useLive<any>(() => (type === 'calendar' ? api(`/api/calendar?from=${Date.now() - 3_600_000}&to=${Date.now() + 3 * 86_400_000}`) : Promise.resolve(null)), ['calendar-sync'], [type]);
+  const cal = useLive<any>(() => (type === 'calendar' ? api(`/api/calendar?from=${Date.now() - 3_600_000}&to=${Date.now() + days * 86_400_000}`) : Promise.resolve(null)), ['calendar-sync'], [type, days]);
   const b = today.data?.briefing;
   if (type === 'conversation') {
     const lines = convo.msgs.slice(-14);
@@ -44,24 +50,24 @@ function Body({ type, st, convo }: { type: string; st: AppState; convo: Conversa
     if (!b) return <Empty>Loading…</Empty>;
     const urgent = b.sections[0].items as any[], appts = (b.schedule.appointments ?? []) as any[];
     return <div>{urgent.length ? <><h4>Needs you</h4><ul className="plain">{urgent.slice(0, 4).map((i, k) => <li key={k} className="small">{i.text}</li>)}</ul></> : <p className="small">All quiet. Nothing needs you right now.</p>}
-      {appts.length > 0 && <><h4>Appointments</h4><ul className="plain">{appts.slice(0, 5).map((a, k) => <li key={k} className="small"><span className="mono">{a.day.split(',')[0]} {a.when === 'all day' ? 'all day' : a.when.split('–')[0]}</span> {a.title}</li>)}</ul></>}
+      {appts.length > 0 && <><h4>Appointments</h4><ul className="plain">{appts.slice(0, lim).map((a, k) => <li key={k} className="small"><span className="mono">{a.day.split(',')[0]} {a.when === 'all day' ? 'all day' : a.when.split('–')[0]}</span> {a.title}</li>)}</ul></>}
       {b.sections[2].items.length > 0 && <><h4>Suggested</h4><ul className="plain">{b.sections[2].items.slice(0, 3).map((i: any, k: number) => <li key={k} className="small">{i.text}</li>)}</ul></>}</div>;
   }
   if (type === 'calendar') {
     const ev: any[] = cal.data?.events ?? []; if (cal.data?.state.status === 'planned') return <Empty>Calendar isn't connected. Connect it on the Calendar page.</Empty>;
-    return ev.length === 0 ? <Empty>Nothing in the next three days.</Empty> : <ul className="plain">{ev.slice(0, 12).map((e) => <li key={e.calendar + e.uid + e.start} className="small"><span className="mono">{new Date(e.start).toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short' })} {e.allDay ? 'all day' : hm(e.start)}</span> {e.title}</li>)}</ul>;
+    return ev.length === 0 ? <Empty>{days === 1 ? 'Nothing in the next day.' : `Nothing in the next ${days} days.`}</Empty> : <ul className="plain">{ev.slice(0, lim).map((e) => <li key={e.calendar + e.uid + e.start} className="small"><span className="mono">{new Date(e.start).toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short' })} {e.allDay ? 'all day' : hm(e.start)}</span> {e.title}</li>)}</ul>;
   }
   if (type === 'tasks') {
     const open = (tasks.data ?? []).filter((t) => t.kind === 'manual' && !['completed', 'canceled'].includes(t.state));
-    return open.length === 0 ? <Empty>No open tasks.</Empty> : <ul className="plain">{open.slice(0, 10).map((t) => <li key={t.id} className="row small"><button className="tick sm" aria-label={`Complete ${t.title}`} onClick={async () => { await api(`/api/tasks/${t.id}/complete`, 'POST', {}); tasks.reload(); }} /><span className="grow">{t.title}</span><span className="muted">P{t.priority}</span></li>)}</ul>;
+    return open.length === 0 ? <Empty>No open tasks.</Empty> : <ul className="plain">{open.slice(0, lim).map((t) => <li key={t.id} className="row small"><button className="tick sm" aria-label={`Complete ${t.title}`} onClick={async () => { await api(`/api/tasks/${t.id}/complete`, 'POST', {}); tasks.reload(); }} /><span className="grow">{t.title}</span><span className="muted">P{t.priority}</span></li>)}</ul>;
   }
   if (type === 'approvals') {
     const p = (apprs.data?.items ?? []).filter((a: any) => a.status === 'pending');
-    return p.length === 0 ? <Empty>Nothing waiting for your decision.</Empty> : <div><ul className="plain">{p.slice(0, 5).map((a: any) => <li key={a.id} className="small">{a.summary}</li>)}</ul><a href="#/approvals">Decide on the Approvals page ›</a></div>;
+    return p.length === 0 ? <Empty>Nothing waiting for your decision.</Empty> : <div><ul className="plain">{p.slice(0, lim).map((a: any) => <li key={a.id} className="small">{a.summary}</li>)}</ul><a href="#/approvals">Decide on the Approvals page ›</a></div>;
   }
   if (type === 'review') {
     const r = (arts.data ?? []).filter((a) => a.status === 'in_review');
-    return r.length === 0 ? <Empty>No drafts waiting.</Empty> : <div><ul className="plain">{r.slice(0, 6).map((a) => <li key={a.id} className="small">{a.title} <span className="muted">v{a.current_version}</span></li>)}</ul><a href="#/review">Open Ready for Review ›</a></div>;
+    return r.length === 0 ? <Empty>No drafts waiting.</Empty> : <div><ul className="plain">{r.slice(0, lim).map((a) => <li key={a.id} className="small">{a.title} <span className="muted">v{a.current_version}</span></li>)}</ul><a href="#/review">Open Ready for Review ›</a></div>;
   }
   if (type === 'habits') return <HabitsList compact />;
   if (type === 'people') return <PeopleList compact onlyDue />;
@@ -74,8 +80,8 @@ function Body({ type, st, convo }: { type: string; st: AppState; convo: Conversa
 
 export function WorkspacePage({ st, convo }: { st: AppState; convo: Conversation }) {
   const { data, reload } = useLive<any>(() => api('/api/workspaces'), []);
-  const [name, setName] = useState('Main'); const [layout, setLayout] = useState<Widget[]>([]); const [edit, setEdit] = useState(false); const [dirty, setDirty] = useState(false); const [msg, setMsg] = useState('');
-  const loaded = useRef(false); const box = useRef<HTMLDivElement>(null); const [width, setWidth] = useState(1000);
+  const [name, setName] = useState('Main'); const [layout, setLayout] = useState<Widget[]>([]); const [edit, setEdit] = useState(false); const [dirty, setDirty] = useState(false); const [msg, setMsg] = useState(''); const [cfg, setCfg] = useState<string | null>(null);
+  const loaded = useRef(false); const box = useRef<HTMLDivElement>(null); const [width, setWidth] = useState(1000); const narrow = width < 740; useEffect(() => { if (narrow) setEdit(false); }, [narrow]);
   useEffect(() => { if (data && !loaded.current) { loaded.current = true; setName(data.active); setLayout(data.layouts[data.active]); } }, [data]);
   useEffect(() => { const el = box.current; if (!el) return; const ro = new ResizeObserver(() => setWidth(el.clientWidth)); ro.observe(el); setWidth(el.clientWidth); return () => ro.disconnect(); }, [data]);
   const colW = width / COLS; const rows = Math.max(8, ...layout.map((w) => w.y + w.h));
@@ -100,7 +106,7 @@ export function WorkspacePage({ st, convo }: { st: AppState; convo: Conversation
     <section className="page ws-page"><h1>Modular Workspace</h1>
       <div className="ws-bar glass">
         <label className="small muted">Layout <select value={name} onChange={(e) => void switchTo(e.target.value)} aria-label="Saved layout">{names.map((n) => <option key={n}>{n}</option>)}</select></label>
-        <button className={edit ? 'primary' : ''} onClick={() => setEdit(!edit)} aria-pressed={edit}>{edit ? 'Done arranging' : 'Arrange panels'}</button>
+        <button className={edit ? 'primary' : ''} disabled={narrow} title={narrow ? 'Arranging needs a wider screen; panels stack in one column on a phone.' : undefined} onClick={() => { setEdit(!edit); setCfg(null); }} aria-pressed={edit}>{edit ? 'Done arranging' : 'Arrange panels'}</button>
         {edit && <>
           <label className="small muted">Add <select value="" onChange={(e) => e.target.value && add(e.target.value)} aria-label="Add a panel"><option value="">panel…</option>{Object.keys(TITLES).filter((t) => !present.has(t)).map((t) => <option key={t} value={t}>{TITLES[t]}</option>)}</select></label>
           <button onClick={() => { const n = prompt('Save this layout as:', name === 'Main' ? 'Focus' : name); if (n) void call(async () => { await api(`/api/workspaces/${encodeURIComponent(n.trim())}`, 'PUT', layout); await api(`/api/workspaces/${encodeURIComponent(n.trim())}/activate`, 'POST', {}); setName(n.trim()); setDirty(false); }, `Saved as ${n.trim()}.`); }}>Save as…</button>
@@ -112,8 +118,9 @@ export function WorkspacePage({ st, convo }: { st: AppState; convo: Conversation
       </div>
       <div ref={box} className={`ws-grid ${edit ? 'editing' : ''}`} style={{ height: rows * ROW }} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
         {sorted.map((w) => <div key={w.id} className="ws-panel glass" style={{ left: w.x * colW, top: w.y * ROW, width: w.w * colW - GAP, height: w.h * ROW - GAP }}>
-          <header onPointerDown={(e) => begin(e, w, 'move')}><span>{TITLES[w.type]}</span>{edit && <button aria-label={`Remove ${TITLES[w.type]}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => { setLayout((l) => resolve(l.filter((x) => x.id !== w.id))); setDirty(true); }}>✕</button>}</header>
-          <div className="ws-body"><Body type={w.type} st={st} convo={convo} /></div>
+          <header onPointerDown={(e) => begin(e, w, 'move')}><span>{TITLES[w.type]}</span>{edit && KNOBS[w.type] && <button aria-label={`Settings for ${TITLES[w.type]}`} aria-expanded={cfg === w.id} onPointerDown={(e) => e.stopPropagation()} onClick={() => setCfg(cfg === w.id ? null : w.id)}>⚙</button>}{edit && <button aria-label={`Remove ${TITLES[w.type]}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => { setLayout((l) => resolve(l.filter((x) => x.id !== w.id))); setDirty(true); }}>✕</button>}</header>
+          {edit && cfg === w.id && KNOBS[w.type] && <div className="ws-cfg small" onPointerDown={(e) => e.stopPropagation()}>{(['limit', 'days'] as const).map((k) => { const kn = KNOBS[w.type][k]; if (!kn) return null; return <label key={k}>{k === 'limit' ? 'Show up to' : 'Look ahead (days)'} <input type="number" min={kn[0]} max={kn[1]} value={w.opts?.[k] ?? kn[2]} onChange={(e) => { const n = Math.round(Number(e.target.value)); if (!(n >= kn[0] && n <= kn[1])) return; setLayout((l) => l.map((x) => x.id === w.id ? { ...x, opts: { ...x.opts, [k]: n } } : x)); setDirty(true); }} /></label>; })}</div>}
+          <div className="ws-body"><Body type={w.type} st={st} convo={convo} opts={w.opts} /></div>
           {edit && <i className="ws-resize" aria-label="Resize" onPointerDown={(e) => begin(e, w, 'size')} />}
         </div>)}
         {layout.length === 0 && <p className="muted" style={{ padding: 20 }}>No panels. Choose "Arrange panels", then add some.</p>}

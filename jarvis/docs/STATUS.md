@@ -98,7 +98,7 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 ## My Life and Modular Workspace
 - **My Life** ✅ (tested): habits you check off yourself (Chicago days, streak, weekly count, 14-day back-fill, reversible) and people you want to stay in touch with ("every N days", overdue shown, "in touch today"). All typed in by you; never inferred, never sent to the language model; chat understands "I did gym" / "I talked to David" when exactly one thing matches (not in private mode). Overdue contacts appear as suggestions in the briefing. **Health stays ⚪ planned**: no health data is connected.
 - **Modular Workspace** ✅ (tested server side, verified in headless Chromium): 10 panel types (conversation, today, next-up calendar, tasks, decisions, ready for review, habits, stay-in-touch, spend, systems) on a 12-column grid; Arrange mode to drag, resize, add and remove panels (others are pushed out of the way); up to 12 named saved layouts, one active; Main can be reset but not deleted. Layouts only change what you see.
-- Not done: touch-device drag tuning, per-panel settings, cross-device layout sync beyond what the server stores.
+- Per-panel settings and touch tuning: see "Universe and workspace tuning" below. Still not done: cross-device layout sync beyond what the server stores.
 
 ## Quick links and Learning goals
 - **Quick links** ✅ (tested): bookmarks Luke adds himself; only plain http/https addresses (no embedded logins, scripts, files); open in a new tab with `noopener noreferrer`. Jarvis never visits, logs into, scrapes or reads them. Max 40.
@@ -153,3 +153,8 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 - ✅ (tested) Approvals page → Standing permissions. You can pre-approve **one of four narrow, undoable kinds** of chat suggestion so it runs without the Confirm click: add a task, check off a habit, log learning progress, note you were in touch with someone. Nothing that sends, spends, deletes, fetches a website, saves a memory, completes a task or adds a link can ever be granted (the server rejects them).
 - Each grant needs your passphrase/passkey (spent by that one grant), has a **daily cap** (1–30), a **time limit** (1–90 days) and a list of **interfaces** (dashboard, phone, car, voice; texts never). Never created by chat, a device or the model; never inferred from a one-time approval. Revoke is instant. A paused Jarvis never auto-runs anything.
 - Every use shows in the reply ("Done under your standing permission: …"), is counted before it runs, and is in the activity log as Jarvis acting under that permission.
+
+## Universe and workspace tuning
+- ✅ (tested; looked at in a desktop and a phone-size browser) **Per-panel settings**: in Arrange mode, panels with a ⚙ (Today, My tasks, Decisions, Ready for review, Next up) let you choose how many rows to show, and Next up how many days ahead (1–14). Saved with the layout; the server accepts only those two knobs, only on those panels, within range.
+- ✅ **Touch**: phones and tablets start the 3D universe on Low quality (change it in Settings); a tap on a system no longer turns into a drag from fingertip wobble (14 px on touch, 6 px with a mouse); bigger resize handles and buttons on touch screens; panels stack in one column on a phone and Arrange is switched off there, with a note, because dragging a grid on a small screen doesn't work well.
+- ⚪ Not tried on a real phone or tablet: only simulated touch and a phone-size window.

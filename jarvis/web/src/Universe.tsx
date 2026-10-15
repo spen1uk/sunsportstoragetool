@@ -526,7 +526,7 @@ export function Universe(props: Props) {
       if (P.current.route.level !== 'universe') return;
       dragged.current = false; const sx = e.clientX, sy = e.clientY, target = e.currentTarget as HTMLElement; target.setPointerCapture(e.pointerId);
       const move = (m: PointerEvent) => {
-        if (!dragged.current && Math.hypot(m.clientX - sx, m.clientY - sy) < 6) return;
+        if (!dragged.current && Math.hypot(m.clientX - sx, m.clientY - sy) < (e.pointerType === 'touch' ? 14 : 6)) return;   // a fingertip wobbles: a tap must still open the system
         dragged.current = true; const w = api3.current?.toWorld(m.clientX, m.clientY);
         if (w) positions.current[id] = { x: Math.max(-90, Math.min(90, w.x)), y: Math.max(-50, Math.min(50, w.y)) };
       };

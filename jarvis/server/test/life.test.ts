@@ -101,3 +101,14 @@ test('messages remember which interface they came from (groundwork for one conve
   const rows = db.prepare('SELECT role, channel, content FROM messages ORDER BY id').all() as any[];
   assert.deepEqual(rows.map((r) => r.channel), ['dashboard', 'dashboard', 'car', 'car']); assert.equal(rows.length, 4, 'one shared history, not one per device');
 });
+
+test('workspace: per-panel settings are limited to the knobs a panel actually has, within range, and survive a save', () => {
+  const db = makeDb(); const base = (opts: unknown, type = 'tasks') => [{ id: type, type, x: 0, y: 0, w: 4, h: 6, ...(opts === undefined ? {} : { opts }) }];
+  saveLayout(db, 'Tuned', base({ limit: 3 })); assert.deepEqual((getWorkspaces(db).layouts.Tuned as any)[0].opts, { limit: 3 });
+  saveLayout(db, 'Cal', base({ limit: 20, days: 14 }, 'calendar')); assert.deepEqual((getWorkspaces(db).layouts.Cal as any)[0].opts, { limit: 20, days: 14 });
+  saveLayout(db, 'Plain', base(undefined)); assert.equal((getWorkspaces(db).layouts.Plain as any)[0].opts, undefined, 'optional');
+  for (const bad of [{ days: 2 }, { limit: 0 }, { limit: 21 }, { limit: 2.5 }, { limit: '5' }, { colour: 'red' }, { limit: 3, extra: 1 }]) assert.throws(() => saveLayout(db, 'Bad', base(bad)), /./, JSON.stringify(bad));
+  assert.throws(() => saveLayout(db, 'Bad', base({ limit: 1 }, 'habits')), /./, 'a panel with no settings accepts none');
+  assert.throws(() => saveLayout(db, 'Bad', base({ limit: 11 }, 'approvals')), /./, 'approvals shows at most 10');
+  assert.throws(() => saveLayout(db, 'Bad', base({ days: 15 }, 'calendar')));
+});
