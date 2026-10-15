@@ -17,7 +17,7 @@
 | Not built / blocked | Voice (deferred), phone number and texts (needs your decision and a purchase approval), Sandra read-only (needs access), Trading/Investing (separate chats), Mac screen observation (later) |
 
 ## 2. The plan, in order
-**Gate 0: before any server (free, on your Mac, a few days).** Use Jarvis normally. Add a passkey at `http://localhost:8788`. Make one encrypted backup and do the restore drill again after any key change. Write down anything annoying. *This is the cheapest place to find mistakes.*
+**Gate 0: before any server (free, on your Mac, a week). Daily checklist: docs/GATE0_CHECKLIST.md.** Use Jarvis normally. Add a passkey at `http://localhost:8788`. Make one encrypted backup and do the restore drill again after any key change. Write down anything annoying. *This is the cheapest place to find mistakes.*
 
 **Gate 1: your decisions** (none cost money yet):
 1. Provider and size. My default: a small Hetzner or DigitalOcean Ubuntu 24.04 box, about $5–12/month, in a US region.
@@ -54,7 +54,7 @@ Server $5–12/month, Tailscale free tier, outside alert free tier, Anthropic us
 
 ## 5. To-do list (everything still open)
 **Needs you**
-- [ ] Gate 0 week of normal use on the Mac
+- [ ] Gate 0 week of normal use on the Mac (docs/GATE0_CHECKLIST.md)
 - [ ] Choose provider/size; approve purchase; create the Tailscale account (you do the sign-in)
 - [ ] Decide inbound calls/texts (public relay / poll-only / outbound-only)
 - [ ] Voice budget ceiling; confirm iPhone; CarPlay research before buying any box
