@@ -16,13 +16,27 @@ def load_config(path=None):
             "Only mode='paper' is supported. Live trading is intentionally not wired up "
             "until the paper results justify it (see README: 'Going live')."
         )
-    # Secrets can come from the environment instead of the file.
+    # Secrets can come from the environment or from a .env file next to config.json.
+    _load_env(os.path.join(ROOT, ".env"))
     rep = cfg.setdefault("reports", {})
     rep["discord_webhook_url"] = os.environ.get("DISCORD_WEBHOOK_URL", rep.get("discord_webhook_url", ""))
     rep["telegram_bot_token"] = os.environ.get("TELEGRAM_BOT_TOKEN", rep.get("telegram_bot_token", ""))
     rep["telegram_chat_id"] = os.environ.get("TELEGRAM_CHAT_ID", rep.get("telegram_chat_id", ""))
     os.makedirs(DATA_DIR, exist_ok=True)
     return cfg
+
+
+def _load_env(path):
+    """Read KEY=value lines (doesn't override variables already set, e.g. by systemd)."""
+    if not os.path.exists(path):
+        return
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                if v.strip():
+                    os.environ.setdefault(k.strip(), v.strip())
 
 
 def load_params(cfg):

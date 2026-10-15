@@ -8,6 +8,8 @@ import unittest
 
 TMP = tempfile.mkdtemp(prefix="tradebot-test-")
 os.environ["TRADEBOT_DATA_DIR"] = TMP
+for _secret in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "DISCORD_WEBHOOK_URL", "ANTHROPIC_API_KEY"):
+    os.environ[_secret] = ""  # tests must never message your phone, even if a real .env exists
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tradebot.backtest import run_backtest  # noqa: E402
@@ -379,6 +381,48 @@ class MemoryKeeper(unittest.TestCase):
         _, rep = improve(CFG, copy.deepcopy(CFG["strategy"]), hist, memory=m)
         self.assertGreater(m.data["stats"]["ideas_skipped"], 0)  # and didn't repeat rejected ideas
         self.assertTrue(any("already tested" in l for l in rep["lessons"]))
+
+
+class Telegram(unittest.TestCase):
+    def test_tests_never_alert_your_phone(self):
+        self.assertFalse(load_config()["reports"]["telegram_bot_token"])
+
+    def test_find_chat_id_uses_latest_message(self):
+        from tradebot.notify import find_chat_id
+        ups = [{"update_id": 1, "message": {"chat": {"id": 11, "first_name": "Old"}}},
+               {"update_id": 2, "message": {"chat": {"id": 42, "first_name": "Luke"}}}]
+        self.assertEqual(find_chat_id(ups), (42, "Luke"))
+        self.assertIsNone(find_chat_id([]))
+
+    def test_write_env_updates_in_place(self):
+        from tradebot.notify import write_env
+        path = os.path.join(TMP, "env-test")
+        with open(path, "w") as f:
+            f.write("DISCORD_WEBHOOK_URL=\nTELEGRAM_BOT_TOKEN=\nANTHROPIC_API_KEY=keep\n")
+        write_env(path, {"TELEGRAM_BOT_TOKEN": "123:abc", "TELEGRAM_CHAT_ID": 42})
+        text = open(path).read()
+        self.assertIn("TELEGRAM_BOT_TOKEN=123:abc", text)
+        self.assertIn("TELEGRAM_CHAT_ID=42", text)
+        self.assertIn("ANTHROPIC_API_KEY=keep", text)
+        self.assertEqual(text.count("TELEGRAM_BOT_TOKEN"), 1)
+        self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+
+    def test_setup_flow(self):
+        from unittest import mock
+        from tradebot import notify
+        calls = {"n": 0}
+
+        def fake_tg(token, method, params=None):
+            if method == "getMe":
+                return {"username": "luke_city_bot"}
+            calls["n"] += 1
+            return [] if calls["n"] == 1 else [{"update_id": 5, "message": {"chat": {"id": 777, "first_name": "Luke"}}}]
+        path = os.path.join(TMP, "env-flow")
+        with mock.patch.object(notify, "_tg", fake_tg), mock.patch.object(notify, "_post") as post, \
+                mock.patch("builtins.print"):
+            self.assertEqual(notify.telegram_setup(path, token="123:abc"), 777)
+        self.assertIn("TELEGRAM_CHAT_ID=777", open(path).read())
+        self.assertEqual(post.call_args[0][1]["chat_id"], 777)  # test message sent
 
 
 class NoLookahead(unittest.TestCase):

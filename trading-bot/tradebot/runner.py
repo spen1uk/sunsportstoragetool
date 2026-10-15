@@ -83,12 +83,16 @@ class PaperBot:
                 self.engine.on_bar(sym, candles, ind, i, allow_entry=(i == newest and fresh),
                                   ctx={"btc_up": btc.get(candles[i].ts)})
             for t in self.engine.closed[before:]:
-                notify(self.cfg, f"{t.side} {t.symbol} closed ({t.exit_reason}): ${t.net_pnl:+.2f} "
+                notify(self.cfg, f"{'💰' if t.net_pnl > 0 else '🔻'} {t.side} {t.symbol} closed ({t.exit_reason}): ${t.net_pnl:+.2f} "
                                  f"({t.r_multiple:+.2f}R). Balance ${t.balance_after:.2f}", log)
             if sym in self.engine.positions and self.engine.positions[sym].entry_ts == candles[newest].ts:
                 p = self.engine.positions[sym]
                 log(f"ENTER {'LONG' if p.side > 0 else 'SHORT'} {sym} @ {p.entry_price:.4f} stop {p.stop:.4f} "
                     f"target {p.target:.4f}")
+                half = any(r.startswith("memory:") for r in p.reasons)
+                notify(self.cfg, f"🟢 Opened {'LONG' if p.side > 0 else 'SHORT'} {sym.split('-')[0]} @ {p.entry_price:,.4g}\n"
+                                 f"Stop {p.stop:,.4g} · Target {p.target:,.4g}"
+                                 + ("\n🧠 Half size - looks like a past mistake" if half else ""), log)
             self.prices[sym] = candles[-1].c
             ctx = {"btc_up": btc.get(candles[newest].ts)}
             market[sym] = {"candles": candles, "ind": ind, "ctx": ctx}

@@ -147,14 +147,18 @@ Check on it anytime: `ssh` in and run `python3 run.py status`, or download `data
 
 Prefer Docker? `docker compose -f deploy/docker-compose.yml up -d --build`.
 
-## Getting updates on your phone
+## Getting updates on your phone (Telegram)
 
-Put these in `.env` (copy `.env.example`) or `config.json` → `reports`:
+1. In Telegram, open **@BotFather**, send `/newbot`, pick a name, and copy the **token** it gives you.
+2. On the machine running the bot (your server): `cd trading-bot && python3 run.py telegram`
+3. Paste the token, then open your new bot in Telegram and tap **Start**. The command finds your
+   chat automatically, saves it to `.env` and sends a test message.
+4. On a server: `sudo systemctl restart tradebot`
 
-- **Discord:** channel settings → Integrations → Webhooks → copy URL → `DISCORD_WEBHOOK_URL`
-- **Telegram:** create a bot with @BotFather → `TELEGRAM_BOT_TOKEN`, plus your `TELEGRAM_CHAT_ID`
+Alerts you'll get: every trade opened 🟢 and closed 💰/🔻, a daily summary, every rule change
+the bot makes, and errors. `python3 run.py test-alert` sends a test anytime.
 
-You'll get a message on every closed trade, a daily summary, and a note every time the bot changes its rules.
+(Discord works too: put a webhook URL in `.env` as `DISCORD_WEBHOOK_URL`.)
 
 ## Claude reviews (optional)
 
