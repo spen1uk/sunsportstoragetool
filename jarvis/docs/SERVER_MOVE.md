@@ -57,7 +57,8 @@ Server $5–12/month, Tailscale free tier, outside alert free tier, Anthropic us
 - [ ] Gate 0 week of normal use on the Mac (docs/GATE0_CHECKLIST.md)
 - [ ] Choose provider/size; approve purchase; create the Tailscale account (you do the sign-in)
 - [ ] Decide inbound calls/texts (public relay / poll-only / outbound-only)
-- [ ] Voice budget ceiling; confirm iPhone; CarPlay research before buying any box
+- [x] CarPlay research (docs/CARPLAY_RESEARCH.md): no box to buy yet
+- [ ] Voice budget ceiling; confirm iPhone model and iOS; check the Velar's wired CarPlay and steering-wheel button; try the Siri Shortcut recipe once Jarvis is reachable
 - [ ] Create the outside-alert account; save the recovery key
 - [ ] Go-ahead for each phase above
 - [ ] Book a human security review before money/trading keys

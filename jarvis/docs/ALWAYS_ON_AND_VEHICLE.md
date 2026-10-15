@@ -63,3 +63,6 @@ None of these needs car hardware.
 2. **Voice budget:** a separate monthly ceiling for voice (e.g. $15–25) inside the $100?
 3. **Phone:** iPhone (so CarPlay and Home-Screen push) — confirm. A native iPhone app would need Apple's $99/year developer fee; a Home-Screen web app does not.
 4. **Do the car-research alternative first** (phone via existing CarPlay) before buying any box?
+
+## 8. CarPlay research result (2026-10-15)
+See **docs/CARPLAY_RESEARCH.md**. Short version: Apple now allows voice AI apps in CarPlay (iOS 26.4+, approval-gated, no wake word, no text/images); an Android box looks fragile for the steering-wheel button; the cheapest first test is a Siri Shortcut that talks to Jarvis through the car you already have.
