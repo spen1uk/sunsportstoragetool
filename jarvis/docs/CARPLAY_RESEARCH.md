@@ -35,3 +35,8 @@ Make a **car** device in Settings → Devices with a small monthly limit (say $3
 - Your iPhone model and iOS version (iOS 26.4+ matters for option A).
 - Does wired CarPlay work in the Velar today, and does holding the steering-wheel voice button start Siri? (Two-minute check in the car.)
 - Whether the $99/year Apple developer account is acceptable if we get to option A.
+
+## Update: what Luke told me (2026-10-15)
+- iPhone 17 Pro Max (has the Action Button). Wired CarPlay only. Not sure the steering-wheel voice button starts Siri (to be checked in the car).
+- **Option C is not an app**: it is a Shortcut inside Apple's built-in Shortcuts app, nothing to install or sign. **Option A is a real app** (Xcode, $99/year, Apple approval).
+- If the steering-wheel button doesn't start Siri, the Shortcut can be started other ways: say "Hey Siri, Ask Jarvis" (if "Hey Siri" works in CarPlay, to be checked), press the Siri/voice control on the CarPlay screen, or assign the **Action Button** on the phone to run it. The steering-wheel button is a nice-to-have, not required.
