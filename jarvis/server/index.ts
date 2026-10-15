@@ -10,6 +10,7 @@ import { syncCalendar, sources } from './calendar.ts';
 import { syncNotes } from './notes.ts';
 import { isMac } from './mac.ts';
 import { bus } from './events.ts';
+import { startHeartbeat } from './heartbeat.ts';
 
 const db = openDb(dbPath());
 seedStructure(db);
@@ -24,6 +25,7 @@ setInterval(tick, 30_000); tick();
 // Read-only copy of the chosen Apple Calendar / Notes, refreshed every 15 minutes while Jarvis runs on the Mac (no network, no model calls).
 const macSync = async () => { for (const [k, f] of [['calendar', syncCalendar], ['notes', syncNotes]] as const) { if (sources(db, k).some((x) => x.enabled)) await f(db).catch((e) => console.error(`[${k}]`, (e as Error).message)); } };
 if (isMac()) { setInterval(macSync, 15 * 60_000); setTimeout(macSync, 5_000); }
+startHeartbeat(db);   // optional: only if JARVIS_HEARTBEAT_URL is set
 // Also react promptly to events that create something needing attention (debounced).
 let pending: NodeJS.Timeout | undefined;
 bus.on('event', (e: { type: string }) => { if (['approvals', 'artifacts', 'mode', 'tasks'].includes(e.type)) { clearTimeout(pending); pending = setTimeout(tick, 250); } });

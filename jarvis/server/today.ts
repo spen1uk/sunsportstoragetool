@@ -7,6 +7,7 @@ import { clients } from './events.ts';
 import { summary as budgetSummary } from './budget.ts';
 import { projectDetail } from './milestones.ts';
 import { listPeople } from './life.ts';
+import { healthIssues } from './health.ts';
 import { busyIntervals, upcoming, calendarConnected, syncState } from './calendar.ts';
 
 const rows = (db: DB, sql: string, ...p: any[]) => db.prepare(sql).all(...p) as any[];
@@ -46,6 +47,7 @@ export function buildBriefing(db: DB, now = Date.now()) {
       else if (m.status === 'at_risk') recs.push({ text: `At risk: "${m.title}" (${pr.title}) is due ${fmtDay(m.due)}${m.tasks.total === 0 ? ' with no tasks linked to it' : ` with ${m.tasks.open} task(s) still open`}.`, link: '#/tasks', level: 'urgent' });
     }
   }
+  for (const h of healthIssues(db, now)) (h.level === 'urgent' ? urgent : recs).push({ text: h.text, link: h.link, level: h.level === 'urgent' ? 'urgent' : 'info' });   // backups overdue, disk low, database trouble…
   const b = budgetSummary(db);
   if (b.level !== 'ok') urgent.push({ text: `Budget at ${Math.round(b.pctCommitted * 100)}% of the monthly cap (${b.level}).`, link: '#/settings', level: 'urgent' });
   if (db.prepare("SELECT 1 FROM meta WHERE key='paused' AND value='1'").get()) urgent.push({ text: 'Jarvis is paused: no new automated work is starting.', link: '#/settings', level: 'urgent' });

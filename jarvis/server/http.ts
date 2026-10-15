@@ -32,6 +32,8 @@ import * as links from './links.ts';
 import * as props from './proposals.ts';
 import * as bridge from './bridge.ts';
 import * as pk from './passkey.ts';
+import { checks as healthChecks, healthIssues, backupDir, recordOffsite, heartbeatStatus } from './health.ts';
+import { listBackups, backupPath } from './offsite.ts';
 import { backupStatus } from './backup-run.ts';
 import * as msug from './memsuggest.ts';
 import { MacError, isMac } from './mac.ts';
@@ -243,6 +245,9 @@ route('POST', '/api/bridge/names', viaBridge(({ db, body }) => guard(() => bridg
 route('POST', '/api/bridge/calendar', viaBridge(({ db, body }) => guard(() => bridge.ingestCalendar(db, body))), true);
 route('POST', '/api/bridge/notes', viaBridge(({ db, body }) => guard(() => bridge.ingestNotes(db, body))), true);
 route('POST', '/api/bridge/failure', viaBridge(({ db, body }) => { const b = parse(z.object({ kind: z.enum(['calendar', 'notes']), message: z.string().max(300) }), body); bridge.reportFailure(db, b.kind, b.message); return { ok: true }; }), true);
+route('GET', '/api/bridge/backups', viaBridge(async () => ({ items: await listBackups(backupDir()) })), true);
+route('POST', '/api/bridge/backups/ack', viaBridge(({ db, body }) => { const b = parse(z.object({ name: z.string().max(60).regex(/^jarvis-\d{8}-\d{6}\.jvbk$/) }), body); if (!backupPath(backupDir(), b.name)) throw new HttpError(404, 'no such backup'); recordOffsite(db, b.name); audit(db, 'mac-helper', 'backup.copied_offsite', b.name); return { ok: true }; }), true);
+route('GET', '/api/health/detail', ({ db }) => ({ checks: healthChecks(db), issues: healthIssues(db), heartbeat: heartbeatStatus(db) }));
 route('GET', '/api/bridge', ({ db }) => bridge.status(db));
 route('POST', '/api/bridge/token', ({ db, session }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); const token = bridge.createToken(db); auth.consumeStepUp(db, session!); return { token }; });
 route('DELETE', '/api/bridge/token', ({ db }) => ({ ok: bridge.revokeToken(db) }));
@@ -385,6 +390,12 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
         return;
       }
       const method = req.method ?? 'GET';
+      const dl = method === 'GET' ? /^\/api\/bridge\/backups\/(jarvis-\d{8}-\d{6}\.jvbk)$/.exec(url.pathname) : null;
+      if (dl) {   // a raw file stream, for the Mac helper only (the pre-check below has already verified its credential)
+        const v = bridge.verify(db, req.headers.authorization); if (!v.ok) return send(v.status, { error: v.error });
+        const f = backupPath(backupDir(), dl[1]); if (!f) return send(404, { error: 'not found' });
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': fs.statSync(f).size, 'Content-Disposition': `attachment; filename="${dl[1]}"` }); fs.createReadStream(f).pipe(res); return;
+      }
       const r = routes.find((x) => x.method === method && x.re.test(url.pathname));
       if (!r) return send(404, { error: 'not found' });
       if (!r.open && !session) return send(401, { error: 'login required' });
@@ -394,7 +405,7 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
         if (origin && originHost !== host) return send(403, { error: 'cross-origin request blocked' });
         if (session && !r.open && req.headers['x-jarvis-csrf'] !== session.csrf) return send(403, { error: 'missing CSRF token' });
       }
-      if (url.pathname.startsWith('/api/bridge/') && url.pathname !== '/api/bridge/token' && method !== 'GET' || url.pathname === '/api/bridge/config') { const v = bridge.verify(db, req.headers.authorization); if (!v.ok) return send(v.status, { error: v.error }); }   // check the helper's credential BEFORE reading a (possibly 6 MB) body
+      if (url.pathname.startsWith('/api/bridge/') && url.pathname !== '/api/bridge/token') { const v = bridge.verify(db, req.headers.authorization); if (!v.ok) return send(v.status, { error: v.error }); }   // check the helper's credential BEFORE reading a (possibly 6 MB) body
       let body: any = undefined;
       if (method !== 'GET' && method !== 'DELETE') {
         const chunks: Buffer[] = []; let n = 0;

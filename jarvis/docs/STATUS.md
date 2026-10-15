@@ -132,3 +132,7 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 - 📄 Requirements preserved and checked against the code in docs/ALWAYS_ON_AND_VEHICLE.md (no car hardware chosen or bought; nothing for the car built).
 - ✅ Groundwork: every message now records its interface (`channel`).
 - ⚠ Findings: device registry with scoped tokens needed; **inbound calls/texts conflict with the private-only link** (decision needed); voice is the main cost risk; greeting and glance/driving-mode APIs should be server-side.
+
+## Uptime alerts and off-server backups
+- ✅ (tested) **Health** checks (database, disk, backup age, off-server copy) shown in Settings, the briefing and the Command Center. ✅ Optional **heartbeat** to an outside dead-man's-switch (off until `JARVIS_HEARTBEAT_URL` is set; empty https request; reports failure when an urgent problem exists). ✅ **Mac helper** notifies if the server stops answering. ✅ **Off-server copies**: the Mac helper pulls the encrypted backups over the private link, verifies hash/format, confirms to the server, keeps 30.
+- ⚪ Not done by me (needs you): creating the outside-alert account; running `npm run bridge:setup` on the Mac after the server exists. Not executed anywhere yet; no server exists.

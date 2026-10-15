@@ -51,3 +51,18 @@ export function BackupCard() {
     </div>
   );
 }
+
+/** Settings: a plain-English health check, and whether anything outside Jarvis will tell you if it stops. */
+export function HealthCard() {
+  const { data } = useLive<any>(() => api('/api/health/detail'), ['system']);
+  if (!data) return null;
+  const bad = data.checks.filter((c: any) => !c.ok);
+  return (
+    <div className="glass pad section">
+      <h2>Health <span className={`badge ${bad.length ? 'planned' : 'connected'}`}>{bad.length ? `${bad.length} to look at` : 'all good'}</span></h2>
+      <ul className="plain small">{data.checks.map((c: any) => <li key={c.key}>{c.ok ? '✓' : '⚠'} <b>{c.label}</b> <span className={c.ok ? 'muted' : 'warn'}>— {c.detail}</span></li>)}</ul>
+      {!data.heartbeat.configured && <p className="muted small">Jarvis can't tell you it has died. To get an outside alert if it ever stops, set <code>JARVIS_HEARTBEAT_URL</code> to a ping address from a free "dead-man's-switch" service (see docs/DEPLOY.md). Your Mac helper also shows a notification if the server stops answering.</p>}
+      {data.heartbeat.configured && <p className="muted small">Checking in with <b>{data.heartbeat.host}</b> every 5 minutes. If the check-ins stop, that service alerts you.</p>}
+    </div>
+  );
+}

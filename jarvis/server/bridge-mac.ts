@@ -1,4 +1,4 @@
-import { saveConfig, loadConfig, cycle, validateUrl, configPath } from './bridge-client.ts';
+import { saveConfig, loadConfig, cycle, validateUrl, configPath, defaultBackupDir, makeWatcher } from './bridge-client.ts';
 // usage:  npm run bridge:setup      (asks for your server address and the helper credential; the credential is hidden)
 //         npm run bridge            (one round, then exit)         npm run bridge -- --loop   (every 15 minutes; this is what auto-start runs)
 const mode = process.argv[2] ?? '--once';
@@ -13,10 +13,12 @@ async function ask(q: string, hidden: boolean) {
 if (mode === '--setup') {
   const url = validateUrl(await ask('Your Jarvis server address (https://…): ', false));
   const token = await ask('Paste the helper credential (starts with jvb_; input hidden), then Enter: ', true);
-  saveConfig({ url, token }); console.log(`Saved to ${configPath()} (readable only by you). Test it with:  npm run bridge`);
+  const dirIn = await ask(`Folder on this Mac for copies of your encrypted server backups [${defaultBackupDir()}]: `, false);
+  saveConfig({ url, token, backupDir: dirIn || defaultBackupDir() }); console.log(`Saved to ${configPath()} (readable only by you). Test it with:  npm run bridge`);
 } else {
   const cfg = loadConfig();
-  const run = async () => { try { const r = await cycle(cfg); if (r.errors.length && mode !== '--loop') process.exitCode = 1; } catch (e) { console.error('bridge:', (e as Error).message); if (mode !== '--loop') process.exitCode = 1; } };
+  const watch = makeWatcher();
+  const run = async () => { try { const r = await cycle(cfg); watch.ok(); if (r.errors.length && mode !== '--loop') process.exitCode = 1; } catch (e) { watch.failed((e as Error).message); console.error('bridge:', (e as Error).message); if (mode !== '--loop') process.exitCode = 1; } };
   await run();
   if (mode === '--loop') { setInterval(run, 15 * 60_000); }
 }

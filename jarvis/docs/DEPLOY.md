@@ -38,6 +38,13 @@ Jarvis itself still listens on `127.0.0.1` only. Tailscale is the only thing tha
 - **Encrypted backups:** `npm run backup:keygen` (once; **save the recovery key it prints**), then `npm run backup -- --to <folder>`; `npm run backup:drill -- <file>` proves a backup opens; `npm run backup:restore -- <file> <new.db>` restores into a *new* file. On the server: `deploy/jarvis-backup.service` + `.timer` run it daily at ~03:15 into `/var/backups/jarvis`, keeping 14. Copy that folder off-site with anything you like (rclone, a synced folder): the files are useless without your recovery key. The server holds only the public key.
 - Do a restore drill **before** relying on any of it, and again after changing keys.
 
+## Alerts and off-server backups (built)
+- **Health** (Settings → Health): database check, free disk, backup age, off-server copy, and whether an outside alert is set up. Problems also show up in your morning briefing and on the Command Center.
+- **Outside alert (optional, recommended):** a server can't announce its own death, so while healthy it checks in every 5 minutes with a free dead-man's-switch service of your choice (any "healthchecks"-style service: you create a check, it gives you a ping address and you tell it to email or text you when pings stop). Put the address in `/etc/jarvis.env` as `JARVIS_HEARTBEAT_URL=` and restart. The request is empty (no data), https-only, to a public address. If Jarvis sees an urgent problem it pings the service's `/fail` address instead of "all fine". This needs you to create that account, so I haven't, and the setting is off until you do.
+- **Mac helper alerts:** if the server stops answering for about 30 minutes, the helper shows a macOS notification (then at most every 3 hours, and "back" when it recovers). It only helps while your Mac is on.
+- **Off-server backup copies:** set `JARVIS_BACKUP_DIR=/var/backups/jarvis`. Each time the Mac helper runs it downloads any new **encrypted** backup into a folder on the Mac (default `~/Documents/Jarvis-Backups`; `npm run bridge:setup` asks), checks its hash, and tells the server it arrived (Settings shows it). Only the 30 newest are kept locally. The files are useless without your recovery key, so that folder can safely live in iCloud Drive or on a backup disk. If you'd rather copy `/var/backups/jarvis` another way (rclone, a synced folder), that works too.
+- The helper credential can now also list and download those encrypted backup files (nothing else new).
+
 ## Security review
 Round 1 (three independent AI-assisted reviews, findings verified and fixed) is in docs/SECURITY_REVIEW.md. It is not a professional penetration test.
 
@@ -45,7 +52,7 @@ Round 1 (three independent AI-assisted reviews, findings verified and fixed) is 
 | Item | Why it matters |
 |---|---|
 | A human expert's review of `server/passkey.ts` and the live server (round 1 was AI-assisted: docs/SECURITY_REVIEW.md) | Needed before money or trading keys are ever connected |
-| Uptime alert (e.g. a free external pinger on the private link, or a daily "I'm alive" notification) | You should hear if it stops |
-| Off-site copy of the backup folder (rclone/sync job) | The timer writes on the same server; copy it elsewhere |
+| Create the outside-alert account and set `JARVIS_HEARTBEAT_URL` (your choice and your account) | The code is ready; it stays off until you do |
+| Run `npm run bridge:setup` once on the Mac so backups are copied off the server | Code is ready; needs your helper credential |
 | Decision: Anthropic data-retention terms | Luke's call; see docs/DEPENDENCIES.md |
 | Test run on the Mac for a few days | Cheapest place to find mistakes |
