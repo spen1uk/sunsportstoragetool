@@ -29,7 +29,7 @@ function history(db: DB): ChatMessage[] {
  * Anything else goes to the model if one is configured and allowed; the model returns TEXT ONLY and has no tools,
  * so nothing it says can create, change, approve, send or spend anything. Prefix a message with "deep:" for the stronger model.
  */
-export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string } = {}): Promise<ChatReply> {
+export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string; brief?: boolean } = {}): Promise<ChatReply> {
   const text = textIn.trim().slice(0, 2000), priv = !!o.private, cfg = getConfig(db);
   const modelOk = ready(db, 'chat') && (!priv || cfg.allowInPrivate);
   const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk, channel: o.channel });
@@ -39,7 +39,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   const messages: ChatMessage[] = [...(priv ? [] : history(db)), { role: 'user', content: prompt }];
   publish({ type: 'thinking', on: true });
   try {
-    const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt), context: priv ? undefined : buildContext(db), proposals: !priv }), messages, strong });
+    const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt), context: priv ? undefined : buildContext(db), proposals: !priv, brief: o.brief }), messages, strong });
     const raw = r.ok ? r.text.trim() || '…' : `I couldn't reach a language model just now, sir (${r.error}). Command mode is still available: type "help".`;
     // The model may PROPOSE actions; they become Confirm cards and do nothing until Luke clicks. In private mode nothing is stored, so proposals are dropped.
     const ex = r.ok ? extractProposals(raw) : { text: raw, actions: [], dropped: 0 };

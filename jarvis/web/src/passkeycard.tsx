@@ -66,3 +66,32 @@ export function HealthCard() {
     </div>
   );
 }
+
+/** Settings: phone / car / text / voice clients that may talk to Jarvis, each with its own revocable token and narrow scopes. */
+export function DevicesCard() {
+  const { data, reload } = useLive<any>(() => api('/api/devices'), []);
+  const [name, setName] = useState(''), [kind, setKind] = useState('phone'), [pw, setPw] = useState(''), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [token, setToken] = useState<string | null>(null), [preview, setPreview] = useState<any>(null), [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const run = async (f: () => Promise<unknown>, ok: string) => { setBusy(true); setMsg(null); try { await f(); setMsg({ ok: true, t: ok }); } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) }); } finally { setBusy(false); reload(); } };
+  const confirmFirst = async () => { if (pw) { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } else await stepUpWithPasskey(); };
+  const active = data.items.filter((d: any) => d.status === 'active');
+  return (
+    <div className="glass pad section">
+      <h2>Devices <span className={`badge ${active.length ? 'connected' : 'planned'}`}>{active.length ? `${active.length} active` : 'none yet'}</span></h2>
+      <p className="muted small">Each phone, car screen, text line or voice client gets its own key. A device can chat, hear the greeting and see the glance line. It can never confirm an action, change settings, or read your files; anything it proposes waits here for you. Remove one and it stops working at once.</p>
+      <ul className="plain">{active.map((d: any) => (
+        <li key={d.id} className="row"><span className="grow"><b>{d.name}</b> <span className="muted small">{d.kind} · {(d.scopes || []).join(', ')} · {d.lastSeen ? `last seen ${new Date(d.lastSeen).toLocaleString()}` : 'never used'}</span></span>
+          <button disabled={busy} onClick={() => { if (confirm(`Remove "${d.name}"?`)) void run(() => api(`/api/devices/${encodeURIComponent(d.id)}`, 'DELETE'), 'Removed.'); }}>Remove</button></li>))}</ul>
+      <div className="row wrap section">
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="Name, e.g. Luke's iPhone" aria-label="Device name" style={{ width: 190 }} />
+        <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Device kind">{data.kinds.map((k: string) => <option key={k}>{k}</option>)}</select>
+        <input type="password" autoComplete="current-password" placeholder="Passphrase (blank to use a passkey)" value={pw} onChange={(e) => setPw(e.target.value)} aria-label="Passphrase to confirm" className="grow" />
+        <button className="primary" disabled={busy || !name.trim()} onClick={() => void run(async () => { await confirmFirst(); const r = await api('/api/devices', 'POST', { name: name.trim(), kind }); setToken((r as any).token); setName(''); }, 'Device added. Copy its key now.')}>Add device</button>
+      </div>
+      {token && <p className="warn small">Key (shown once, keep it in a password manager): <code>{token}</code></p>}
+      <div className="row wrap"><button onClick={() => void api('/api/greeting').then(setPreview).catch(() => setPreview(null))}>Preview greeting</button><button onClick={() => void api('/api/greeting?profile=glance').then(setPreview).catch(() => setPreview(null))}>Preview car glance</button></div>
+      {preview && <p className="small" role="status">“{preview.speak}”</p>}
+      {msg && <p className={msg.ok ? 'ok small' : 'err small'} role="status">{msg.t}</p>}
+    </div>
+  );
+}

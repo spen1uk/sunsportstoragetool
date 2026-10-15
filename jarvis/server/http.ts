@@ -31,6 +31,8 @@ import * as ws from './workspace.ts';
 import * as links from './links.ts';
 import * as props from './proposals.ts';
 import * as bridge from './bridge.ts';
+import * as dev from './devices.ts';
+import { buildGreeting, buildGlance, toSpeech, coreState } from './greeting.ts';
 import * as pk from './passkey.ts';
 import { checks as healthChecks, healthIssues, backupDir, recordOffsite, heartbeatStatus } from './health.ts';
 import { listBackups, backupPath } from './offsite.ts';
@@ -245,6 +247,26 @@ route('POST', '/api/bridge/names', viaBridge(({ db, body }) => guard(() => bridg
 route('POST', '/api/bridge/calendar', viaBridge(({ db, body }) => guard(() => bridge.ingestCalendar(db, body))), true);
 route('POST', '/api/bridge/notes', viaBridge(({ db, body }) => guard(() => bridge.ingestNotes(db, body))), true);
 route('POST', '/api/bridge/failure', viaBridge(({ db, body }) => { const b = parse(z.object({ kind: z.enum(['calendar', 'notes']), message: z.string().max(300) }), body); bridge.reportFailure(db, b.kind, b.message); return { ok: true }; }), true);
+// ---- devices (phone, car, text/voice gateways): own limited credentials; session routes manage them, bearer routes serve them ----
+route('GET', '/api/devices', ({ db }) => ({ items: dev.listDevices(db), scopes: dev.SCOPES, kinds: dev.KINDS }));
+route('POST', '/api/devices', ({ db, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); const r = guard(() => dev.createDevice(db, body)); auth.consumeStepUp(db, session!); return r; });
+route('DELETE', '/api/devices/:id', ({ db, params }) => ({ ok: dev.revokeDevice(db, params.id) }));
+route('GET', '/api/greeting', ({ db, url }) => buildGreeting(db, { profile: url.searchParams.get('profile') === 'glance' ? 'glance' : 'full' }));   // dashboard preview of what a device will say
+const asDevice = (need: dev.Scope | null, h: (c: Ctx, d: dev.Device) => unknown): Handler => (c) => { const v = dev.authenticate(c.db, c.req.headers.authorization, need); if (!v.ok) throw new HttpError(v.status, v.error); return h(c, v.device); };
+route('GET', '/api/device/me', asDevice(null, (_c, d) => ({ name: d.name, kind: d.kind, scopes: d.scopes, profile: d.profile })), true);
+route('GET', '/api/device/greeting', asDevice('greeting', ({ db, url }, d) => {
+  const p = url.searchParams.get('profile');
+  return buildGreeting(db, { profile: p === 'glance' || p === 'full' ? p : d.profile, lastSeen: d.lastSeen });
+}), true);
+route('GET', '/api/device/glance', asDevice('glance', ({ db }) => buildGlance(db)), true);
+route('POST', '/api/device/chat', asDevice('chat', async ({ db, body }, d) => {
+  if (!dev.allow(d.id, 30)) throw new HttpError(429, 'slow down a little');
+  const b = parse(z.object({ text: z.string().min(1).max(1000), private: z.boolean().default(false), mode: z.enum(['driving', 'parked']).default('parked') }), body);
+  const r = await converse(db, b.text, { private: b.private, channel: d.kind, brief: b.mode === 'driving' });
+  const queued = r.proposals?.length ?? 0;
+  const speak = toSpeech(r.text, b.mode === 'driving' ? 280 : 700) + (queued ? ` I've left ${queued === 1 ? 'a suggestion' : `${queued} suggestions`} on your dashboard for you to confirm.` : '');
+  return { speak, text: r.text, queuedForConfirmation: queued, core: coreState(db) };   // a device can never confirm anything itself
+}), true);
 route('GET', '/api/bridge/backups', viaBridge(async () => ({ items: await listBackups(backupDir()) })), true);
 route('POST', '/api/bridge/backups/ack', viaBridge(({ db, body }) => { const b = parse(z.object({ name: z.string().max(60).regex(/^jarvis-\d{8}-\d{6}\.jvbk$/) }), body); if (!backupPath(backupDir(), b.name)) throw new HttpError(404, 'no such backup'); recordOffsite(db, b.name); audit(db, 'mac-helper', 'backup.copied_offsite', b.name); return { ok: true }; }), true);
 route('GET', '/api/health/detail', ({ db }) => ({ checks: healthChecks(db), issues: healthIssues(db), heartbeat: heartbeatStatus(db) }));
@@ -405,6 +427,7 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
         if (origin && originHost !== host) return send(403, { error: 'cross-origin request blocked' });
         if (session && !r.open && req.headers['x-jarvis-csrf'] !== session.csrf) return send(403, { error: 'missing CSRF token' });
       }
+      if (url.pathname.startsWith('/api/device/')) { const v = dev.authenticate(db, req.headers.authorization, null, Date.now(), false); if (!v.ok) return send(v.status, { error: v.error }); }   // a device's credential is checked before any body is read
       if (url.pathname.startsWith('/api/bridge/') && url.pathname !== '/api/bridge/token') { const v = bridge.verify(db, req.headers.authorization); if (!v.ok) return send(v.status, { error: v.error }); }   // check the helper's credential BEFORE reading a (possibly 6 MB) body
       let body: any = undefined;
       if (method !== 'GET' && method !== 'DELETE') {
