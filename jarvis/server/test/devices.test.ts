@@ -143,3 +143,48 @@ test('device limit edit: lowering is free, raising needs step-up (which is spent
     assert.equal((await t.api(`/api/devices/${id}/limit`, { method: 'PUT', body: { monthlyLimitUsd: 1 } })).status, 401, 'signed-in only');
   } finally { t.close(); }
 });
+
+test('standing permissions: only narrow kinds, only with step-up from the dashboard, capped, scoped to interfaces, revocable, never when paused', async () => {
+  const t = await boot();
+  try {
+    const step = () => t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const grant = (b: unknown) => t.api('/api/standing', { method: 'POST', headers: t.me, body: b });
+    const say = (text = 'add it') => t.api('/api/chat', { method: 'POST', headers: t.me, body: { text } }).then((r) => r.json()) as Promise<any>;
+    const tasks = () => (t.db.prepare("SELECT COUNT(*) c FROM tasks WHERE kind='manual'").get() as any).c;
+    const ACT = (n: number) => `Ok.\nACTIONS: [{"type":"add_task","title":"Task ${n}","minutes":10}]`;
+
+    model(ACT(1)); let r = await say(); assert.equal(r.proposals.length, 1, 'no permission: still waits for a click'); assert.equal(tasks(), 0);
+
+    assert.equal((await grant({ type: 'add_task' })).status, 403, 'needs step-up');
+    await step(); for (const bad of ['complete_task', 'remember', 'queue_research', 'add_link', 'send_message']) { assert.equal((await grant({ type: bad })).status, 400, bad); await step(); }
+    assert.equal((await grant({ type: 'add_task', perDay: 99 })).status, 400); await step(); assert.equal((await grant({ type: 'add_task', days: 400 })).status, 400); await step();
+    assert.equal((await grant({ type: 'add_task', perDay: 2, days: 5, channels: ['dashboard', 'car'] })).status, 200);
+    assert.equal((await grant({ type: 'add_task' })).status, 403, 'the step-up was spent');
+
+    model(ACT(2)); r = await say(); assert.equal(r.proposals.length, 0); assert.match(r.text, /Done under your standing permission: Add task: "Task 2"/); assert.equal(tasks(), 1);
+    assert.equal((t.db.prepare("SELECT actor FROM audit WHERE action='proposal.confirmed' ORDER BY id DESC LIMIT 1").get() as any).actor, 'jarvis (standing permission)');
+    assert.equal((t.db.prepare("SELECT COUNT(*) c FROM audit WHERE action='standing.used'").get() as any).c, 1);
+    model(ACT(3)); await say(); assert.equal(tasks(), 2);
+    model(ACT(4)); r = await say(); assert.equal(r.proposals.length, 1, 'daily cap reached: waits'); assert.equal(tasks(), 2);
+
+    // other kinds are not covered by an add_task permission
+    model('Ok.\nACTIONS: [{"type":"remember","content":"likes tea"}]'); r = await say(); assert.equal(r.proposals.length, 1);
+
+    // a device on an interface that is not listed (sms) never auto-runs; a listed one (car) is allowed, but a device still cannot grant anything
+    const mk = async (kind: string) => { await step(); return ((await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: kind, kind } })).json()) as any).token; };
+    const smsTok = await mk('sms'), carTok = await mk('car');
+    const dchat = (tok: string) => t.api('/api/device/chat', { method: 'POST', headers: { authorization: `Bearer ${tok}` }, body: { text: 'again', mode: 'driving' } }).then((x) => x.json()) as Promise<any>;
+    t.db.prepare('DELETE FROM standing_uses').run(); model(ACT(5)); assert.equal((await dchat(smsTok)).queuedForConfirmation, 1); assert.equal(tasks(), 2);
+    model(ACT(6)); const c = await dchat(carTok); assert.equal(c.queuedForConfirmation, 0); assert.equal(tasks(), 3); assert.match(c.speak, /standing permission/i);
+    assert.equal((await t.api('/api/standing', { method: 'POST', headers: { authorization: `Bearer ${carTok}` }, body: { type: 'add_task' } })).status, 401, 'a device cannot grant');
+
+    // paused: never auto-runs
+    t.db.prepare('DELETE FROM standing_uses').run(); setPaused(t.db, true); model(ACT(7)); r = await say('hello there'); assert.equal(tasks(), 3); setPaused(t.db, false);
+
+    // revoke: immediate
+    const sid = ((await (await t.api('/api/standing', { headers: t.me })).json()) as any).items[0].id;
+    assert.equal((await t.api(`/api/standing/${sid}/revoke`, { method: 'POST', headers: t.me, body: {} })).status, 200);
+    model(ACT(8)); r = await say(); assert.equal(r.proposals.length, 1); assert.equal(tasks(), 3);
+    const l = ((await (await t.api('/api/standing', { headers: t.me })).json()) as any).items[0]; assert.equal(l.status, 'revoked');
+  } finally { t.close(); }
+});

@@ -97,3 +97,35 @@ export function DevicesCard() {
     </div>
   );
 }
+
+const STANDING_LABEL: Record<string, string> = { add_task: 'Add a task', log_habit: 'Check off a habit', log_learning: 'Log learning progress', mark_contacted: 'Note that you were in touch with someone' };
+/** Approvals page: pre-approve one narrow, undoable kind of chat suggestion so it runs without the Confirm click. */
+export function StandingCard() {
+  const { data, reload } = useLive<any>(() => api('/api/standing'), ['approvals']);
+  const [type, setType] = useState('log_habit'), [perDay, setPerDay] = useState('10'), [days, setDays] = useState('30'), [chans, setChans] = useState<string[]>(['dashboard']), [pw, setPw] = useState(''), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const run = async (f: () => Promise<unknown>, ok: string) => { setBusy(true); setMsg(null); try { await f(); setMsg({ ok: true, t: ok }); } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) }); } finally { setBusy(false); reload(); } };
+  const confirmFirst = async () => { if (pw) { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } else await stepUpWithPasskey(); };
+  const live = data.items.filter((s: any) => s.status === 'active'), past = data.items.filter((s: any) => s.status !== 'active').slice(0, 5);
+  return (
+    <div className="glass pad section">
+      <h2>Standing permissions <span className={`badge ${live.length ? 'connected' : 'planned'}`}>{live.length ? `${live.length} active` : 'none'}</span></h2>
+      <p className="muted small">Normally every chat suggestion waits for your Confirm click. A standing permission lets <b>one narrow, easily undone kind</b> run on its own, up to a daily limit, for a limited time, only on the interfaces you pick. Nothing that sends, spends, deletes, fetches a website or saves a memory can ever be granted. Granting needs your passphrase or passkey, is never inferred from a one-time approval, and you can revoke it instantly.</p>
+      <ul className="plain">{live.map((s: any) => (
+        <li key={s.id} className="row"><span className="grow"><b>{STANDING_LABEL[s.type] ?? s.type}</b> <span className="muted small">up to {s.perDay}/day ({s.usedToday} used today) · {s.channels.join(', ')} · until {new Date(s.expiresAt).toLocaleDateString()}</span></span>
+          <button disabled={busy} onClick={() => void run(async () => { await api(`/api/standing/${encodeURIComponent(s.id)}/revoke`, 'POST', {}); }, 'Revoked.')}>Revoke</button></li>))}</ul>
+      {past.length > 0 && <p className="muted small">Earlier: {past.map((s: any) => `${STANDING_LABEL[s.type] ?? s.type} (${s.status})`).join(', ')}</p>}
+      <div className="row wrap section">
+        <select value={type} onChange={(e) => setType(e.target.value)} aria-label="What to allow">{data.eligible.map((t: string) => <option key={t} value={t}>{STANDING_LABEL[t] ?? t}</option>)}</select>
+        <input type="number" min={1} max={30} value={perDay} onChange={(e) => setPerDay(e.target.value)} aria-label="Per day" title="Per day" style={{ width: 70 }} />
+        <input type="number" min={1} max={90} value={days} onChange={(e) => setDays(e.target.value)} aria-label="Days" title="Days it lasts" style={{ width: 70 }} />
+      </div>
+      <div className="row wrap">{data.channels.map((c: string) => <label key={c} className="check"><input type="checkbox" checked={chans.includes(c)} onChange={(e) => setChans(e.target.checked ? [...chans, c] : chans.filter((x) => x !== c))} /> {c}</label>)}</div>
+      <div className="row wrap section">
+        <input type="password" autoComplete="current-password" placeholder="Passphrase (blank to use a passkey)" value={pw} onChange={(e) => setPw(e.target.value)} aria-label="Passphrase to confirm" className="grow" />
+        <button className="primary" disabled={busy || !chans.length} onClick={() => void run(async () => { await confirmFirst(); await api('/api/standing', 'POST', { type, perDay: Number(perDay) || 10, days: Number(days) || 30, channels: chans }); }, 'Standing permission granted.')}>Grant</button>
+      </div>
+      {msg && <p className={msg.ok ? 'ok small' : 'err small'} role="status">{msg.t}</p>}
+    </div>
+  );
+}

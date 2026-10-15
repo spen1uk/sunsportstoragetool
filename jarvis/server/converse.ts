@@ -8,6 +8,7 @@ import { keywords } from './extract.ts';
 import { publish } from './events.ts';
 import type { ChatMessage } from './llm/types.ts';
 import { extractProposals, createProposals } from './proposals.ts';
+import { autoRun } from './standing.ts';
 
 function relevantMemories(db: DB, text: string): string[] {
   const rows = new Map<string, string>();
@@ -43,7 +44,10 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     const raw = r.ok ? r.text.trim() || '…' : `I couldn't reach a language model just now, sir (${r.error}). Command mode is still available: type "help".`;
     // The model may PROPOSE actions; they become Confirm cards and do nothing until Luke clicks. In private mode nothing is stored, so proposals are dropped.
     const ex = r.ok ? extractProposals(raw) : { text: raw, actions: [], dropped: 0 };
-    const reply = ex.text; const proposals = r.ok && !priv ? createProposals(db, ex.actions) : [];
+    let reply = ex.text; const created = r.ok && !priv ? createProposals(db, ex.actions) : [];
+    // A standing permission Luke granted (dashboard + step-up) may run a few narrow, undoable kinds without a click. Everything else still waits.
+    const auto = autoRun(db, created, o.channel ?? 'dashboard'), proposals = auto.waiting;
+    if (auto.done.length) reply += '\n\n' + auto.done.map((d) => `✓ Done under your standing permission: ${d.summary}`).join('\n');
     if (!priv) {
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard');
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');

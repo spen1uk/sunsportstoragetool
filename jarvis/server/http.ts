@@ -31,6 +31,7 @@ import * as life from './life.ts';
 import * as ws from './workspace.ts';
 import * as links from './links.ts';
 import * as props from './proposals.ts';
+import * as standing from './standing.ts';
 import * as bridge from './bridge.ts';
 import * as dev from './devices.ts';
 import { buildGreeting, buildGlance, toSpeech, coreState } from './greeting.ts';
@@ -212,6 +213,8 @@ route('POST', '/api/approvals/:id/decide', ({ db, params, body, session }) => {
   if (ex.ok) tasks.resumeForApproval(db, params.id, true);
   return { ok: true, executed: ex.ok, outcome: ex.outcome };
 });
+route('GET', '/api/standing', ({ db }) => ({ items: standing.list(db), eligible: standing.ELIGIBLE, channels: standing.CHANNELS }));
+route('POST', '/api/standing', ({ db, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); const r = guard(() => standing.grant(db, body)); auth.consumeStepUp(db, session!); return r; });
 route('POST', '/api/standing/:id/revoke', ({ db, params }) => { db.prepare('UPDATE standing_permissions SET revoked_at=? WHERE id=? AND revoked_at IS NULL').run(now(), params.id); audit(db, 'luke', 'standing.revoked', params.id); return { ok: true }; });
 
 // ---- memory ----

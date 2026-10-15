@@ -3,7 +3,7 @@ import { api, ago, usd, useLive, type AppState } from './api.ts';
 import { PersonaCard, ModelsCard } from './ai.tsx';
 import { ProjectsPanel } from './projects.tsx';
 import { MemorySuggestions } from './memsug.tsx';
-import { PasskeyCard, BackupCard, HealthCard, DevicesCard } from './passkeycard.tsx';
+import { PasskeyCard, BackupCard, HealthCard, DevicesCard, StandingCard } from './passkeycard.tsx';
 import { passkeySupported, stepUpWithPasskey } from './passkey.ts';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -192,10 +192,7 @@ export function ApprovalsPage() {
           </article>
         ))}
       </div>
-      <div className="glass pad section"><h2>Standing permissions</h2>
-        {(data?.standing ?? []).length === 0 ? <p className="muted">None granted. A standing permission is separate from any one-time approval and is never inferred from one. Granting them is not available yet.</p> :
-          <ul className="plain">{data.standing.map((s: any) => <li key={s.id}>{s.category} {s.revoked_at ? '(revoked)' : <button onClick={() => a.run(() => api(`/api/standing/${s.id}/revoke`, 'POST', {}).then(reload))}>Revoke</button>}</li>)}</ul>}
-      </div>
+      <StandingCard />
       <div className="glass pad section"><h2>History</h2>
         <table><thead><tr><th>When</th><th>Action</th><th>Status</th><th>Channel</th><th>Outcome</th></tr></thead>
           <tbody>{hist.map((i) => <tr key={i.id}><td>{ago(i.created_at)}</td><td>{i.summary}</td><td><span className={`state ${i.status}`}>{i.status}</span></td><td>{i.source_channel ?? '—'}</td><td>{i.outcome ?? ''}</td></tr>)}</tbody></table>

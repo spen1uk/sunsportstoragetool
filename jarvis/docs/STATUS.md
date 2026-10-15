@@ -9,7 +9,7 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 | Single-user auth (scrypt passphrase, HttpOnly SameSite=Strict cookie, CSRF header, Host allow-list, login lockout) | ✅/🟢 | Passkey/WebAuthn is the planned "strong login" upgrade; passphrase + step-up for now |
 | Step-up for high-risk approvals | ✅ | |
 | Approvals bound to action digest, expiry, single execution, replay-safe | ✅ | Dashboard channel only; SMS/call channels deliberately rejected until identity verification exists |
-| Standing permissions (separate from one-time approvals) | 🟡 | Table + list + revoke; **creation not built** (never inferred) |
+| Standing permissions (separate from one-time approvals) | ✅ | Narrow kinds only, step-up to grant, daily cap, expiry, per-interface, revoke; see below |
 | Tool policy engine (server-side, per task kind, arg schemas) | ✅ | |
 | SSRF-guarded fetch (allow-list per hop, public-IP pinning, size/time limits) | ✅ | |
 | Prompt-injection resistance for fetched content | ✅ | Content quoted as data, flagged, cannot change policy |
@@ -148,3 +148,8 @@ Legend: ⏸ deferred by decision · ✅ implemented **and tested** · 🟢 imple
 ## Plan
 - 📄 Stock-take, server-move phases, rollback, risks and the full open to-do list: **docs/SERVER_MOVE.md** (a plan only; nothing bought or deployed).
 - ✅ (tested) **Edit a device's monthly limit** (Settings → Devices → Limit): lowering is immediate; **raising needs your passphrase or passkey** (spent by that one change) so a stolen browser session can't quietly lift a spending cap. Range $0.50–$50; every change is in the activity log.
+
+## Standing permissions
+- ✅ (tested) Approvals page → Standing permissions. You can pre-approve **one of four narrow, undoable kinds** of chat suggestion so it runs without the Confirm click: add a task, check off a habit, log learning progress, note you were in touch with someone. Nothing that sends, spends, deletes, fetches a website, saves a memory, completes a task or adds a link can ever be granted (the server rejects them).
+- Each grant needs your passphrase/passkey (spent by that one grant), has a **daily cap** (1–30), a **time limit** (1–90 days) and a list of **interfaces** (dashboard, phone, car, voice; texts never). Never created by chat, a device or the model; never inferred from a one-time approval. Revoke is instant. A paused Jarvis never auto-runs anything.
+- Every use shows in the reply ("Done under your standing permission: …"), is counted before it runs, and is in the activity log as Jarvis acting under that permission.

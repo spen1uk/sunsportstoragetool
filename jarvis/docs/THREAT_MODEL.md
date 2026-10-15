@@ -27,6 +27,7 @@
 | Dependency compromise | 4 runtime deps pinned exactly; `npm audit` clean at install; no install scripts needed | Add lockfile review + update cadence (DEPENDENCIES.md) |
 | Private-mode leakage | Server creates no message/audit/memory/task rows in private mode (test) | Provider-side retention must be documented per provider before one is added |
 | Data at rest | DB file `0600`, data dir `0700` | Disk encryption relies on the OS (FileVault); encrypted backups built (public-key, `npm run backup`); off-site copy job still manual |
+| Standing permission abused (prompt injection making the model propose something that then auto-runs) | Only 4 low-impact, undoable kinds can be granted; daily cap; expiry; per-interface; paused = off; granted only with step-up on the dashboard; uses counted and audited | An injected suggestion could still add a few junk tasks or tick a habit within the cap; all are visible and undoable. Residual risk accepted by choosing to grant |
 
 ## Retention note (forget/backups)
 `forget` deletes the memory row. Prior snapshots made with **Create local snapshot** still contain it until deleted by you. Policy: keep the 7 most recent snapshots; delete older ones; off-box copies must be encrypted and age out on the same schedule. (Automated pruning is not built yet.)

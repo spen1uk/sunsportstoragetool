@@ -144,7 +144,7 @@ function execute(db: DB, a: Action, nowMs: number): string {
 }
 
 /** Luke clicked Confirm. Runs once (the status flip is atomic), re-validates everything, records the outcome, and never throws to the caller. */
-export function confirm(db: DB, pid: string, nowMs = Date.now()): { ok: boolean; message: string } {
+export function confirm(db: DB, pid: string, nowMs = Date.now(), by = 'luke'): { ok: boolean; message: string } {
   expireOld(db, nowMs);
   const row = tx(db, () => {
     const r = db.prepare("SELECT * FROM proposals WHERE id=? AND status='pending'").get(pid) as any; if (!r) return null;
@@ -156,12 +156,12 @@ export function confirm(db: DB, pid: string, nowMs = Date.now()): { ok: boolean;
   try {
     const message = execute(db, parsed.data, nowMs);
     db.prepare('UPDATE proposals SET result=? WHERE id=?').run(message, pid);
-    audit(db, 'luke', 'proposal.confirmed', pid, { kind: row.kind }); publish({ type: 'proposals' }); publish({ type: 'tasks' }); publish({ type: 'life' });
+    audit(db, by, 'proposal.confirmed', pid, { kind: row.kind }); publish({ type: 'proposals' }); publish({ type: 'tasks' }); publish({ type: 'life' });
     return { ok: true, message };
   } catch (e) {
     const message = e instanceof z.ZodError ? (e.issues[0]?.message ?? 'invalid') : (e as Error).message;
     db.prepare("UPDATE proposals SET status='failed', result=? WHERE id=?").run(message.slice(0, 300), pid);
-    audit(db, 'luke', 'proposal.failed', pid, { kind: row.kind }); publish({ type: 'proposals' });
+    audit(db, by, 'proposal.failed', pid, { kind: row.kind }); publish({ type: 'proposals' });
     return { ok: false, message };
   }
 }
