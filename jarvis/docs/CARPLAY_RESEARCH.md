@@ -24,7 +24,7 @@ Researched 2026-10-15 from web sources. **Confidence is marked on each finding.*
 2. If C works but you want the animated screen, **then** decide on A (the $99 and Apple's approval are the gates). If Apple's approval looks unlikely, C is already most of the value.
 3. Leave D until C and A are ruled out.
 
-### Shortcut recipe (for when a reachable address exists)
+### Shortcut recipe (full, step-by-step version: **docs/CARPLAY_SHORTCUT.md**)
 On the iPhone, Shortcuts app → New Shortcut named **Ask Jarvis**:
 1. *Dictate Text* (or *Ask for Input*, type Text).
 2. *Get Contents of URL*: `https://<your-jarvis-address>/api/device/chat`, method **POST**, header `Authorization: Bearer <a device key>`, header `Content-Type: application/json`, JSON body `{"text": <Dictated Text>, "mode": "driving"}`.
