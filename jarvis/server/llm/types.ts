@@ -1,9 +1,10 @@
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
 export type Effort = 'low' | 'medium' | 'high';
 
-export type CompletionRequest = { model: string; system: string; messages: ChatMessage[]; maxTokens: number; effort?: Effort };
+export type CompletionRequest = { model: string; system: string; messages: ChatMessage[]; maxTokens: number; effort?: Effort; webSearch?: { maxUses: number; timezone?: string } };
 export type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens: number };
-export type Completion = { text: string; usage: Usage; model: string; stopReason: string };
+export type Source = { url: string; title: string };
+export type Completion = { text: string; usage: Usage; model: string; stopReason: string; searches?: number; sources?: Source[] };
 
 /** Errors are classified so the router knows whether trying another candidate can help. */
 export class LlmError extends Error {

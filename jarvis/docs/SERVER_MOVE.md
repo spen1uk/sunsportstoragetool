@@ -69,7 +69,7 @@ Server $5–12/month, Tailscale free tier, outside alert free tier, Anthropic us
 - [x] Standing permissions: a creation flow (done: narrow kinds only, step-up to grant)
 - [x] Touch/phone tuning of the universe; per-panel settings (done; real-device check pending)
 
-- [ ] Live web search for Jarvis (decision first: provider and key, a monthly cost cap, and a rule that search results are always treated as untrusted data and shown with sources)
+- [x] Live web search (built: Anthropic's web search tool, opt-in, walled off from private data; needs a real-world test)
 
 **Blocked on others**
 - [ ] Trading/Investing report format (waiting on those chats)

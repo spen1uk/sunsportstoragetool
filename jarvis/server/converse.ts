@@ -10,6 +10,7 @@ import type { ChatMessage } from './llm/types.ts';
 import { extractProposals, createProposals } from './proposals.ts';
 import { autoRun } from './standing.ts';
 import { refresh as refreshWeather } from './weather.ts';
+import { parseWebRequest, ask as askWeb } from './websearch.ts';
 
 function relevantMemories(db: DB, text: string): string[] {
   const rows = new Map<string, string>();
@@ -20,8 +21,9 @@ function relevantMemories(db: DB, text: string): string[] {
 }
 
 function history(db: DB): ChatMessage[] {
-  const rows = db.prepare('SELECT role, content FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 12) ORDER BY id').all() as { role: 'luke' | 'jarvis'; content: string }[];
-  const msgs: ChatMessage[] = rows.map((r) => ({ role: r.role === 'luke' ? 'user' : 'assistant', content: r.content }));
+  const rows = db.prepare('SELECT role, content, web FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 12) ORDER BY id').all() as { role: 'luke' | 'jarvis'; content: string; web: number }[];
+  // An earlier answer that came from the internet stays in history only as a clipped, labelled, unverified note (page text must not steer later private chats).
+  const msgs: ChatMessage[] = rows.map((r) => ({ role: r.role === 'luke' ? 'user' : 'assistant', content: r.web && r.role === 'jarvis' ? `(Earlier answer from a web search, unverified:) ${r.content.split('\n\nFrom the internet')[0].slice(0, 500)}` : r.content }));
   while (msgs.length && msgs[0].role !== 'user') msgs.shift();   // conversations must open with a user turn
   return msgs;
 }
@@ -33,6 +35,8 @@ function history(db: DB): ChatMessage[] {
  */
 export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string; brief?: boolean; deviceId?: string } = {}): Promise<ChatReply> {
   const text = textIn.trim().slice(0, 2000), priv = !!o.private, cfg = getConfig(db);
+  const webQ = parseWebRequest(text);
+  if (webQ) return await webTurn(db, text, webQ, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
   const modelOk = ready(db, 'chat') && (!priv || cfg.allowInPrivate);
   const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk, channel: o.channel });
   if (!cmd.fallback) return { ...cmd, source: 'command' };
@@ -56,5 +60,21 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
       publish({ type: 'chat' });
     }
     return { text: reply, persisted: !priv, source: r.ok ? 'model' : 'command', model: r.ok ? r.model : undefined, costMicroUsd: r.ok ? r.costMicroUsd : 0, proposals };
+  } finally { publish({ type: 'thinking', on: false }); }
+}
+
+
+/** A deliberate "search: …" turn: walled off from private data and from actions (see websearch.ts). */
+async function webTurn(db: DB, text: string, query: string, o: { private: boolean; channel?: string; brief?: boolean; deviceId?: string }): Promise<ChatReply> {
+  const channel = o.channel ?? 'dashboard';
+  publish({ type: 'thinking', on: true });
+  try {
+    const r = await askWeb(db, query, { channel, deviceId: o.deviceId, brief: o.brief, private: o.private });
+    if (!o.private) {
+      db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,0)').run('luke', text, now(), channel);
+      db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,?)').run('jarvis', r.text, now(), channel, r.ok ? 1 : 0);
+      publish({ type: 'chat' });
+    }
+    return { text: r.text, persisted: !o.private, source: r.ok ? 'model' : 'command', model: r.ok ? r.model : undefined, costMicroUsd: r.ok ? r.costMicroUsd : 0, proposals: [] };
   } finally { publish({ type: 'thinking', on: false }); }
 }

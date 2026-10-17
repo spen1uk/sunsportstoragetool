@@ -162,3 +162,32 @@ export function WeatherCard() {
     </div>
   );
 }
+
+/** Settings: let Jarvis search the internet when you explicitly ask ("search: …"). Off by default. */
+export function WebSearchCard() {
+  const { data, reload } = useLive<any>(() => api('/api/websearch'), ['chat']);
+  const [perDay, setPerDay] = useState(''), [pw, setPw] = useState(''), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const cap = Number(perDay) || data.perDay;
+  const run = async (f: () => Promise<unknown>, ok: string) => { setBusy(true); setMsg(null); try { await f(); setMsg({ ok: true, t: ok }); } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) }); } finally { setBusy(false); reload(); } };
+  const confirmFirst = async () => { if (pw) { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } else await stepUpWithPasskey(); };
+  const save = (enabled: boolean) => run(async () => { if (enabled && !data.enabled) await confirmFirst(); await api('/api/websearch', 'PUT', { enabled, perDay: Math.max(1, Math.min(50, Math.round(cap))) }); }, enabled ? 'Web search is on.' : 'Web search is off.');
+  return (
+    <div className="glass pad section">
+      <h2>Web search <span className={`badge ${data.enabled ? 'connected' : 'planned'}`}>{data.enabled ? 'on' : 'off'}</span></h2>
+      <p className="muted small">Lets Jarvis look things up on the internet <b>when you ask on purpose</b>: start a message with <code>search:</code> (or say "search the web for …", "google …"). The search runs on Anthropic's servers and comes back as a short answer with its sources; Jarvis's own server never opens the web pages. About 1 cent per search plus a few cents of model use, counted in your budget and your device limits.</p>
+      <ul className="muted small">
+        <li>A search question is walled off: it sees none of your calendar, tasks, memories or earlier chat, and it can't propose or do anything.</li>
+        <li>Web pages can be wrong or hostile, so every answer is labelled as unverified and shows its sources. Check anything that matters.</li>
+        <li>Not available over text messages. If the answer says web search "is not enabled", an administrator of your Anthropic account has it switched off in the Claude Console settings (that page can also limit which sites it uses).</li>
+      </ul>
+      <div className="row wrap section">
+        <label className="small">Searches per day <input type="number" min={1} max={50} value={perDay || data.perDay} onChange={(e) => setPerDay(e.target.value)} style={{ width: 70 }} aria-label="Searches per day" /></label>
+        <span className="muted small">{data.usedToday} used today</span>
+        {!data.enabled && <input type="password" autoComplete="current-password" placeholder="Passphrase (blank to use a passkey)" value={pw} onChange={(e) => setPw(e.target.value)} aria-label="Passphrase to confirm" className="grow" />}
+        {data.enabled ? <><button disabled={busy} onClick={() => void save(true)}>Save limit</button><button disabled={busy} onClick={() => void save(false)}>Turn off</button></> : <button className="primary" disabled={busy} onClick={() => void save(true)}>Turn on</button>}
+      </div>
+      {msg && <p className={msg.ok ? 'ok small' : 'err small'} role="status">{msg.t}</p>}
+    </div>
+  );
+}

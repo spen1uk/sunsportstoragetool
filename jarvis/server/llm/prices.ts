@@ -12,3 +12,6 @@ export const priceOf = (model: string) => PRICES[model] ?? UNKNOWN_PRICE;
 export const costMicro = (model: string, inTok: number, outTok: number) => { const p = priceOf(model); return Math.ceil(inTok * p.in + outTok * p.out); };
 /** Rough pre-flight token estimate (≈3.5 chars/token, deliberately conservative). */
 export const estTokens = (s: string) => Math.ceil(s.length / 3.5);
+
+/** Web search is billed per search on top of tokens: $10 per 1,000 (Anthropic web search tool docs, checked 2026-10-17). */
+export const SEARCH_MICRO = 10_000;

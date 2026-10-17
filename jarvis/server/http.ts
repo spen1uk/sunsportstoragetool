@@ -33,6 +33,7 @@ import * as links from './links.ts';
 import * as props from './proposals.ts';
 import * as standing from './standing.ts';
 import * as weather from './weather.ts';
+import * as websearch from './websearch.ts';
 import * as bridge from './bridge.ts';
 import * as dev from './devices.ts';
 import { buildGreeting, buildGlance, toSpeech, coreState } from './greeting.ts';
@@ -214,6 +215,8 @@ route('POST', '/api/approvals/:id/decide', ({ db, params, body, session }) => {
   if (ex.ok) tasks.resumeForApproval(db, params.id, true);
   return { ok: true, executed: ex.ok, outcome: ex.outcome };
 });
+route('GET', '/api/websearch', ({ db }) => ({ ...websearch.getConfig(db), usedToday: websearch.usedToday(db) }));
+route('PUT', '/api/websearch', ({ db, session, body }) => { const c = guard(() => websearch.configInput.parse(body)); if (c.enabled && !websearch.getConfig(db).enabled) { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required to turn web search on'); websearch.setConfig(db, c); auth.consumeStepUp(db, session!); } else websearch.setConfig(db, c); return { ok: true }; });
 route('GET', '/api/weather', async ({ db }) => { const c = weather.getConfig(db); if (!c) return { enabled: false }; const r = await weather.refresh(db); const x = weather.cached(db); return { enabled: true, place: c, ok: r.ok, error: r.error ?? null, summary: x ? weather.summarize(x) : null, ageMin: x ? Math.round((Date.now() - x.fetchedAt) / 60_000) : null }; });
 route('GET', '/api/weather/search', async ({ db: _db, url }) => { try { return { items: await weather.searchPlaces(url.searchParams.get('q') ?? '') }; } catch (e) { throw new HttpError(502, `Couldn't reach the place lookup: ${(e as Error).message.slice(0, 100)}`); } });
 route('PUT', '/api/weather', async ({ db, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); guard(() => weather.setConfig(db, body)); auth.consumeStepUp(db, session!); const r = await weather.refresh(db, undefined, Date.now(), true); return { ok: true, fetched: r.ok, error: r.error ?? null }; });

@@ -199,3 +199,18 @@ test('weather settings over HTTP: need sign-in and a fresh step-up; bad input is
     assert.equal(((await (await t.api('/api/weather', { headers: t.me })).json()) as any).enabled, false);
   } finally { t.close(); }
 });
+
+test('web search settings over HTTP: turning it on needs step-up; turning it off does not', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/websearch', { method: 'PUT', body: { enabled: true, perDay: 5 } })).status, 401);
+    assert.equal((await t.api('/api/websearch', { method: 'PUT', headers: t.me, body: { enabled: true, perDay: 5 } })).status, 403);
+    assert.equal((await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } })).status, 200);
+    assert.equal((await t.api('/api/websearch', { method: 'PUT', headers: t.me, body: { enabled: true, perDay: 99 } })).status, 400);
+    assert.equal((await t.api('/api/websearch', { method: 'PUT', headers: t.me, body: { enabled: true, perDay: 5 } })).status, 200);
+    assert.equal(((await (await t.api('/api/websearch', { headers: t.me })).json()) as any).enabled, true);
+    assert.equal((await t.api('/api/websearch', { method: 'PUT', headers: t.me, body: { enabled: true, perDay: 9 } })).status, 200, 'changing the cap while on needs no step-up');
+    assert.equal((await t.api('/api/websearch', { method: 'PUT', headers: t.me, body: { enabled: false, perDay: 9 } })).status, 200);
+    assert.equal((await t.api('/api/websearch', { method: 'PUT', headers: t.me, body: { enabled: true, perDay: 9 } })).status, 403, 'turning it back on needs step-up again');
+  } finally { t.close(); }
+});
