@@ -1,4 +1,5 @@
 import { handoffFor, handoffSpeech } from './handoff.ts';
+import { greetingBit as weatherBit } from './weather.ts';
 import type { DB } from './db.ts';
 import { greeting as timeGreeting, statusLine } from '../web/src/greeting.ts';
 import { getPersona } from './persona.ts';
@@ -55,6 +56,7 @@ export function buildGreeting(db: DB, o: { profile?: Profile; now?: number; last
     const contact = contactNow(db, now); if (profile === 'full' && contact.mode !== 'normal') bits.push(`you are in ${contact.mode} mode`);
     if (profile === 'full') for (const h of healthIssues(db, now).filter((i) => i.level === 'urgent').slice(0, 1)) { bits.push(h.text.replace(/\.$/, '')); cards.push({ kind: 'urgent', text: h.text, link: h.link }); }
   }
+  if (profile === 'full') { const w = weatherBit(db, now); if (w) bits.push(w); }
   const hf = profile === 'full' && o.channel ? handoffFor(db, o.channel, now) : null;
   if (hf) { bits.push(handoffSpeech(hf)); cards.push({ kind: 'info', text: `Continue from ${hf.fromName}: ${hf.lastAsk}` }); }
   const limit = profile === 'glance' ? 2 : 4, picked = bits.slice(0, limit);

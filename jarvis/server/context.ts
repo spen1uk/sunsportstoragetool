@@ -6,6 +6,7 @@ import { isPaused } from './pause.ts';
 import { summary as budget } from './budget.ts';
 import { listProjects } from './milestones.ts';
 import { handoffFor, handoffContext } from './handoff.ts';
+import { contextLine as weatherLine } from './weather.ts';
 
 const rows = (db: DB, sql: string, ...p: any[]) => db.prepare(sql).all(...p) as any[];
 /** User-authored text becomes DATA in the prompt: strip anything that could look like markup, collapse whitespace, cap length. */
@@ -45,6 +46,7 @@ export function buildContext(db: DB, now = Date.now(), channel = 'dashboard'): s
   const appts = br.schedule.appointments ?? [];
   if (appts.length) L.push(`APPOINTMENTS from Luke's Apple Calendar, next 2 days (read-only copy${br.schedule.calendar === 'stale' ? ', STALE: may be out of date' : ''}; recurring events may be missing):\n` + appts.slice(0, 8).map((a) => `- ${a.day} ${a.when}: ${clean(a.title, 80)}`).join('\n'));
   if (br.schedule.blocks.length) L.push(`PROPOSED NEXT WORK SLOTS (a proposal only; ${br.schedule.calendar === 'connected' || br.schedule.calendar === 'stale' ? 'planned around his Apple Calendar, which may miss recurring events' : 'no calendar is connected, so appointments are unknown'}):\n` + br.schedule.blocks.slice(0, 6).map((x) => `- ${x.day} ${x.when}: ${clean(x.title, 80)}`).join('\n'));
+  L.push(weatherLine(db, now));
   const hf = handoffFor(db, channel, now); if (hf) L.push(handoffContext(hf));
   return L.join('\n\n').slice(0, 4500);
 }

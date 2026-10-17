@@ -188,3 +188,14 @@ test('standing permissions: only narrow kinds, only with step-up from the dashbo
     const l = ((await (await t.api('/api/standing', { headers: t.me })).json()) as any).items[0]; assert.equal(l.status, 'revoked');
   } finally { t.close(); }
 });
+
+test('weather settings over HTTP: need sign-in and a fresh step-up; bad input is refused without spending it', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/weather', { method: 'PUT', body: { name: 'X', lat: 1, lon: 1 } })).status, 401);
+    assert.equal((await t.api('/api/weather', { method: 'PUT', headers: t.me, body: { name: 'X', lat: 1, lon: 1 } })).status, 403);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    assert.equal((await t.api('/api/weather', { method: 'PUT', headers: t.me, body: { name: 'X', lat: 99, lon: 1 } })).status, 400);
+    assert.equal(((await (await t.api('/api/weather', { headers: t.me })).json()) as any).enabled, false);
+  } finally { t.close(); }
+});

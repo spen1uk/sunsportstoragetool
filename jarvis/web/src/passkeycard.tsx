@@ -129,3 +129,36 @@ export function StandingCard() {
     </div>
   );
 }
+
+/** Settings: turn on live weather (free, no account). Only two fixed weather hosts are ever contacted; nothing else on the internet is opened by this. */
+export function WeatherCard() {
+  const { data, reload } = useLive<any>(() => api('/api/weather'), []);
+  const [q, setQ] = useState(''), [found, setFound] = useState<any[] | null>(null), [units, setUnits] = useState('f'), [pw, setPw] = useState(''), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const run = async (f: () => Promise<unknown>, ok: string) => { setBusy(true); setMsg(null); try { await f(); setMsg({ ok: true, t: ok }); } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) }); } finally { setBusy(false); reload(); } };
+  const confirmFirst = async () => { if (pw) { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } else await stepUpWithPasskey(); };
+  const search = () => run(async () => { const r = await api<any>(`/api/weather/search?q=${encodeURIComponent(q)}`); setFound(r.items); if (!r.items.length) throw new Error('No places found. Try the city name only.'); }, 'Pick your place below.');
+  const choose = (p: any) => run(async () => { await confirmFirst(); await api('/api/weather', 'PUT', { name: p.name, lat: p.lat, lon: p.lon, units }); setFound(null); setQ(''); }, `Weather is on for ${p.name}.`);
+  return (
+    <div className="glass pad section">
+      <h2>Weather <span className={`badge ${data.enabled ? 'connected' : 'planned'}`}>{data.enabled ? 'on' : 'off'}</span></h2>
+      <p className="muted small">Lets Jarvis answer weather questions and mention it in your greeting. Free and needs no account. Jarvis contacts only two fixed weather addresses (<code>api.open-meteo.com</code> and its place lookup), sends only the place coordinates, and nothing else on the internet is opened by this. If it can't reach the service it says so instead of guessing.</p>
+      {data.enabled && <>
+        <p className="small"><b>{data.place.name}</b> · {data.place.units === 'f' ? '°F, mph' : '°C, km/h'}</p>
+        {data.summary ? <p className="small" role="status">{data.summary}</p> : <p className="warn small">Can't get the weather right now{data.error ? `: ${data.error}` : ''}.</p>}
+        {data.summary && !data.ok && <p className="warn small">Showing the last reading ({data.ageMin} min old); the latest refresh failed{data.error ? `: ${data.error}` : ''}.</p>}
+        <button disabled={busy} onClick={() => void run(async () => { await api('/api/weather', 'DELETE'); setFound(null); }, 'Weather turned off.')}>Turn off</button>
+      </>}
+      <div className="row wrap section">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Your city, e.g. Chicago" aria-label="City" className="grow" onKeyDown={(e) => { if (e.key === 'Enter' && q.trim().length > 1) void search(); }} />
+        <select value={units} onChange={(e) => setUnits(e.target.value)} aria-label="Units"><option value="f">°F / mph</option><option value="c">°C / km/h</option></select>
+        <button disabled={busy || q.trim().length < 2} onClick={() => void search()}>Find</button>
+      </div>
+      {found && found.length > 0 && <>
+        <input type="password" autoComplete="current-password" placeholder="Passphrase (blank to use a passkey), then click your place" value={pw} onChange={(e) => setPw(e.target.value)} aria-label="Passphrase to confirm" />
+        <ul className="plain">{found.map((p, i) => <li key={i} className="row"><span className="grow">{p.name}{p.region ? `, ${p.region}` : ''}{p.country ? `, ${p.country}` : ''}</span><button className="primary" disabled={busy} onClick={() => void choose(p)}>Use this</button></li>)}</ul>
+      </>}
+      {msg && <p className={msg.ok ? 'ok small' : 'err small'} role="status">{msg.t}</p>}
+    </div>
+  );
+}
