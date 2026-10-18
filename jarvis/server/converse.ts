@@ -11,7 +11,7 @@ import { extractProposals, createProposals } from './proposals.ts';
 import { autoRun } from './standing.ts';
 import { getDefaults } from './missionbudget.ts';
 import { refresh as refreshWeather } from './weather.ts';
-import { parseWebRequest, looksLikeWebQuestion, needsWebModel, asksForSources, lastSources, ask as askWeb, gate as webGate } from './websearch.ts';
+import { parseWebRequest, looksLikeWebQuestion, needsWebModel, isQuestionLike, pendingOffer, clearOffer, saysYes, asksForSources, lastSources, ask as askWeb, gate as webGate } from './websearch.ts';
 import { startDeep } from './deepresearch.ts';
 import { describe as knowDescribe } from './knowledge.ts';
 import { mentions as chatMentions } from './chatimport.ts';
@@ -23,6 +23,19 @@ function relevantMemories(db: DB, text: string): string[] {
     for (const m of db.prepare("SELECT id, content FROM memories WHERE superseded_by IS NULL AND content LIKE ? ESCAPE '\\' LIMIT 3").all(`%${k.replace(/[\\%_]/g, '')}%`) as any[]) rows.set(m.id, m.content);
   for (const m of db.prepare('SELECT id, content FROM memories WHERE superseded_by IS NULL ORDER BY created_at DESC LIMIT 4').all() as any[]) rows.set(m.id, m.content);
   return [...rows.values()].slice(0, 8);
+}
+
+/** The last couple of web question-and-answer pairs, so follow-ups ("which one is cheaper?") make sense. Only turns that were already sent to the web are ever included. */
+function webHistory(db: DB): ChatMessage[] {
+  const rows = db.prepare('SELECT role, content, web FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 10) ORDER BY id').all() as { role: string; content: string; web: number }[];
+  const out: ChatMessage[] = [];
+  for (let i = 1; i < rows.length; i++) if (rows[i].role === 'jarvis' && rows[i].web && rows[i - 1].role === 'luke') out.push({ role: 'user', content: rows[i - 1].content.slice(0, 400) }, { role: 'assistant', content: rows[i].content.slice(0, 700) });
+  return out.slice(-4);
+}
+/** True if the last thing in the conversation is a web answer from the last 20 minutes (so the next question is probably a follow-up). */
+function justSearched(db: DB): boolean {
+  const r = db.prepare('SELECT role, web, at FROM messages ORDER BY id DESC LIMIT 1').get() as { role: string; web: number; at: string } | undefined;
+  return !!r && r.role === 'jarvis' && !!r.web && Date.now() - Date.parse(r.at) < 20 * 60_000;
 }
 
 function history(db: DB): ChatMessage[] {
@@ -40,6 +53,12 @@ function history(db: DB): ChatMessage[] {
  */
 export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string; brief?: boolean; deviceId?: string } = {}): Promise<ChatReply> {
   const text = textIn.trim().slice(0, 2000), priv = !!o.private, cfg = getConfig(db);
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && saysYes(text) && justSearched(db) && pendingOffer(db)) {   // "yes" to Jarvis's own offer of deeper research
+    const q = pendingOffer(db)!; const why = webGate(db, { channel: o.channel ?? 'dashboard' }); clearOffer(db); if (!why) startDeep(db, q, 'deep');
+    const reply = why ? why : `On it. I've started a proper look into that. It takes a few minutes and stays within a $${(getDefaults(db).deepMicro / 1e6).toFixed(2)} limit; I'll put the write-up in Ready for Review.`;
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
+    return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
   if (!priv && asksForSources(text)) {   // sources are shown only when he asks
     const reply = lastSources(db);
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
@@ -77,7 +96,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   const modelOk = ready(db, 'chat') && (!priv || cfg.allowInPrivate);
   const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk, channel: o.channel });
   if (!cmd.fallback) return { ...cmd, source: 'command' };
-  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !webGate(db, { channel: o.channel ?? 'dashboard' }) && (looksLikeWebQuestion(text) || await needsWebModel(db, text)))   // everyday questions that need the internet just go there; if search is off or at its limit, fall through to a normal chat
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !webGate(db, { channel: o.channel ?? 'dashboard' }) && (looksLikeWebQuestion(text) || (justSearched(db) && isQuestionLike(text)) || await needsWebModel(db, text)))   // everyday questions that need the internet just go there; if search is off or at its limit, fall through to a normal chat
     return await webTurn(db, text, text, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
 
   const strong = /^deep:\s*/i.test(text); const prompt = text.replace(/^deep:\s*/i, '');
@@ -109,7 +128,7 @@ async function webTurn(db: DB, text: string, query: string, o: { private: boolea
   publish({ type: 'thinking', on: true });
   try {
     if (query.length >= 5) setMeta(db, 'web:last', query.slice(0, 400));
-    const r = await askWeb(db, query, { channel, deviceId: o.deviceId, brief: o.brief, private: o.private });
+    const r = await askWeb(db, query, { channel, deviceId: o.deviceId, brief: o.brief, private: o.private, history: o.private ? [] : webHistory(db) });
     if (!o.private) {
       db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,0)').run('luke', text, now(), channel);
       db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,?)').run('jarvis', r.text, now(), channel, r.ok ? 1 : 0);
