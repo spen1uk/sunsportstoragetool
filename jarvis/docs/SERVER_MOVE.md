@@ -71,7 +71,7 @@ Server $5–12/month, Tailscale free tier, outside alert free tier, Anthropic us
 
 - [x] Live web search (built: Anthropic's web search tool, opt-in, walled off from private data; needs a real-world test)
 
-- [ ] **Master expansion** (docs/MASTER_EXPANSION_AUDIT.md): Phases 1–2 built. Next, on your word: Phase 3 skills registry, then 4 missions/Prometheus autonomy. Open questions F8–F21 still to answer.
+- [ ] **Master expansion** (docs/MASTER_EXPANSION_AUDIT.md): Phases 1–3 built. Next, on your word: Phase 4 missions and Prometheus autonomy. Open questions F8–F21 still to answer.
 
 **Blocked on others**
 - [ ] Trading/Investing report format (waiting on those chats)

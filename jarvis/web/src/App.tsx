@@ -10,6 +10,7 @@ import { CalendarPage, NotesPage } from './mac.tsx';
 import { LifePage } from './life.tsx';
 import { PermissionsPage, StopButton } from './permissions.tsx';
 import { ResearchPage } from './research.tsx';
+import { SkillsPage } from './skills.tsx';
 import { WorkspacePage } from './workspace.tsx';
 import { BriefingsPage, OvernightPage, ModeControl, Notifications } from './today.tsx';
 import { TasksPage, ReviewPage, ApprovalsPage, MemoryPage, ConnectionsPage, ActivityPage, SettingsPage, PlannedPage } from './pages.tsx';
@@ -29,6 +30,7 @@ export const NAV: { hash: string; label: string; planned?: string }[] = [
   { hash: '#/approvals', label: 'Approvals' },
   { hash: '#/memory', label: 'Memory' },
   { hash: '#/connections', label: 'Connections' },
+  { hash: '#/skills', label: 'Skills' },
   { hash: '#/permissions', label: 'Permissions' },
   { hash: '#/activity', label: 'Activity' },
   { hash: '#/settings', label: 'Settings' },
@@ -199,6 +201,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         {hash === '#/connections' && <ConnectionsPage />}
         {hash === '#/permissions' && <PermissionsPage />}
         {hash === '#/research' && <ResearchPage />}
+        {hash === '#/skills' && <SkillsPage />}
         {hash === '#/activity' && <ActivityPage />}
         {hash === '#/settings' && st && <SettingsPage st={st} reload={reload} quality={quality} setQuality={setQuality} reduced={reduced} setReduced={setReduced} osReduced={osReduced} resetLayout={() => api('/api/layout', 'DELETE').then(() => setLayoutVersion((v) => v + 1))} />}
       </main>

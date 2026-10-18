@@ -1,0 +1,7 @@
+-- Skills registry (Master expansion, Phase 3). Manifests live in code under version control; these tables hold what is switched on, who may use it, and what happened.
+CREATE TABLE skill_state (skill_id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')), active_version TEXT NOT NULL, updated_at INTEGER NOT NULL, updated_by TEXT NOT NULL DEFAULT 'system');
+CREATE TABLE skill_versions (skill_id TEXT NOT NULL, version TEXT NOT NULL, manifest_sha256 TEXT NOT NULL, registered_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'staged' CHECK (status IN ('staged','active','superseded','rolled_back')), PRIMARY KEY (skill_id, version));
+CREATE TABLE skill_grants (principal TEXT NOT NULL, skill_id TEXT NOT NULL, granted_at INTEGER NOT NULL, granted_by TEXT NOT NULL, PRIMARY KEY (principal, skill_id));
+CREATE TABLE skill_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, skill_id TEXT NOT NULL, version TEXT NOT NULL, principal TEXT NOT NULL, at INTEGER NOT NULL, ok INTEGER NOT NULL, ms INTEGER NOT NULL DEFAULT 0, cost_micro_usd INTEGER NOT NULL DEFAULT 0, error TEXT, input_sha256 TEXT NOT NULL, refused TEXT);
+CREATE INDEX skill_runs_skill ON skill_runs(skill_id, at);
+CREATE TABLE skill_workflows (id TEXT PRIMARY KEY, name TEXT NOT NULL, steps TEXT NOT NULL, effective TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'staged' CHECK (status IN ('staged','active','disabled')), created_by TEXT NOT NULL, created_at INTEGER NOT NULL, activated_at INTEGER);

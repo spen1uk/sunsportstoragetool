@@ -271,3 +271,38 @@ test('research endpoints: sign-in only, need web search on, validate the catalog
     const plan = await (await t.api('/api/research/plan?q=weather&tier=deep', { headers: t.me })).json() as any; assert.ok(Array.isArray(plan.routes));
   } finally { t.close(); }
 });
+
+test('skills endpoints: sign-in only; grants, enabling and activation need a fresh step-up; disabling does not; test runs are read-only; a device key reaches nothing', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/skills')).status, 401);
+    const step = () => t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    await step(); const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any;
+    for (const [p, m] of [['/api/skills', 'GET'], ['/api/skills/memory.search', 'GET'], ['/api/skills/memory.search/grant', 'POST'], ['/api/skills/memory.search/test', 'POST']] as const) assert.equal((await t.api(p, { method: m, headers: { authorization: `Bearer ${token}` }, body: m === 'POST' ? { principal: 'jarvis' } : undefined })).status, 401, p);
+    const list = await (await t.api('/api/skills', { headers: t.me })).json() as any; assert.ok(list.skills.length >= 20); assert.deepEqual(list.principals.map((p: any) => p.id).sort(), ['jarvis', 'prometheus']);
+    assert.doesNotMatch(JSON.stringify(list), /jvd_|token_hash|secret/i);
+    const g = (skill: string, principal: string) => t.api(`/api/skills/${skill}/grant`, { method: 'POST', headers: t.me, body: { principal } });
+    assert.equal((await g('memory.search', 'jarvis')).status, 403, 'no step-up');
+    await step(); assert.equal((await g('memory.search', 'prometheus')).status, 400, 'ceiling: Prometheus can never hold private-data skills'); await step();
+    assert.equal((await g('messages.send', 'jarvis')).status, 400, 'tier 3 can never be granted'); await step();
+    assert.equal((await g('memory.search', 'jarvis')).status, 200); assert.equal((await g('tasks.list_open', 'jarvis')).status, 403, 'the confirmation was spent');
+    const d = await (await t.api('/api/skills/memory.search', { headers: t.me })).json() as any; assert.equal(d.manifest.id, 'memory.search'); assert.ok(d.inputSchema); assert.ok(d.history.some((h: any) => h.action === 'skill.granted'));
+    assert.equal((await t.api('/api/skills/nope.nope', { headers: t.me })).status, 404);
+    // test runs: read-only registry skills only
+    const tr = await (await t.api('/api/skills/docs.extract_text/test', { method: 'POST', headers: t.me, body: { input: { html: '<p>Hi there</p>' } } })).json() as any; assert.equal(tr.ok, true); assert.match(JSON.stringify(tr.result), /Hi there/);
+    assert.equal((await t.api('/api/skills/tasks.add/test', { method: 'POST', headers: t.me, body: {} })).status, 400); assert.equal((await t.api('/api/skills/messages.send/test', { method: 'POST', headers: t.me, body: {} })).status, 400);
+    // off switch: disabling is immediate, enabling needs step-up
+    assert.equal((await t.api('/api/skills/docs.extract_text/status', { method: 'POST', headers: t.me, body: { status: 'disabled' } })).status, 200);
+    assert.equal(((await (await t.api('/api/skills/docs.extract_text/test', { method: 'POST', headers: t.me, body: { input: { html: 'x' } } })).json()) as any).ok, false);
+    assert.equal((await t.api('/api/skills/docs.extract_text/status', { method: 'POST', headers: t.me, body: { status: 'active' } })).status, 403); await step(); assert.equal((await t.api('/api/skills/docs.extract_text/status', { method: 'POST', headers: t.me, body: { status: 'active' } })).status, 200);
+    assert.equal((await t.api('/api/skills/docs.extract_text/activate', { method: 'POST', headers: t.me, body: { version: '1.0.0' } })).status, 403, 'activation needs step-up');
+    // workflows
+    const steps = [{ skill: 'docs.extract_text', input: { html: '<p>x</p>' } }];
+    assert.equal(((await (await t.api('/api/skills/workflows/validate', { method: 'POST', headers: t.me, body: { steps } })).json()) as any).ok, true);
+    const w = await (await t.api('/api/skills/workflows', { method: 'POST', headers: t.me, body: { name: 'Plain text', steps } })).json() as any; assert.ok(w.id);
+    assert.equal((await t.api('/api/skills/workflows', { method: 'POST', headers: t.me, body: { name: 'bad', steps: [{ skill: 'nope.nope' }] } })).status, 400);
+    assert.equal((await t.api(`/api/skills/workflows/${w.id}/status`, { method: 'POST', headers: t.me, body: { status: 'active' } })).status, 403); await step();
+    assert.equal((await t.api(`/api/skills/workflows/${w.id}/status`, { method: 'POST', headers: t.me, body: { status: 'active' } })).status, 200);
+    const run = await (await t.api(`/api/skills/workflows/${w.id}/run`, { method: 'POST', headers: t.me, body: {} })).json() as any; assert.equal(run.ok, true);
+  } finally { t.close(); }
+});

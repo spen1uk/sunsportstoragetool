@@ -43,6 +43,9 @@ export function PermissionsPage() {
         <ul className="plain small">{d.protectedActions.map((a: any) => <li key={a.type}><b>{a.type}</b> · {a.risk} risk · {a.runnable ? 'can run once approved' : <span className="warn">cannot run: {a.why}</span>}</li>)}</ul>
         <p className="muted small">Chat suggestions Jarvis can make (each waits for your Confirm): {d.chatSuggestionKinds.join(', ')}.</p>
       </div>
+      <div className="glass pad section"><h2>Skills <a className="small" href="#/skills">manage ›</a></h2>
+        <p className="small">Every capability agents have is catalogued on the Skills page: who may use each one, which version is live, and the history. Agents can never grant themselves a skill.</p>
+      </div>
       <div className="glass pad section"><h2>Websites Jarvis may fetch ({d.domains.length})</h2>
         {d.domains.length === 0 ? <p className="muted small">None yet; each new site asks you first.</p> : <p className="small">{d.domains.map((x: any) => x.host).join(' · ')}</p>}
       </div>

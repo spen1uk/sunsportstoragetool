@@ -34,6 +34,9 @@ import * as props from './proposals.ts';
 import * as standing from './standing.ts';
 import * as weather from './weather.ts';
 import * as websearch from './websearch.ts';
+import * as registry from './skills/registry.ts';
+import * as workflow from './skills/workflow.ts';
+import { PRINCIPALS, tierOf } from './skills/manifest.ts';
 import * as deep from './deepresearch.ts';
 import * as sources from './sources.ts';
 import { planRoutes } from './researchrouter.ts';
@@ -221,6 +224,20 @@ route('POST', '/api/approvals/:id/decide', ({ db, params, body, session }) => {
   if (ex.ok) tasks.resumeForApproval(db, params.id, true);
   return { ok: true, executed: ex.ok, outcome: ex.outcome };
 });
+/** Run `f` only if this session just confirmed with its passphrase/passkey; the confirmation is spent by it. */
+const stepped = <T,>(db: any, session: any, f: () => T): T => { if (!auth.hasStepUp(session)) throw new HttpError(403, 'step-up confirmation required'); const r = guard(f); auth.consumeStepUp(db, session); return r; };
+route('GET', '/api/skills', ({ db }) => ({ skills: registry.summary(db), principals: Object.entries(PRINCIPALS).map(([id, p]) => ({ id, label: p.label, maxSensitivity: p.maxSensitivity })), workflows: workflow.list(db) }));
+route('POST', '/api/skills/workflows/validate', ({ db, body }) => workflow.validate(db, (body as any)?.steps, (body as any)?.principal));
+route('POST', '/api/skills/workflows', ({ db, body }) => { const b = parse(z.object({ name: z.string().max(60), steps: z.unknown() }), body); return { id: guard(() => workflow.save(db, b.name, b.steps, 'luke')) }; });
+route('POST', '/api/skills/workflows/:id/status', ({ db, session, params, body }) => { const b = parse(z.object({ status: z.enum(['active', 'disabled', 'staged']) }), body); if (b.status === 'active') { return stepped(db, session, () => { workflow.setStatus(db, params.id, 'active', 'luke'); return { ok: true }; }); } guard(() => workflow.setStatus(db, params.id, b.status, 'luke')); return { ok: true }; });
+route('POST', '/api/skills/workflows/:id/run', async ({ db, params }) => workflow.run(db, 'jarvis', params.id));
+route('DELETE', '/api/skills/workflows/:id', ({ db, params }) => ({ ok: workflow.remove(db, params.id) }));
+route('GET', '/api/skills/:id', ({ db, params }) => registry.detail(db, params.id) ?? (() => { throw new HttpError(404, 'no such skill'); })());
+route('POST', '/api/skills/:id/grant', ({ db, session, params, body }) => { const b = parse(z.object({ principal: z.string().max(30) }), body); return stepped(db, session, () => { registry.grant(db, b.principal, params.id, 'luke'); return { ok: true }; }); });
+route('DELETE', '/api/skills/:id/grant/:principal', ({ db, params }) => ({ ok: registry.revoke(db, params.principal, params.id) }));
+route('POST', '/api/skills/:id/status', ({ db, session, params, body }) => { const b = parse(z.object({ status: z.enum(['active', 'disabled']) }), body); if (b.status === 'active') { return stepped(db, session, () => { registry.setStatus(db, params.id, 'active'); return { ok: true }; }); } guard(() => registry.setStatus(db, params.id, 'disabled')); return { ok: true }; });
+route('POST', '/api/skills/:id/activate', ({ db, session, params, body }) => { const b = parse(z.object({ version: z.string().max(20) }), body); return stepped(db, session, () => registry.activate(db, params.id, b.version)); });
+route('POST', '/api/skills/:id/test', async ({ db, params, body }) => { const d = registry.detail(db, params.id); if (!d) throw new HttpError(404, 'no such skill'); const m = d.manifest; if (m.runPath !== 'direct' || tierOf(m) !== 0) throw new HttpError(400, 'only read-only registry skills can be test-run here'); return registry.invoke(db, 'luke-test', params.id, (body as any)?.input ?? {}); });
 route('GET', '/api/permissions', ({ db }) => permissionLedger(db));
 route('POST', '/api/emergency-stop', ({ db, body }) => { if ((body as any)?.confirm !== true) throw new HttpError(400, 'confirmation required'); return emergencyStop(db); });
 route('PUT', '/api/mission-defaults', ({ db, session, body }) => {
