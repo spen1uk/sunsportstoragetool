@@ -18,9 +18,9 @@ export function anthropicProvider(opts: { baseURL?: string; apiKey?: string; max
     async complete(req: CompletionRequest): Promise<Completion> {
       const c = get();
       try {
-        const tools = req.webSearch ? [{ type: 'web_search_20250305' as const, name: 'web_search' as const, max_uses: req.webSearch.maxUses, ...(req.webSearch.timezone ? { user_location: { type: 'approximate' as const, timezone: req.webSearch.timezone } } : {}) }] : undefined;
+        const tools = req.webSearch ? [{ type: 'web_search_20250305' as const, name: 'web_search' as const, max_uses: req.webSearch.maxUses, ...(req.webSearch.allowedDomains?.length ? { allowed_domains: req.webSearch.allowedDomains } : req.webSearch.blockedDomains?.length ? { blocked_domains: req.webSearch.blockedDomains } : {}), ...(req.webSearch.timezone ? { user_location: { type: 'approximate' as const, timezone: req.webSearch.timezone } } : {}) }] : undefined;
         // A search turn can pause on the server side; we hand the paused turn straight back (unchanged) a few times, never more.
-        let messages: Anthropic.MessageParam[] = req.messages, text = '', inTok = 0, outTok = 0, cacheRead = 0, searches = 0, last: Anthropic.Message | null = null; const sources: { url: string; title: string }[] = [];
+        let messages: Anthropic.MessageParam[] = req.messages, text = '', inTok = 0, outTok = 0, cacheRead = 0, searches = 0, last: Anthropic.Message | null = null; const sources: { url: string; title: string }[] = [], claims: { text: string; cites: { url: string; title: string; citedText: string }[] }[] = [], pageAges: Record<string, string> = {};
         for (let i = 0; i < (tools ? 4 : 1); i++) {
           const r = await c.messages.create({
             model: req.model, max_tokens: req.maxTokens, system: req.system, messages,
@@ -31,12 +31,18 @@ export function anthropicProvider(opts: { baseURL?: string; apiKey?: string; max
           if (r.stop_reason === 'refusal') throw new LlmError('refusal', `The model declined this request${r.stop_details?.category ? ` (${r.stop_details.category})` : ''}.`);
           inTok += r.usage.input_tokens; outTok += r.usage.output_tokens; cacheRead += r.usage.cache_read_input_tokens ?? 0; searches += (r.usage as any).server_tool_use?.web_search_requests ?? 0;
           for (const b of r.content) {
-            if (b.type === 'text') { text += b.text; for (const ct of (b as any).citations ?? []) if (ct?.type === 'web_search_result_location' && typeof ct.url === 'string') sources.push({ url: ct.url, title: String(ct.title ?? '') }); }
+            if (b.type === 'text') {
+              text += b.text; const cites: { url: string; title: string; citedText: string }[] = [];
+              for (const ct of (b as any).citations ?? []) if (ct?.type === 'web_search_result_location' && typeof ct.url === 'string') { sources.push({ url: ct.url, title: String(ct.title ?? '') }); cites.push({ url: ct.url, title: String(ct.title ?? ''), citedText: String(ct.cited_text ?? '') }); }
+              if (cites.length) claims.push({ text: b.text, cites });
+            } else if ((b as any).type === 'web_search_tool_result' && Array.isArray((b as any).content)) {
+              for (const w of (b as any).content) if (w?.type === 'web_search_result' && typeof w.url === 'string' && w.page_age) pageAges[w.url] = String(w.page_age);
+            }
           }
           if (r.stop_reason !== 'pause_turn') break;
           messages = [...messages, { role: 'assistant', content: r.content as Anthropic.ContentBlockParam[] }];
         }
-        return { text, model: last!.model, stopReason: last!.stop_reason ?? 'unknown', searches, sources,
+        return { text, model: last!.model, stopReason: last!.stop_reason ?? 'unknown', searches, sources, claims, pageAges,
           usage: { inputTokens: inTok, outputTokens: outTok, cacheReadTokens: cacheRead } };
       } catch (e) {
         if (e instanceof LlmError) throw e;

@@ -4,6 +4,7 @@ import { audit } from './audit.ts';
 import { chicagoParts, chicagoInstant } from './tz.ts';
 import { config } from './config.ts';
 import { complete, ready, getConfig as llmConfig } from './llm/gateway.ts';
+import type { Claim } from './llm/types.ts';
 
 /**
  * Ask-the-internet, done in the safest way available: Anthropic's own web-search tool runs the searches on Anthropic's servers and hands back
@@ -35,7 +36,7 @@ export function parseWebRequest(text: string): string | null {
 }
 
 const bad = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f​-‏‪-‮⁠-⁤⁦-⁩﻿]/g;
-const clean = (s: string, n: number) => s.replace(bad, '').replace(/<[^>\n]{0,200}>/g, '').replace(/[<>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, n);
+export const clean = (s: string, n: number) => s.replace(bad, '').replace(/<[^>\n]{0,200}>/g, '').replace(/[<>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, n);
 /** Keep only plain https links, show the site name, drop duplicates. Titles are page-controlled text, so they are cleaned and clipped. */
 export function formatSources(src: { url: string; title: string }[]): string[] {
   const seen = new Set<string>(), out: string[] = [];
@@ -48,7 +49,7 @@ export function formatSources(src: { url: string; title: string }[]): string[] {
   }
   return out;
 }
-const stripActions = (t: string) => t.split('\n').filter((l) => !/^\s*ACTIONS\s*:/i.test(l)).join('\n');
+export const stripActions = (t: string) => t.split('\n').filter((l) => !/^\s*ACTIONS\s*:/i.test(l)).join('\n');
 
 export function systemPrompt(now = Date.now()): string {
   return [
@@ -60,22 +61,37 @@ export function systemPrompt(now = Date.now()): string {
 }
 
 export type WebOutcome = { ok: true; text: string; costMicroUsd: number; model: string; searches: number } | { ok: false; text: string };
-/** Run one search turn. Never throws. `brief` = spoken answer for the car (short, no list of sources in the speech). */
-export async function ask(db: DB, query: string, o: { channel: string; deviceId?: string; brief?: boolean; private?: boolean }, now = Date.now()): Promise<WebOutcome> {
+
+/** The checks every search turn must pass, whoever asks (chat or a research job). Returns the polite refusal, or null if allowed. */
+export function gate(db: DB, o: { channel: string; private?: boolean }, now = Date.now()): string | null {
   const c = getConfig(db);
-  if (o.channel === 'sms') return { ok: false, text: "Web search isn't available over text messages, sir." };
-  if (!c.enabled) return { ok: false, text: "Web search is switched off, sir. You can turn it on in Settings → Web search (it needs your passphrase or passkey). It costs about a cent a search." };
-  if (o.private && !llmConfig(db).allowInPrivate) return { ok: false, text: "I won't send questions to the internet in private mode, sir." };
-  if (!ready(db, 'web')) return { ok: false, text: "I can't reach a language model right now, so I can't search, sir." };
-  if (usedToday(db, now) >= c.perDay) return { ok: false, text: `That's today's limit of ${c.perDay} web searches, sir. You can raise it in Settings → Web search.` };
-  const system = systemPrompt(now) + (o.brief ? '\nDELIVERY: your answer will be SPOKEN ALOUD while Luke is driving: at most two short sentences of plain speech.' : '');
-  const r = await complete(db, { task: 'web', system, messages: [{ role: 'user', content: clean(query, 400) }], webSearch: { maxUses: MAX_USES, timezone: config.timezone }, channel: o.channel, deviceId: o.deviceId }, now);
+  if (o.channel === 'sms') return "Web search isn't available over text messages, sir.";
+  if (!c.enabled) return "Web search is switched off, sir. You can turn it on in Settings → Web search (it needs your passphrase or passkey). It costs about a cent a search.";
+  if (o.private && !llmConfig(db).allowInPrivate) return "I won't send questions to the internet in private mode, sir.";
+  if (!ready(db, 'web')) return "I can't reach a language model right now, so I can't search, sir.";
+  if (usedToday(db, now) >= c.perDay) return `That's today's limit of ${c.perDay} web searches, sir. You can raise it in Settings → Web search.`;
+  return null;
+}
+
+export type Turn = { ok: true; text: string; claims: Claim[]; sources: { url: string; title: string }[]; pageAges: Record<string, string>; costMicroUsd: number; model: string; searches: number } | { ok: false; kind: string; error: string };
+/** One walled-off search turn (no private data, no tools but search, no actions). Raw result; callers decide how to present it. */
+export async function searchTurn(db: DB, query: string, o: { channel: string; deviceId?: string; brief?: boolean; ref?: string; allowedDomains?: string[]; blockedDomains?: string[]; maxUses?: number; system?: string }, now = Date.now()): Promise<Turn> {
+  const system = (o.system ?? systemPrompt(now)) + (o.brief ? '\nDELIVERY: your answer will be SPOKEN ALOUD while Luke is driving: at most two short sentences of plain speech.' : '');
+  const r = await complete(db, { task: 'web', system, messages: [{ role: 'user', content: clean(query, 400) }], webSearch: { maxUses: o.maxUses ?? MAX_USES, timezone: config.timezone, allowedDomains: o.allowedDomains, blockedDomains: o.blockedDomains }, channel: o.channel, deviceId: o.deviceId, ref: o.ref }, now);
+  if (!r.ok) return { ok: false, kind: r.kind, error: r.error };
+  return { ok: true, text: r.text, claims: r.claims ?? [], sources: r.sources ?? [], pageAges: r.pageAges ?? {}, costMicroUsd: r.costMicroUsd, model: r.model, searches: r.searches ?? 0 };
+}
+
+/** Run one search turn for chat. Never throws. `brief` = spoken answer for the car (short, no list of sources in the speech). */
+export async function ask(db: DB, query: string, o: { channel: string; deviceId?: string; brief?: boolean; private?: boolean }, now = Date.now()): Promise<WebOutcome> {
+  const refusal = gate(db, o, now); if (refusal) return { ok: false, text: refusal };
+  const r = await searchTurn(db, query, { channel: o.channel, deviceId: o.deviceId, brief: o.brief }, now);
   if (!r.ok) return { ok: false, text: `I couldn't search just now, sir (${r.error}).${/not enabled|web search/i.test(r.error) ? ' If this says web search is not enabled, an administrator of your Anthropic account has it switched off in the Claude Console settings.' : ''}` };
   const body = clean(stripActions(r.text), 1800).trim();
   if (!body) return { ok: false, text: "The search didn't give me an answer I can stand behind, sir. Try rephrasing the question." };
-  const src = formatSources(r.sources ?? []);
+  const src = formatSources(r.sources);
   const text = o.brief ? body : `${body}\n\nFrom the internet (unverified; check the sources):\n${src.length ? src.join('\n') : 'no sources were returned, so treat this with caution.'}`;
-  return { ok: true, text, costMicroUsd: r.costMicroUsd, model: r.model, searches: r.searches ?? 0 };
+  return { ok: true, text, costMicroUsd: r.costMicroUsd, model: r.model, searches: r.searches };
 }
 
 /** The one line the normal chat model sees about web search, so it can point Luke to it instead of guessing. */

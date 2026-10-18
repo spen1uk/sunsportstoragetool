@@ -34,6 +34,9 @@ import * as props from './proposals.ts';
 import * as standing from './standing.ts';
 import * as weather from './weather.ts';
 import * as websearch from './websearch.ts';
+import * as deep from './deepresearch.ts';
+import * as sources from './sources.ts';
+import { planRoutes } from './researchrouter.ts';
 import { permissionLedger } from './ledger.ts';
 import { emergencyStop } from './emergency.ts';
 import * as missionBudget from './missionbudget.ts';
@@ -226,6 +229,21 @@ route('PUT', '/api/mission-defaults', ({ db, session, body }) => {
   if (raising && !auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required to raise a budget');
   guard(() => missionBudget.setDefaults(db, b)); if (raising) auth.consumeStepUp(db, session!); return { ok: true };
 });
+route('GET', '/api/research', ({ db }) => ({
+  webSearch: websearch.getConfig(db), budgets: missionBudget.getDefaults(db), legalFooter: deep.legalFooterOn(db), dueForReview: sources.dueForReview(db),
+  jobs: (db.prepare("SELECT id,title,state,waiting_reason,last_error,created_at,input FROM tasks WHERE kind='research' AND json_extract(input,'$.mode')='deep' ORDER BY created_at DESC LIMIT 30").all() as any[]).map((t) => {
+    const i = JSON.parse(t.input), b = missionBudget.get(db, t.id); const art = db.prepare("SELECT id FROM artifacts WHERE task_id=? ORDER BY created_at DESC LIMIT 1").get(t.id) as { id: string } | undefined;
+    return { id: t.id, question: i.question, tier: i.tier, state: t.state, note: t.waiting_reason ?? t.last_error ?? '', createdAt: t.created_at, spentMicroUsd: missionBudget.spentOn(db, t.id), capMicroUsd: b?.cap_micro_usd ?? i.budgetMicro, artifactId: art?.id ?? null, evidence: (db.prepare('SELECT COUNT(*) c FROM evidence WHERE task_id=?').get(t.id) as any).c };
+  }),
+}));
+route('POST', '/api/research', ({ db, body }) => { const b = parse(z.object({ question: z.string().min(5).max(500), tier: z.enum(['quick', 'deep']).default('deep') }), body); const gateMsg = websearch.getConfig(db).enabled ? null : 'Web search is off. Turn it on in Settings → Web search first.'; if (gateMsg) throw new HttpError(409, gateMsg); return { id: guard(() => deep.startDeep(db, b.question, b.tier)) }; });
+route('GET', '/api/research/plan', ({ db, url }) => planRoutes(db, { question: url.searchParams.get('q') ?? '', tier: url.searchParams.get('tier') === 'quick' ? 'quick' : 'deep' }));
+route('GET', '/api/research/:id/evidence', ({ db, params }) => ({ items: db.prepare('SELECT id,sub_question,claim,source_url,source_host,source_title,cited_text,page_age,retrieved_at FROM evidence WHERE task_id=? ORDER BY rowid LIMIT 300').all(params.id) }));
+route('PUT', '/api/research/settings', ({ db, body }) => { const b = parse(z.object({ legalFooter: z.boolean() }), body); deep.setLegalFooter(db, b.legalFooter); return { ok: true }; });
+route('GET', '/api/sources', ({ db }) => ({ items: sources.list(db), classes: sources.CLASSES, statuses: sources.STATUSES, fetchable: (db.prepare('SELECT host FROM allowed_domains').all() as { host: string }[]).map((r) => r.host) }));
+route('POST', '/api/sources', ({ db, body }) => { const b = parse(z.object({ host: z.string().max(200), label: z.string().max(80).optional(), class: z.string().optional(), reliability: z.number().int().min(0).max(100).nullable().optional(), status: z.string().optional(), terms_note: z.string().max(300).optional(), topics: z.array(z.string().max(30)).max(12).optional(), cadence_days: z.number().int().min(1).max(365).nullable().optional() }).strict(), body); return { host: guard(() => sources.upsert(db, b)) }; });
+route('DELETE', '/api/sources/:host', ({ db, params }) => ({ ok: sources.remove(db, decodeURIComponent(params.host)) }));
+route('POST', '/api/sources/:host/allow-fetch', ({ db, params }) => { const host = sources.validHost(decodeURIComponent(params.host)); if (!host) throw new HttpError(400, 'bad host'); return { approvalId: appr.requestApproval(db, { actionType: 'allow_domain', payload: { host }, requestedBy: 'luke' }) }; });
 route('GET', '/api/websearch', ({ db }) => ({ ...websearch.getConfig(db), usedToday: websearch.usedToday(db) }));
 route('PUT', '/api/websearch', ({ db, session, body }) => { const c = guard(() => websearch.configInput.parse(body)); if (c.enabled && !websearch.getConfig(db).enabled) { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required to turn web search on'); websearch.setConfig(db, c); auth.consumeStepUp(db, session!); } else websearch.setConfig(db, c); return { ok: true }; });
 route('GET', '/api/weather', async ({ db }) => { const c = weather.getConfig(db); if (!c) return { enabled: false }; const r = await weather.refresh(db); const x = weather.cached(db); return { enabled: true, place: c, ok: r.ok, error: r.error ?? null, summary: x ? weather.summarize(x) : null, ageMin: x ? Math.round((Date.now() - x.fetchedAt) / 60_000) : null }; });

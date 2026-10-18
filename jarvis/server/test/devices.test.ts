@@ -253,3 +253,21 @@ test('permissions ledger: sign-in only, and it reflects real state', async () =>
     assert.equal((await t.api('/api/mission-defaults', { method: 'PUT', headers: t.me, body: { quickMicro: 50_000, deepMicro: 1_000_000, exploreMonthlyMicro: 5_000_000 } })).status, 200, 'lowering does not');
   } finally { t.close(); }
 });
+
+test('research endpoints: sign-in only, need web search on, validate the catalog, and a device key cannot reach any of it', async () => {
+  const t = await boot();
+  try {
+    for (const p of ['/api/research', '/api/sources', '/api/permissions']) assert.equal((await t.api(p)).status, 401, p);
+    assert.equal((await t.api('/api/research', { method: 'POST', headers: t.me, body: { question: 'a long enough question', tier: 'deep' } })).status, 409, 'web search is off');
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; const dv = { authorization: `Bearer ${token}` };
+    for (const [p, m] of [['/api/research', 'GET'], ['/api/sources', 'GET'], ['/api/research', 'POST'], ['/api/sources', 'POST']] as const) assert.equal((await t.api(p, { method: m, headers: dv, body: m === 'POST' ? { question: 'a long enough question' } : undefined })).status, 401, `${m} ${p} with a device key`);
+    assert.equal((await t.api('/api/sources', { method: 'POST', headers: t.me, body: { host: '127.0.0.1' } })).status, 400); assert.equal((await t.api('/api/sources', { method: 'POST', headers: t.me, body: { host: 'noaa.gov', status: 'trusted', reliability: 120 } })).status, 400);
+    assert.equal((await t.api('/api/sources', { method: 'POST', headers: t.me, body: { host: 'noaa.gov', status: 'trusted', class: 'official', topics: ['weather'] } })).status, 200);
+    const list = await (await t.api('/api/sources', { headers: t.me })).json() as any; assert.equal(list.items[0].host, 'noaa.gov');
+    const a = await (await t.api('/api/sources/noaa.gov/allow-fetch', { method: 'POST', headers: t.me, body: {} })).json() as any; assert.ok(a.approvalId); assert.equal((t.db.prepare('SELECT status FROM approvals WHERE id=?').get(a.approvalId) as any).status, 'pending', 'fetching still needs your approval');
+    assert.equal((await t.api('/api/sources/not%20a%20host/allow-fetch', { method: 'POST', headers: t.me, body: {} })).status, 400);
+    assert.equal((await t.api('/api/sources/noaa.gov', { method: 'DELETE', headers: t.me })).status, 200);
+    const plan = await (await t.api('/api/research/plan?q=weather&tier=deep', { headers: t.me })).json() as any; assert.ok(Array.isArray(plan.routes));
+  } finally { t.close(); }
+});

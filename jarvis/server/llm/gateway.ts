@@ -35,14 +35,14 @@ export function ready(db: DB, task: Task = 'chat'): boolean {
   return !isPaused(db) && DEFAULT_ROUTES[task].some((c) => registry.providers[c.provider]?.available());
 }
 
-export type Result = { ok: true; text: string; model: string; costMicroUsd: number; searches?: number; sources?: { url: string; title: string }[] } | { ok: false; kind: string; error: string };
+export type Result = { ok: true; text: string; model: string; costMicroUsd: number; searches?: number; sources?: { url: string; title: string }[]; claims?: import('./types.ts').Claim[]; pageAges?: Record<string, string> } | { ok: false; kind: string; error: string };
 
 /**
  * One model call, governed. Order of checks: paused → provider available → daily ceiling → monthly budget reservation.
  * Transient failures (rate limit, network, 5xx) and auth failures fall through to the next candidate; refusals and
  * bad requests do not. Every attempt is recorded in llm_usage; the reservation is replaced by actual cost.
  */
-export async function complete(db: DB, o: { task: Task; system: string; messages: ChatMessage[]; strong?: boolean; ref?: string; optional?: boolean; channel?: string; deviceId?: string; webSearch?: { maxUses: number; timezone?: string } }, now = Date.now()): Promise<Result> {
+export async function complete(db: DB, o: { task: Task; system: string; messages: ChatMessage[]; strong?: boolean; ref?: string; optional?: boolean; channel?: string; deviceId?: string; webSearch?: { maxUses: number; timezone?: string; allowedDomains?: string[]; blockedDomains?: string[] } }, now = Date.now()): Promise<Result> {
   if (isPaused(db)) return { ok: false, kind: 'paused', error: 'Jarvis is paused; no model calls.' };
   const cfg = getConfig(db);
   let route = DEFAULT_ROUTES[o.task];
@@ -65,7 +65,7 @@ export async function complete(db: DB, o: { task: Task; system: string; messages
       settle(db, res.id, cost, `llm:${o.task}`);
       db.prepare('INSERT INTO llm_usage(at,task,provider,model,input_tokens,output_tokens,cache_read_tokens,cost_micro_usd,ok,ref,channel,device_id) VALUES(?,?,?,?,?,?,?,?,1,?,?,?)')
         .run(now, o.task, c.provider, c.model, r.usage.inputTokens, r.usage.outputTokens, r.usage.cacheReadTokens, cost, o.ref ?? null, o.channel ?? null, o.deviceId ?? null);
-      return { ok: true, text: r.text, model: c.model, costMicroUsd: cost, searches: r.searches ?? 0, sources: r.sources ?? [] };
+      return { ok: true, text: r.text, model: c.model, costMicroUsd: cost, searches: r.searches ?? 0, sources: r.sources ?? [], claims: r.claims ?? [], pageAges: r.pageAges ?? {} };
     } catch (e) {
       releaseReservation(db, res.id);
       const kind = e instanceof LlmError ? e.kind : 'transient'; const msg = (e as Error).message;

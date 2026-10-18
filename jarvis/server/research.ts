@@ -8,6 +8,7 @@ import { htmlToText, topSentences } from './extract.ts';
 import { addVersion, createArtifact, type Source } from './artifacts.ts';
 import { requestApproval } from './approvals.ts';
 import { setState, logEvent, completeTask, type TaskRow } from './tasks.ts';
+import { runDeep } from './deepresearch.ts';
 import { summarizeResearch, reviseWithModel, type SourceForModel } from './synth.ts';
 
 export const researchInput = z.object({ question: z.string().min(3).max(500), urls: z.array(z.string().url().max(2048)).min(1).max(8) });
@@ -19,6 +20,7 @@ export type Deps = { fetchOpts?: Partial<FetchOpts>; allowInsecureHttp?: boolean
 
 /** Run a research task with the extractive provider (no language model). Returns after saving a reviewable draft or parking the task. */
 export async function runResearch(db: DB, task: TaskRow, deps: Deps = {}): Promise<void> {
+  if ((() => { try { return JSON.parse(task.input)?.mode === 'deep'; } catch { return false; } })()) return runDeep(db, task);   // Prometheus deep research (web search) is a separate path from approved-URL research
   const input = researchInput.parse(JSON.parse(task.input));
   const sources: Source[] = [], notes: string[] = [], blocks: string[] = [], forModel: SourceForModel[] = [];
   for (const url of input.urls) {
@@ -34,7 +36,7 @@ export async function runResearch(db: DB, task: TaskRow, deps: Deps = {}): Promi
       notes.push(`Skipped ${url}: ${auth.reason}`); logEvent(db, task.id, 'tool_denied', auth.reason); continue;
     }
     try {
-      const f = await fetchSource(auth.args.url, { isHostAllowed: (h) => isHostAllowed(db, h), ...deps.fetchOpts });
+      const f = await fetchSource(auth.args.url, { isHostAllowed: (h) => isHostAllowed(db, h), polite: true, ...deps.fetchOpts });
       const { title, text } = f.contentType.includes('html') ? htmlToText(f.body) : { title: '', text: f.body };
       const flagged = INJECTION_RE.test(text);
       if (flagged) { audit(db, 'system', 'research.untrusted_instruction_ignored', task.id, { url }); }

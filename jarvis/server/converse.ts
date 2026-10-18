@@ -9,8 +9,10 @@ import { publish } from './events.ts';
 import type { ChatMessage } from './llm/types.ts';
 import { extractProposals, createProposals } from './proposals.ts';
 import { autoRun } from './standing.ts';
+import { getDefaults } from './missionbudget.ts';
 import { refresh as refreshWeather } from './weather.ts';
-import { parseWebRequest, ask as askWeb } from './websearch.ts';
+import { parseWebRequest, ask as askWeb, gate as webGate } from './websearch.ts';
+import { startDeep } from './deepresearch.ts';
 
 function relevantMemories(db: DB, text: string): string[] {
   const rows = new Map<string, string>();
@@ -35,6 +37,14 @@ function history(db: DB): ChatMessage[] {
  */
 export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string; brief?: boolean; deviceId?: string } = {}): Promise<ChatReply> {
   const text = textIn.trim().slice(0, 2000), priv = !!o.private, cfg = getConfig(db);
+  const deepQ = text.match(/^(?:deep research|research deeply|prometheus)\s*:\s*(.{5,})$/is);
+  if (deepQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // hand a long question to Prometheus: queued, budget-capped, reviewed by Luke
+    const why = webGate(db, { channel: o.channel ?? 'dashboard' });
+    const reply = why ? why : `Understood, sir. I've asked Prometheus to research that. It runs in the background within a $${(getDefaults(db).deepMicro / 1e6).toFixed(2)} budget and I'll put the draft in Ready for Review when it's done.`;
+    if (!why) startDeep(db, deepQ[1], 'deep');
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+    return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
   const webQ = parseWebRequest(text);
   if (webQ) return await webTurn(db, text, webQ, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
   const modelOk = ready(db, 'chat') && (!priv || cfg.allowInPrivate);
