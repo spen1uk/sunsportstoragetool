@@ -14,6 +14,7 @@ import { refresh as refreshWeather } from './weather.ts';
 import { parseWebRequest, ask as askWeb, gate as webGate } from './websearch.ts';
 import { startDeep } from './deepresearch.ts';
 import { describe as knowDescribe } from './knowledge.ts';
+import { mentions as chatMentions } from './chatimport.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
 function relevantMemories(db: DB, text: string): string[] {
@@ -41,7 +42,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   const text = textIn.trim().slice(0, 2000), priv = !!o.private, cfg = getConfig(db);
   const knowQ = text.match(/^what (?:do|did|does) (?:you|we|jarvis) know about\s+(.{2,80}?)\s*[?.!]*$/i);
   if (knowQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // deterministic: reads the knowledge graph, no model, nothing sent anywhere
-    const reply = knowDescribe(db, knowQ[1]);
+    const said = chatMentions(db, knowQ[1]); const reply = knowDescribe(db, knowQ[1]) + (said.length ? `\nAlso in chats you imported and made searchable: ${said.join('; ')}.` : '');
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }

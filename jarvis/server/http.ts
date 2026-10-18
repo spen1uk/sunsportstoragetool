@@ -42,6 +42,8 @@ import * as know from './knowledge.ts';
 import * as dec from './decisions.ts';
 import * as excl from './exclusions.ts';
 import { PRICES } from './llm/prices.ts';
+import * as briefs from './briefs.ts';
+import * as cimp from './chatimport.ts';
 import * as providers from './llm/providers.ts';
 import * as mroutes from './llm/routes.ts';
 import * as evals from './evals/run.ts';
@@ -397,6 +399,24 @@ route('DELETE', '/api/workspaces/:name', ({ db, params }) => guard(() => { ws.de
 route('GET', '/api/proposals', ({ db }) => props.listPending(db));
 route('POST', '/api/proposals/:id/confirm', ({ db, params }) => props.confirm(db, params.id));
 route('POST', '/api/proposals/:id/dismiss', ({ db, params }) => ({ ok: props.dismiss(db, params.id) }));
+// ---- integrations: Claude Code briefs, handed-over chats ----
+route('GET', '/api/briefs', ({ db }) => ({ items: briefs.list(db), rules: briefs.FIXED_RULES }));
+route('POST', '/api/briefs', ({ db, body }) => ({ brief: guard(() => briefs.create(db, body)) }));
+route('POST', '/api/briefs/draft', async ({ db, body }) => { const b = parse(z.object({ request: z.string().min(10).max(3000), repo: z.string().max(170).default('') }), body); return { brief: await guard(() => briefs.draftFrom(db, b.request, b.repo)) }; });
+route('PATCH', '/api/briefs/:id', ({ db, params, body }) => ({ brief: guard(() => briefs.update(db, params.id, body)) }));
+route('POST', '/api/briefs/:id/ready', ({ db, params }) => ({ brief: guard(() => briefs.markReady(db, params.id)) }));
+route('POST', '/api/briefs/:id/launched', ({ db, params }) => ({ brief: guard(() => briefs.markLaunched(db, params.id)) }));
+route('POST', '/api/briefs/:id/finish', ({ db, params, body }) => ({ brief: guard(() => briefs.finish(db, params.id, body)) }));
+route('POST', '/api/briefs/:id/drop', ({ db, params }) => ({ ok: briefs.drop(db, params.id) }));
+route('DELETE', '/api/briefs/:id', ({ db, params }) => ({ ok: briefs.remove(db, params.id) }));
+route('GET', '/api/briefs/:id/markdown', ({ db, params }) => { const b = briefs.get(db, params.id); if (!b) throw new HttpError(404, 'not found'); return { markdown: briefs.markdown(db, params.id), status: b.status }; });
+route('GET', '/api/imports', ({ db, url }) => { const q = url.searchParams.get('q'); return q ? { hits: cimp.search(db, q) } : { items: cimp.list(db), limits: { maxMessages: cimp.MAX_MESSAGES, maxBatch: cimp.MAX_BATCH } }; });
+route('POST', '/api/imports', ({ db, body }) => guard(() => cimp.importChats(db, body)));
+route('GET', '/api/imports/:id', ({ db, params }) => { const r = cimp.messages(db, params.id); if (!r) throw new HttpError(404, 'not found'); return r; });
+route('PATCH', '/api/imports/:id', ({ db, params, body }) => ({ ok: guard(() => cimp.update(db, params.id, body)) }));
+route('POST', '/api/imports/:id/suggest-memories', async ({ db, params }) => { const r = await cimp.suggestMemories(db, params.id); if (!r.ok) throw new HttpError(409, r.error); return r; });
+route('DELETE', '/api/imports/:id', ({ db, params }) => ({ ok: cimp.remove(db, params.id) }));
+route('DELETE', '/api/imports', ({ db, session, body }) => stepped(db, session, () => ({ deleted: cimp.removeAll(db) })));
 // ---- model router and evaluations ----
 const taskEnum = z.enum(['chat', 'analysis', 'ping', 'web']);
 route('GET', '/api/models', ({ db }) => { evals.sweepStale(db); return {
@@ -565,7 +585,7 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
       let body: any = undefined;
       if (method !== 'GET' && method !== 'DELETE') {
         const chunks: Buffer[] = []; let n = 0;
-        for await (const c of req) { n += (c as Buffer).length; if (n > (url.pathname.startsWith('/api/bridge/') || url.pathname === '/api/knowledge/import' ? 6 * 1024 * 1024 : 256 * 1024)) return send(413, { error: 'body too large' }); chunks.push(c as Buffer); }
+        for await (const c of req) { n += (c as Buffer).length; if (n > (url.pathname.startsWith('/api/bridge/') || url.pathname === '/api/knowledge/import' || url.pathname === '/api/imports' ? 6 * 1024 * 1024 : 256 * 1024)) return send(413, { error: 'body too large' }); chunks.push(c as Buffer); }
         try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}; } catch { return send(400, { error: 'invalid JSON' }); }
       }
       const m = r.re.exec(url.pathname)!;

@@ -393,3 +393,24 @@ test('over HTTP: model page needs a session; route, provider and evaluation chan
 
   } finally { t.close(); }
 });
+
+test('over HTTP: briefs and imports need a session; deleting every import needs a fresh step-up; bad input is refused; a device cannot reach any of it', async () => {
+  const t = await boot();
+  try {
+    for (const p of ['/api/briefs', '/api/imports']) assert.equal((await t.api(p)).status, 401, p);
+    const b = await (await t.api('/api/briefs', { method: 'POST', headers: t.me, body: { title: 'Fix login', goal: 'Fix the login page on phones', repo: 'spen1uk/sunsportstoragetool' } })).json() as any; assert.equal(b.brief.status, 'draft');
+    assert.equal((await t.api('/api/briefs', { method: 'POST', headers: t.me, body: { title: 'Bad', goal: 'Uses key sk-ant-abcdefghijklmnopqrstuv here' } })).status, 400);
+    assert.equal((await t.api(`/api/briefs/${b.brief.id}/ready`, { method: 'POST', headers: t.me })).status, 200);
+    const md = await (await t.api(`/api/briefs/${b.brief.id}/markdown`, { headers: t.me })).json() as any; assert.match(md.markdown, /Do not push to, or merge into/);
+    assert.equal((await t.api('/api/imports', { method: 'POST', headers: t.me, body: { conversations: [{ title: 'Chat', createdAt: null, messages: [{ role: 'user', text: 'hello there' }] }] } })).status, 200);
+    assert.equal((await t.api('/api/imports', { method: 'POST', headers: t.me, body: { conversations: [{ title: 'Chat', messages: 'no' }] } })).status, 400);
+    const big = 'x'.repeat(200_000); assert.equal((await t.api('/api/imports', { method: 'POST', headers: t.me, body: { conversations: [{ title: 'Big', createdAt: null, messages: Array.from({ length: 5 }, () => ({ role: 'user', text: big })) }] } })).status, 200, 'a megabyte-sized batch is accepted');
+    const items = (await (await t.api('/api/imports', { headers: t.me })).json() as any).items; assert.equal(items.length, 2);
+    assert.equal((await t.api('/api/imports', { method: 'DELETE', headers: t.me })).status, 403);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    assert.equal(((await (await t.api('/api/imports', { method: 'DELETE', headers: t.me })).json()) as any).deleted, 2);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any;
+    for (const p of ['/api/briefs', '/api/imports']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
+  } finally { t.close(); }
+});
