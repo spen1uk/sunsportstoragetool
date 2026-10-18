@@ -38,6 +38,9 @@ import * as registry from './skills/registry.ts';
 import * as workflow from './skills/workflow.ts';
 import { PRINCIPALS, tierOf } from './skills/manifest.ts';
 import * as deep from './deepresearch.ts';
+import * as know from './knowledge.ts';
+import * as dec from './decisions.ts';
+import * as excl from './exclusions.ts';
 import * as sources from './sources.ts';
 import * as missions from './missions.ts';
 import * as tempagents from './tempagents.ts';
@@ -389,6 +392,33 @@ route('DELETE', '/api/workspaces/:name', ({ db, params }) => guard(() => { ws.de
 route('GET', '/api/proposals', ({ db }) => props.listPending(db));
 route('POST', '/api/proposals/:id/confirm', ({ db, params }) => props.confirm(db, params.id));
 route('POST', '/api/proposals/:id/dismiss', ({ db, params }) => ({ ok: props.dismiss(db, params.id) }));
+// ---- knowledge graph, decisions, exclusions, retention ----
+route('GET', '/api/knowledge', ({ db, url }) => { const q = (url.searchParams.get('q') ?? '').trim(); return q ? know.knowAbout(db, q) : { entities: know.listEntities(db), kinds: know.KINDS, rels: know.RELS, scopes: know.SCOPES }; });
+route('GET', '/api/knowledge/graph', ({ db, url }) => know.graph(db, url.searchParams.get('centre') ?? undefined));
+route('POST', '/api/knowledge/refresh', ({ db }) => know.refresh(db));
+route('POST', '/api/knowledge/entities', ({ db, body }) => ({ entity: guard(() => know.createEntity(db, body)) }));
+route('GET', '/api/knowledge/entities/:id', ({ db, params }) => { const n = know.neighborhood(db, params.id); if (!n) throw new HttpError(404, 'not found'); return n; });
+route('PATCH', '/api/knowledge/entities/:id', ({ db, params, body }) => ({ entity: guard(() => know.updateEntity(db, params.id, body)) }));
+route('POST', '/api/knowledge/entities/:id/forget', ({ db, params, body }) => { const b = parse(z.object({ alsoMemories: z.boolean().default(false) }), body); return guard(() => know.forgetEntity(db, params.id, b)); });
+route('POST', '/api/knowledge/edges', ({ db, body }) => { const b = parse(z.object({ from: z.string(), to: z.string(), rel: z.string(), note: z.string().max(200).optional() }), body); return guard(() => know.addEdge(db, b.from, b.to, b.rel, { note: b.note })); });
+route('DELETE', '/api/knowledge/edges/:id', ({ db, params }) => ({ ok: know.removeEdge(db, params.id) }));
+route('GET', '/api/exclusions', ({ db }) => ({ items: excl.list(db) }));
+route('POST', '/api/exclusions', ({ db, body }) => { const b = parse(z.object({ pattern: z.string().min(3).max(80), note: z.string().max(200).default('') }), body); const r = know.applyExclusion(db, b.pattern, b.note); if (!r.ok) throw bad(r.error); return r; });
+route('DELETE', '/api/exclusions/:id', ({ db, params }) => ({ ok: excl.remove(db, params.id) }));
+route('GET', '/api/knowledge/export', ({ db }) => know.exportAll(db));
+route('POST', '/api/knowledge/import', ({ db, session, body }) => stepped(db, session, () => know.importAll(db, body)));
+route('GET', '/api/knowledge/retention', ({ db }) => ({ retention: know.getRetention(db), preview: know.previewRetention(db) }));
+route('PUT', '/api/knowledge/retention', ({ db, session, body }) => stepped(db, session, () => ({ retention: know.setRetention(db, body) })));
+route('POST', '/api/knowledge/retention/preview', ({ db, body }) => { const r = guard(() => know.getRetention(db)); const b = body && typeof body === 'object' && Object.keys(body as object).length ? (body as any) : r; return { preview: guard(() => know.previewRetention(db, Date.now(), b)) }; });
+route('POST', '/api/knowledge/retention/run', ({ db, session }) => stepped(db, session, () => know.applyRetention(db)));
+route('GET', '/api/decisions', ({ db }) => ({ items: dec.list(db), due: dec.due(db).map((d: any) => d.id), calibration: dec.calibration(db) }));
+route('POST', '/api/decisions', ({ db, body }) => ({ decision: guard(() => dec.create(db, body)) }));
+route('PATCH', '/api/decisions/:id', ({ db, params, body }) => ({ decision: guard(() => dec.update(db, params.id, body)) }));
+route('POST', '/api/decisions/:id/decide', ({ db, params, body }) => ({ decision: guard(() => dec.decide(db, params.id, body)) }));
+route('POST', '/api/decisions/:id/review', ({ db, params, body }) => ({ decision: guard(() => dec.review(db, params.id, body)) }));
+route('POST', '/api/decisions/:id/drop', ({ db, params }) => ({ ok: dec.drop(db, params.id) }));
+route('DELETE', '/api/decisions/:id', ({ db, params }) => ({ ok: dec.remove(db, params.id) }));
+route('POST', '/api/decisions/:id/challenge', async ({ db, params }) => { const r = await guard(() => dec.challenge(db, params.id)); if (!r.ok) throw new HttpError(409, r.error); return r; });
 route('GET', '/api/memory/suggestions', ({ db }) => ({ items: msug.listSuggestions(db), auto: msug.autoEnabled(db), lastRun: msug.lastRun(db), modelReady: gw.ready(db, 'chat') }));
 route('POST', '/api/memory/suggest', async ({ db }) => msug.suggestFromChat(db));
 route('PUT', '/api/memory/suggest-settings', ({ db, body }) => { msug.setAuto(db, parse(z.object({ auto: z.boolean() }), body).auto); return { auto: msug.autoEnabled(db) }; });
@@ -515,7 +545,7 @@ export function createServer(db: DB, opts: { webDir?: string; allowedHosts?: str
       let body: any = undefined;
       if (method !== 'GET' && method !== 'DELETE') {
         const chunks: Buffer[] = []; let n = 0;
-        for await (const c of req) { n += (c as Buffer).length; if (n > (url.pathname.startsWith('/api/bridge/') ? 6 * 1024 * 1024 : 256 * 1024)) return send(413, { error: 'body too large' }); chunks.push(c as Buffer); }
+        for await (const c of req) { n += (c as Buffer).length; if (n > (url.pathname.startsWith('/api/bridge/') || url.pathname === '/api/knowledge/import' ? 6 * 1024 * 1024 : 256 * 1024)) return send(413, { error: 'body too large' }); chunks.push(c as Buffer); }
         try { body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}; } catch { return send(400, { error: 'invalid JSON' }); }
       }
       const m = r.re.exec(url.pathname)!;

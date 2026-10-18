@@ -3,6 +3,8 @@ import type { DB } from '../db.ts';
 import { manifestSchema, type Manifest, type Capability } from './manifest.ts';
 import { htmlToText } from '../extract.ts';
 import * as memory from '../memory.ts';
+import * as knowledge from '../knowledge.ts';
+import * as decisions from '../decisions.ts';
 import * as src from '../sources.ts';
 import * as weather from '../weather.ts';
 
@@ -54,6 +56,10 @@ export const DIRECT: Entry[] = [
     z.object({ html: z.string().max(400_000) }).strict(), (i) => { const r = htmlToText(i.html); return { title: r.title.slice(0, 200), text: r.text.slice(0, 20_000) }; }),
   define({ id: 'memory.search', title: 'Search memory', purpose: 'Search your stored memories (private data; Jarvis only).', owner: 'jarvis', permissions: ['memory.read'], dataSensitivity: 'private', sideEffects: 'none', runPath: 'direct', outputDescription: 'Up to 10 memory snippets.', tests: ['phase3.test.ts'] },
     z.object({ query: z.string().min(2).max(100) }).strict(), (i, c) => (memory.search(c.db, i.query) as { id: string; content: string }[]).slice(0, 10).map((m) => ({ id: m.id, content: m.content.slice(0, 300) }))),
+  define({ id: 'knowledge.lookup', title: 'What do we know about…', purpose: 'Look up a person, project, topic or decision in your knowledge graph (private data; Jarvis only).', owner: 'jarvis', permissions: ['knowledge.read'], dataSensitivity: 'private', sideEffects: 'none', runPath: 'direct', outputDescription: 'A short plain-text summary.', tests: ['phase5.test.ts'] },
+    z.object({ query: z.string().min(2).max(80) }).strict(), (i, c) => ({ summary: knowledge.describe(c.db, i.query).slice(0, 4000) })),
+  define({ id: 'decisions.due', title: 'Decisions due for review', purpose: 'Decisions you made whose expected date has passed (private data; Jarvis only).', owner: 'jarvis', permissions: ['knowledge.read'], dataSensitivity: 'private', sideEffects: 'none', runPath: 'direct', outputDescription: 'Up to 10 decision titles.', tests: ['phase5.test.ts'] }, none,
+    (_i, c) => decisions.due(c.db, c.now).slice(0, 10).map((d: any) => ({ id: d.id, title: d.title, expectedBy: d.expected_by }))),
   define({ id: 'tasks.list_open', title: 'List open tasks', purpose: 'Titles and priorities of your open tasks (private data; Jarvis only).', owner: 'jarvis', permissions: ['tasks.read'], dataSensitivity: 'private', sideEffects: 'none', runPath: 'direct', outputDescription: 'Up to 25 task titles.', tests: ['phase3.test.ts'] }, none,
     (_i, c) => c.db.prepare("SELECT title, priority FROM tasks WHERE kind='manual' AND owner='luke' AND is_demo=0 AND state NOT IN ('completed','canceled') ORDER BY priority, created_at LIMIT 25").all()),
 ];

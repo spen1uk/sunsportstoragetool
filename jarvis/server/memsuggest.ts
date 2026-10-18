@@ -4,6 +4,7 @@ import { audit } from './audit.ts';
 import { publish } from './events.ts';
 import * as gw from './llm/gateway.ts';
 import * as memory from './memory.ts';
+import { isExcluded } from './exclusions.ts';
 
 /**
  * Memory suggestions: a cheap model pass over what Luke has said in recent (saved) chats, proposing facts worth remembering.
@@ -50,19 +51,20 @@ async function run(db: DB, nowMs: number): Promise<{ ok: boolean; added: number;
   setMeta(db, K_TRY, String(nowMs));
   if (!gw.ready(db, 'chat')) return { ok: false, added: 0, message: 'No language model is connected, so I cannot look for things to remember.' };
   const last = Number(getMeta(db, K_LAST) ?? 0);
-  const msgs = db.prepare('SELECT id, role, content FROM messages WHERE id>? ORDER BY id LIMIT 40').all(last) as { id: number; role: string; content: string }[];
-  if (!msgs.some((m) => m.role === 'luke')) return { ok: true, added: 0, message: 'Nothing new in your chats since last time.' };
+  const allMsgs = db.prepare('SELECT id, role, content FROM messages WHERE id>? ORDER BY id LIMIT 40').all(last) as { id: number; role: string; content: string }[];
+  const msgs = allMsgs.filter((m) => !isExcluded(db, m.content));   // excluded names never leave in a prompt
+  if (!msgs.some((m) => m.role === 'luke')) { if (allMsgs.length) setMeta(db, K_LAST, String(allMsgs[allMsgs.length - 1].id)); return { ok: true, added: 0, message: 'Nothing new in your chats since last time.' }; }
   const known = (db.prepare('SELECT content FROM memories WHERE superseded_by IS NULL ORDER BY created_at DESC LIMIT 40').all() as { content: string }[]).map((r) => r.content);
   const declined = (db.prepare("SELECT content FROM memory_suggestions WHERE status='rejected' ORDER BY decided_at DESC LIMIT 20").all() as { content: string }[]).map((r) => r.content);
   const pending = listSuggestions(db).map((r) => r.content);
   const user = `<data kind="REMEMBERED">\n${known.map((k) => `- ${fence(k, 200)}`).join('\n') || '(none)'}\n</data>\n<data kind="DECLINED">\n${declined.map((k) => `- ${fence(k, 200)}`).join('\n') || '(none)'}\n</data>\n<data kind="conversation">\n${msgs.map((m) => `${m.role === 'luke' ? 'LUKE' : 'ASSISTANT'}: ${fence(m.content, 400)}`).join('\n')}\n</data>`;
   const r = await gw.complete(db, { task: 'chat', system: SYSTEM, messages: [{ role: 'user', content: user }], ref: 'memsuggest', optional: true }, nowMs);
   if (!r.ok) return { ok: false, added: 0, message: r.kind === 'budget' || r.kind === 'daily_ceiling' || r.kind === 'paused' ? r.error : `The model could not help right now (${r.kind}).` };
-  setMeta(db, K_LAST, String(msgs[msgs.length - 1].id)); setMeta(db, K_RUN, String(nowMs));   // these messages are now "seen", whatever the result
+  setMeta(db, K_LAST, String(allMsgs[allMsgs.length - 1].id)); setMeta(db, K_RUN, String(nowMs));   // these messages are now "seen", whatever the result
   const seen = [...known, ...declined, ...pending].map(norm);
   let added = 0;
   for (const c of parseSuggestions(r.text)) {
-    if (memory.looksSecret(c)) continue;
+    if (memory.looksSecret(c) || isExcluded(db, c)) continue;
     const n = norm(c); if (!n || seen.some((s) => s === n || s.includes(n) || n.includes(s))) continue;
     db.prepare("INSERT INTO memory_suggestions(id,content,created_at) VALUES(?,?,?)").run(id(), c, nowMs); seen.push(n); added++;
   }

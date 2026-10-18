@@ -5,7 +5,7 @@ import { z } from 'zod';
  * A skill cannot invent a new capability or grant itself one: only a reviewed change to this file adds to the list.
  */
 export const CAPABILITIES = {
-  'tasks.read': 0, 'tasks.write': 1, 'habits.write': 1, 'people.write': 1, 'goals.write': 1, 'links.write': 1, 'memory.read': 0, 'memory.write': 1,
+  'tasks.read': 0, 'tasks.write': 1, 'habits.write': 1, 'people.write': 1, 'goals.write': 1, 'links.write': 1, 'memory.read': 0, 'memory.write': 1, 'knowledge.read': 0,
   'catalog.read': 0, 'catalog.write': 1, 'web.search': 0, 'web.fetch': 1, 'weather.read': 0, 'docs.process': 0, 'research.queue': 1,
   'artifacts.publish': 2, 'artifacts.delete': 3, 'domains.allow': 3, 'budget.raise': 3, 'messages.send': 3, 'money.move': 4,
 } as const;

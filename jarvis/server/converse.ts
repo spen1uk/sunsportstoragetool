@@ -13,6 +13,7 @@ import { getDefaults } from './missionbudget.ts';
 import { refresh as refreshWeather } from './weather.ts';
 import { parseWebRequest, ask as askWeb, gate as webGate } from './websearch.ts';
 import { startDeep } from './deepresearch.ts';
+import { describe as knowDescribe } from './knowledge.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
 function relevantMemories(db: DB, text: string): string[] {
@@ -38,6 +39,12 @@ function history(db: DB): ChatMessage[] {
  */
 export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string; brief?: boolean; deviceId?: string } = {}): Promise<ChatReply> {
   const text = textIn.trim().slice(0, 2000), priv = !!o.private, cfg = getConfig(db);
+  const knowQ = text.match(/^what (?:do|did|does) (?:you|we|jarvis) know about\s+(.{2,80}?)\s*[?.!]*$/i);
+  if (knowQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // deterministic: reads the knowledge graph, no model, nothing sent anywhere
+    const reply = knowDescribe(db, knowQ[1]);
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
+    return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
   const deepQ = text.match(/^(?:deep research|research deeply|prometheus)\s*:\s*(.{5,})$/is);
   if (deepQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // hand a long question to Prometheus: queued, budget-capped, reviewed by Luke
     const why = webGate(db, { channel: o.channel ?? 'dashboard' });

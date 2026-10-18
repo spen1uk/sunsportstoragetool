@@ -344,3 +344,28 @@ test('mission endpoints: sign-in only; creating needs web search on; controls wo
     ws.setConfig(t.db, { enabled: false, perDay: 20 }); assert.match((await converse(t.db, 'mission: something that cannot start without search')).text, /switched off/); void M;
   } finally { t.close(); }
 });
+
+test('over HTTP: knowledge and decisions need a session; import and retention changes need a fresh step-up that is spent; exclusions block creation; a device cannot reach any of it', async () => {
+  const t = await boot();
+  try {
+    for (const p of ['/api/knowledge', '/api/decisions', '/api/exclusions', '/api/knowledge/export', '/api/knowledge/retention']) assert.equal((await t.api(p)).status, 401, p);
+    const e = await t.api('/api/knowledge/entities', { method: 'POST', headers: t.me, body: { kind: 'topic', name: 'Sailing', notes: 'Weekend hobby' } }); assert.equal(e.status, 200);
+    assert.equal((await t.api('/api/knowledge/entities', { method: 'POST', headers: t.me, body: { kind: 'robot', name: 'Bad' } })).status, 400);
+    assert.equal((await t.api('/api/exclusions', { method: 'POST', headers: t.me, body: { pattern: 'Sailing' } })).status, 200);
+    assert.equal((await t.api('/api/knowledge/entities', { method: 'POST', headers: t.me, body: { kind: 'topic', name: 'Sailing again' } })).status, 400);
+    assert.equal(((await (await t.api('/api/knowledge?q=Sailing', { headers: t.me })).json()) as any).excluded, true);
+    const file = await (await t.api('/api/knowledge/export', { headers: t.me })).json() as any; assert.equal(file.version, 1);
+    assert.equal((await t.api('/api/knowledge/import', { method: 'POST', headers: t.me, body: file })).status, 403, 'import needs step-up');
+    assert.equal((await t.api('/api/knowledge/retention', { method: 'PUT', headers: t.me, body: { messagesDays: 90, researchDays: null, missionsDays: null } })).status, 403);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    assert.equal((await t.api('/api/knowledge/retention', { method: 'PUT', headers: t.me, body: { messagesDays: 90, researchDays: null, missionsDays: null } })).status, 200);
+    assert.equal((await t.api('/api/knowledge/retention/run', { method: 'POST', headers: t.me })).status, 403, 'the step-up was spent');
+    const d = await (await t.api('/api/decisions', { method: 'POST', headers: t.me, body: { title: 'Hire a helper', confidence: 60 } })).json() as any; assert.equal(d.decision.status, 'open');
+    assert.equal((await t.api(`/api/decisions/${d.decision.id}/decide`, { method: 'POST', headers: t.me, body: { chosen: 'yes' } })).status, 200);
+    assert.equal((await t.api(`/api/decisions/${d.decision.id}/decide`, { method: 'POST', headers: t.me, body: { chosen: 'again' } })).status, 400);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    assert.equal((await t.api('/api/knowledge/import', { method: 'POST', headers: t.me, body: { ...file, version: 9 } })).status, 400);
+    const { token } = await (async () => { await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } }); return await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; })();
+    for (const p of ['/api/knowledge', '/api/decisions', '/api/exclusions', '/api/knowledge/export']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
+  } finally { t.close(); }
+});
