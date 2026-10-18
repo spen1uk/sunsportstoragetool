@@ -1,0 +1,29 @@
+name: Jarvis CI
+# Runs on every push or pull request that touches the Jarvis project. It only checks; it never deploys, publishes or uses any secret.
+on:
+  push:
+    paths: ['jarvis/**', '.github/workflows/jarvis-ci.yml']
+  pull_request:
+    paths: ['jarvis/**', '.github/workflows/jarvis-ci.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jarvis
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: jarvis/package-lock.json
+      - run: node --version
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      # Fails the build on known high or critical advisories in the dependencies.
+      - run: npm audit --audit-level=high

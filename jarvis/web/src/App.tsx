@@ -8,6 +8,7 @@ import { Detail } from './Detail.tsx';
 import { passkeySupported, signInWithPasskey } from './passkey.ts';
 import { CalendarPage, NotesPage } from './mac.tsx';
 import { LifePage } from './life.tsx';
+import { PermissionsPage, StopButton } from './permissions.tsx';
 import { WorkspacePage } from './workspace.tsx';
 import { BriefingsPage, OvernightPage, ModeControl, Notifications } from './today.tsx';
 import { TasksPage, ReviewPage, ApprovalsPage, MemoryPage, ConnectionsPage, ActivityPage, SettingsPage, PlannedPage } from './pages.tsx';
@@ -26,6 +27,7 @@ export const NAV: { hash: string; label: string; planned?: string }[] = [
   { hash: '#/approvals', label: 'Approvals' },
   { hash: '#/memory', label: 'Memory' },
   { hash: '#/connections', label: 'Connections' },
+  { hash: '#/permissions', label: 'Permissions' },
   { hash: '#/activity', label: 'Activity' },
   { hash: '#/settings', label: 'Settings' },
 ];
@@ -148,6 +150,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         <ModeControl />
         <Notifications navigate={navigate} />
         <button className={st?.pause.paused ? 'primary' : 'danger'} onClick={() => api('/api/pause', 'POST', { paused: !st?.pause.paused }).then(reload)}>{st?.pause.paused ? 'Resume Jarvis' : 'Pause Jarvis'}</button>
+        <StopButton reload={reload} />
         <button onClick={onLogout}>Lock</button>
       </header>
       <nav className="sidenav" aria-label="Main">
@@ -192,6 +195,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         {hash === '#/approvals' && <ApprovalsPage />}
         {hash === '#/memory' && <MemoryPage />}
         {hash === '#/connections' && <ConnectionsPage />}
+        {hash === '#/permissions' && <PermissionsPage />}
         {hash === '#/activity' && <ActivityPage />}
         {hash === '#/settings' && st && <SettingsPage st={st} reload={reload} quality={quality} setQuality={setQuality} reduced={reduced} setReduced={setReduced} osReduced={osReduced} resetLayout={() => api('/api/layout', 'DELETE').then(() => setLayoutVersion((v) => v + 1))} />}
       </main>

@@ -6,6 +6,7 @@ import { chicagoInstant, chicagoParts } from '../tz.ts';
 import { LlmError, type ChatMessage, type Effort, type Provider } from './types.ts';
 import { anthropicProvider } from './anthropic.ts';
 import { costMicro, estTokens, SEARCH_MICRO } from './prices.ts';
+import { wouldExceed } from '../missionbudget.ts';
 
 export type Task = 'chat' | 'analysis' | 'ping' | 'web';
 export type Candidate = { provider: string; model: string; effort: Effort; maxTokens: number };
@@ -55,6 +56,7 @@ export async function complete(db: DB, o: { task: Task; system: string; messages
     if (!p?.available()) continue;
     const est = costMicro(c.model, estTokens(inChars) + (o.webSearch ? 20_000 * o.webSearch.maxUses : 0), c.maxTokens) + (o.webSearch ? o.webSearch.maxUses * SEARCH_MICRO : 0);   // search results are read as input tokens: reserve for them
     if (spentToday(db, now) + est > cfg.dailyCeilingMicroUsd) return { ok: false, kind: 'daily_ceiling', error: `Daily model-spend ceiling reached ($${(cfg.dailyCeilingMicroUsd / 1e6).toFixed(2)}). Raising it needs your approval.` };
+    const mb = wouldExceed(db, o.ref, est); if (mb.exceeded) return { ok: false, kind: 'mission_budget', error: `This mission's own budget ($${((mb.capMicro ?? 0) / 1e6).toFixed(2)}) would be exceeded (used $${((mb.spentMicro ?? 0) / 1e6).toFixed(2)}). Raising it needs your approval.` };
     const res = reserve(db, est, `llm:${o.task}`, { optional: o.optional ?? o.task === 'analysis', ref: o.ref });
     if (!res.ok) return { ok: false, kind: 'budget', error: res.reason };
     try {

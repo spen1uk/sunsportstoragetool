@@ -214,3 +214,42 @@ test('web search settings over HTTP: turning it on needs step-up; turning it off
     assert.equal((await t.api('/api/websearch', { method: 'PUT', headers: t.me, body: { enabled: true, perDay: 9 } })).status, 403, 'turning it back on needs step-up again');
   } finally { t.close(); }
 });
+
+test('emergency stop: pauses, revokes every way in, keeps your data and sign-in, and is undone only on purpose', async () => {
+  const t = await boot();
+  try {
+    const step = () => t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    await step(); const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; const dv = { authorization: `Bearer ${token}` };
+    await step(); assert.equal((await t.api('/api/standing', { method: 'POST', headers: t.me, body: { type: 'add_task' } })).status, 200);
+    await step(); assert.equal((await t.api('/api/websearch', { method: 'PUT', headers: t.me, body: { enabled: true, perDay: 5 } })).status, 200);
+    await t.api('/api/bridge/token', { method: 'POST', headers: t.me, body: {} }).catch(() => null);
+    createTask(t.db, { title: 'My task' });
+    assert.equal((await t.api('/api/device/glance', { headers: dv })).status, 200);
+    await step();   // a pending step-up confirmation must be cancelled too
+    assert.equal((await t.api('/api/emergency-stop', { method: 'POST', headers: t.me, body: {} })).status, 400, 'needs an explicit confirm');
+    const r = await (await t.api('/api/emergency-stop', { method: 'POST', headers: t.me, body: { confirm: true } })).json() as any;
+    assert.equal(r.devicesRevoked, 1); assert.equal(r.standingRevoked, 1); assert.equal(r.webSearchOff, true);
+    assert.equal((await t.api('/api/device/glance', { headers: dv })).status, 401, 'the device key is dead');
+    assert.equal(((await (await t.api('/api/websearch', { headers: t.me })).json()) as any).enabled, false);
+    assert.equal(((await (await t.api('/api/standing', { headers: t.me })).json()) as any).items[0].status, 'revoked');
+    assert.equal((await t.api('/api/me', { headers: t.me })).status, 200, 'your own sign-in survives');
+    assert.equal((t.db.prepare("SELECT COUNT(*) c FROM tasks WHERE title='My task'").get() as any).c, 1, 'no data is deleted');
+    assert.equal((t.db.prepare("SELECT value FROM meta WHERE key='paused'").get() as any).value, '1');
+    assert.equal((await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'New', kind: 'phone' } })).status, 403, 'the cancelled step-up cannot be reused');
+    assert.ok((t.db.prepare("SELECT COUNT(*) c FROM audit WHERE action='system.emergency_stop'").get() as any).c === 1);
+  } finally { t.close(); }
+});
+
+test('permissions ledger: sign-in only, and it reflects real state', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/permissions')).status, 401);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } }); await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Phone', kind: 'phone' } });
+    const l = await (await t.api('/api/permissions', { headers: t.me })).json() as any;
+    assert.equal(l.devices.length, 1); assert.deepEqual(l.devices[0].scopes, ['chat', 'greeting', 'glance']); assert.ok(l.protectedActions.some((a: any) => a.type === 'trade_or_transfer' && !a.runnable));
+    assert.ok(l.standingEligible.includes('add_task')); assert.deepEqual(l.budgetDefaults, { quickMicro: 100_000, deepMicro: 2_000_000, exploreMonthlyMicro: 10_000_000 }); assert.ok(l.neverGrantable.length >= 4);
+    assert.doesNotMatch(JSON.stringify(l), /jvd_|token_hash/, 'no credentials in the ledger');
+    assert.equal((await t.api('/api/mission-defaults', { method: 'PUT', headers: t.me, body: { quickMicro: 100_000, deepMicro: 5_000_000, exploreMonthlyMicro: 10_000_000 } })).status, 403, 'raising a budget needs step-up');
+    assert.equal((await t.api('/api/mission-defaults', { method: 'PUT', headers: t.me, body: { quickMicro: 50_000, deepMicro: 1_000_000, exploreMonthlyMicro: 5_000_000 } })).status, 200, 'lowering does not');
+  } finally { t.close(); }
+});

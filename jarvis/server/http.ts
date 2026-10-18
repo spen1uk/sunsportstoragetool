@@ -34,6 +34,9 @@ import * as props from './proposals.ts';
 import * as standing from './standing.ts';
 import * as weather from './weather.ts';
 import * as websearch from './websearch.ts';
+import { permissionLedger } from './ledger.ts';
+import { emergencyStop } from './emergency.ts';
+import * as missionBudget from './missionbudget.ts';
 import * as bridge from './bridge.ts';
 import * as dev from './devices.ts';
 import { buildGreeting, buildGlance, toSpeech, coreState } from './greeting.ts';
@@ -214,6 +217,14 @@ route('POST', '/api/approvals/:id/decide', ({ db, params, body, session }) => {
   const ex = appr.execute(db, params.id);
   if (ex.ok) tasks.resumeForApproval(db, params.id, true);
   return { ok: true, executed: ex.ok, outcome: ex.outcome };
+});
+route('GET', '/api/permissions', ({ db }) => permissionLedger(db));
+route('POST', '/api/emergency-stop', ({ db, body }) => { if ((body as any)?.confirm !== true) throw new HttpError(400, 'confirmation required'); return emergencyStop(db); });
+route('PUT', '/api/mission-defaults', ({ db, session, body }) => {
+  const b = guard(() => z.object({ quickMicro: z.number().int(), deepMicro: z.number().int(), exploreMonthlyMicro: z.number().int() }).strict().parse(body)); const cur = missionBudget.getDefaults(db);
+  const raising = b.quickMicro > cur.quickMicro || b.deepMicro > cur.deepMicro || b.exploreMonthlyMicro > cur.exploreMonthlyMicro;
+  if (raising && !auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required to raise a budget');
+  guard(() => missionBudget.setDefaults(db, b)); if (raising) auth.consumeStepUp(db, session!); return { ok: true };
 });
 route('GET', '/api/websearch', ({ db }) => ({ ...websearch.getConfig(db), usedToday: websearch.usedToday(db) }));
 route('PUT', '/api/websearch', ({ db, session, body }) => { const c = guard(() => websearch.configInput.parse(body)); if (c.enabled && !websearch.getConfig(db).enabled) { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required to turn web search on'); websearch.setConfig(db, c); auth.consumeStepUp(db, session!); } else websearch.setConfig(db, c); return { ok: true }; });
