@@ -45,7 +45,7 @@ test('web search: the answer is stored flagged, and later normal chats only see 
   await converse(db, 'search: something');
   assert.equal((db.prepare("SELECT web FROM messages WHERE role='jarvis' ORDER BY id DESC LIMIT 1").get() as any).web, 1);
   const calls = fake('ok'); await converse(db, 'what next?');
-  const hist = calls[0].messages.find((m) => m.role === 'assistant')!.content; assert.match(hist, /^\(Earlier answer from a web search, unverified:\)/); assert.ok(hist.length < 600);
+  const hist = calls.find((c) => c.messages.some((m) => m.role === 'assistant'))!.messages.find((m) => m.role === 'assistant')!.content; assert.match(hist, /^\(Earlier answer from a web search, unverified:\)/); assert.ok(hist.length < 600);
 });
 
 test('web search: daily cap, sms, private mode, paused and missing model are all refused politely without spending', async () => {
@@ -98,4 +98,14 @@ test('questions the plain rules miss are judged by a tiny model check (question 
   on(db); calls = mk('YES'); const r = await converse(db, 'is the Hoan Bridge closed?'); assert.ok(calls[0].system.includes('YES or NO') && calls[0].messages[0].content === 'is the Hoan Bridge closed?' && !JSON.stringify(calls[0]).includes('Secret marina')); assert.ok(calls.some((c) => c.webSearch)); assert.match(r.text, /7pm/);
   for (const v of ['NO', 'maybe', '']) { calls = mk(v); const n = await converse(db, 'why is the sky blue and how does it work?'); assert.ok(calls.every((c) => !c.webSearch), v); assert.match(n.text, /Plain chat/); }
   calls = mk('YES'); await converse(db, 'what are my tasks today?'); assert.ok(calls.every((c) => !c.system.includes('YES or NO')), 'questions about his own things are never sent to the check'); await converse(db, 'hello there my friend'); assert.ok(calls.every((c) => !c.webSearch));
+});
+
+test('anything that is not about Luke himself or plain chit-chat is looked up: recommendations, comparisons, "best" questions; a search that ends without text is retried once; the chat model is told never to mention search commands', async () => {
+  const { looksLikeWebQuestion: L, isQuestionLike: Q, contextLine } = await import('../websearch.ts');
+  for (const q of ['what are the best crypto cold storage wallets', 'i am looking for a safe and secure crypto cold storage wallet. which is the best recommended', 'Ledger vs Trezor']) assert.equal(L(q), true, q);
+  for (const q of ['hi', 'thanks', 'ok', 'good morning', 'what are my tasks today?']) assert.equal(Q(q), false, q);
+  const db = makeDb(); on(db); assert.match(contextLine(db), /never tell Luke to type "search:"/);
+  let n = 0; gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req) { const first = n++ === 0; return { text: first ? '' : 'The Ledger Nano X and Trezor Safe 3 are the usual picks.', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 5, cacheReadTokens: 0 }, searches: 1, sources: [{ url: 'https://example.com/w', title: 'W' }] } as Completion; } } as Provider };
+  const r = await converse(db, 'what are the best crypto cold storage wallets'); assert.match(r.text, /Ledger Nano X/); assert.equal(n, 2); assert.ok((r.costMicroUsd ?? 0) >= 20_000, 'both searches are paid for');
+  const { buildSystemPrompt } = await import('../persona.ts'); assert.match(buildSystemPrompt(db), /Do not mention, correct, or apologise for earlier replies/);
 });

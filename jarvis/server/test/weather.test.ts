@@ -32,7 +32,7 @@ test('weather: only the two fixed weather hosts can ever be contacted', async ()
 
 test('weather: off until enabled; the model is told the truth in each state; stale data is never presented as live', async () => {
   const db = makeDb();
-  assert.match(buildContext(db, NOW), /WEATHER: not connected.*Settings → Weather/); assert.equal(await w.refresh(db, async () => forecast(), NOW).then((x) => x.ok), false, 'refresh does nothing while off');
+  assert.doesNotMatch(buildContext(db, NOW), /WEATHER/, 'weather is answered by the internet search now, so the model is told nothing about it'); assert.equal(await w.refresh(db, async () => forecast(), NOW).then((x) => x.ok), false, 'refresh does nothing while off');
   w.setConfig(db, place); let calls = 0; const f = async () => { calls++; return forecast(); };
   assert.match(buildContext(db, NOW), /connected but unavailable/, 'enabled but nothing fetched yet');
   assert.equal((await w.refresh(db, f, NOW)).ok, true); assert.equal(calls, 1);
@@ -43,7 +43,7 @@ test('weather: off until enabled; the model is told the truth in each state; sta
   const T = NOW + 40 * 60_000; assert.equal((await w.refresh(db, down, T)).ok, false); const n = calls; await w.refresh(db, down, T + 30_000); assert.equal(calls, n, 'after a failure, no retry for 2 minutes');
   assert.match(buildContext(db, T), /Chicago: 54°F.*\(Open-Meteo, 20 min ago\.\)/, 'a failed refresh keeps the old reading, labelled with its age');
   assert.match(buildContext(db, NOW + 4 * 3_600_000), /connected but unavailable/, 'over 3 hours old: not shown as weather');
-  w.clearConfig(db); assert.match(buildContext(db, NOW), /not connected/);
+  w.clearConfig(db); assert.doesNotMatch(buildContext(db, NOW), /WEATHER/);
 });
 
 test('weather: greeting mentions it only when recent, only in the fuller version', async () => {

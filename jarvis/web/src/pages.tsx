@@ -3,7 +3,7 @@ import { api, ago, usd, useLive, type AppState } from './api.ts';
 import { PersonaCard, ModelsCard } from './ai.tsx';
 import { ProjectsPanel } from './projects.tsx';
 import { MemorySuggestions } from './memsug.tsx';
-import { PasskeyCard, BackupCard, HealthCard, DevicesCard, StandingCard, WeatherCard, WebSearchCard } from './passkeycard.tsx';
+import { PasskeyCard, BackupCard, HealthCard, DevicesCard, StandingCard, WebSearchCard } from './passkeycard.tsx';
 import { passkeySupported, stepUpWithPasskey } from './passkey.ts';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -275,7 +275,6 @@ export function SettingsPage(p: { st: AppState; reload: () => void; quality: str
       <PasskeyCard />
       <DevicesCard />
       <HealthCard />
-      <WeatherCard />
       <WebSearchCard />
       <BackupCard />
       <PersonaCard />

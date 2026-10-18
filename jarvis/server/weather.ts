@@ -72,7 +72,7 @@ export async function refresh(db: DB, f: Fetcher = defaultFetcher, now = Date.no
 
 /** The line the chat model sees (data, not instructions). Honest about off / stale / unavailable. */
 export function contextLine(db: DB, now = Date.now()): string {
-  if (!getConfig(db)) return 'WEATHER: not connected. If Luke asks about weather, tell him he can turn it on in Settings → Weather (free, no account). Do not guess.';
+  if (!getConfig(db)) return '';   // weather questions are answered by the internet search now; there is nothing to say here
   const r = cached(db); if (!r || now - r.fetchedAt > USABLE_MS) return 'WEATHER: connected but unavailable right now (could not reach the weather service). Say so; do not guess.';
   return `WEATHER (live data): ${summarize(r, now)}`;
 }
