@@ -306,3 +306,17 @@ test('skills endpoints: sign-in only; grants, enabling and activation need a fre
     const run = await (await t.api(`/api/skills/workflows/${w.id}/run`, { method: 'POST', headers: t.me, body: {} })).json() as any; assert.equal(run.ok, true);
   } finally { t.close(); }
 });
+
+test('research results and retry: results appear only once a job has finished; retry works only on paused jobs; nothing is reachable by a device', async () => {
+  const t = await boot();
+  try {
+    const { setConfig } = await import('../websearch.ts'); const { startDeep } = await import('../deepresearch.ts'); setConfig(t.db, { enabled: true, perDay: 10 });
+    const tid = startDeep(t.db, 'a question to research properly', 'quick');
+    assert.equal((await t.api(`/api/research/${tid}/results`)).status, 401); assert.equal((await t.api(`/api/research/${tid}/results`, { headers: t.me })).status, 404);
+    assert.equal((await t.api(`/api/research/${tid}/retry`, { method: 'POST', headers: t.me, body: {} })).status, 409, 'a queued job is not paused');
+    t.db.prepare("UPDATE tasks SET state='waiting_input' WHERE id=?").run(tid);
+    assert.equal((await t.api(`/api/research/${tid}/retry`, { method: 'POST', headers: t.me, body: {} })).status, 200); assert.equal((t.db.prepare('SELECT state FROM tasks WHERE id=?').get(tid) as any).state, 'ready');
+    assert.equal((await t.api('/api/research/nope/retry', { method: 'POST', headers: t.me, body: {} })).status, 404);
+    const list = await (await t.api('/api/research', { headers: t.me })).json() as any; assert.equal(list.jobs[0].hasResults, false);
+  } finally { t.close(); }
+});

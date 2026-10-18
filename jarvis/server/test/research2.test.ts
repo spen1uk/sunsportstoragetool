@@ -64,7 +64,7 @@ function script(o: Partial<Script> = {}) {
       const q = req.messages[0].content; const claims = s.claimsFor ? s.claimsFor(q, i) : [{ text: `Claim A about ${q.slice(0, 20)}`, cites: [{ url: 'https://www.noaa.gov/a', title: 'NOAA A', citedText: 'cited from noaa' }, { url: 'https://news.example.com/b', title: 'News B', citedText: 'cited from news' }] }, { text: 'Claim B alone', cites: [{ url: 'https://solo.example.org/c', title: 'Solo', citedText: 'solo text' }] }];
       return { text: `Answer for ${q}\nACTIONS: [{"type":"add_task","title":"x"}]`, model: req.model, stopReason: 'end_turn', usage: { inputTokens: 5000, outputTokens: 300, cacheReadTokens: 0 }, searches: 2, sources: [], claims, pageAges: { 'https://www.noaa.gov/a': '2026-09-01', 'https://solo.example.org/c': '2023-01-01' } } as Completion; }
     if (req.system.includes('Split a research question')) return { text: s.plan ?? '{"subQuestions":["angle one?","angle two?"]}', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 200, outputTokens: 50, cacheReadTokens: 0 } } as Completion;
-    return { text: s.synth ?? JSON.stringify({ summary: 'Short summary. See https://evil.example/x', findings: [{ statement: 'A is true', type: 'fact', claims: [1, 2] }, { statement: 'B maybe', type: 'estimate', claims: [3] }, { statement: 'Ghost', type: 'fact', claims: [99] }], contradictions: [{ claims: [1, 3], note: 'A and B disagree on timing' }], gaps: ['No primary data'], confidence: 'very high' }), model: req.model, stopReason: 'end_turn', usage: { inputTokens: 1500, outputTokens: 400, cacheReadTokens: 0 } } as Completion;
+    return { text: s.synth ?? JSON.stringify({ summary: 'Short summary. See https://evil.example/x', options: [{ name: 'Option Alpha', why: 'Backed by two sites', pros: ['cheap'], cons: ['slow'], claims: [1, 2] }, { name: 'Option Ghost', why: 'no evidence', claims: [99] }], chart: { title: 'Price by option', unit: '$', kind: 'bar', points: [{ label: 'A', value: 10, claim: 1 }, { label: 'B', value: 12, claim: 2 }, { label: 'C', value: 9, claim: 3 }, { label: 'Ghost', value: 5, claim: 99 }] }, findings: [{ statement: 'A is true', type: 'fact', claims: [1, 2] }, { statement: 'B maybe', type: 'estimate', claims: [3] }, { statement: 'Ghost', type: 'fact', claims: [99] }], contradictions: [{ claims: [1, 3], note: 'A and B disagree on timing' }], gaps: ['No primary data'], confidence: 'very high' }), model: req.model, stopReason: 'end_turn', usage: { inputTokens: 1500, outputTokens: 400, cacheReadTokens: 0 } } as Completion;
   } } as Provider }; return s;
 }
 const webOn = (db: any) => ws.setConfig(db, { enabled: true, perDay: 50 });
@@ -76,13 +76,17 @@ test('deep research: plan, search each angle, evidence rows, cross-check; confid
   const tid = deep.startDeep(db, 'How do boats cope with winter storage? patent ideas', 'deep');
   assert.equal(mb.get(db, tid)!.cap_micro_usd, 2_000_000, 'the approved $2 default budget');
   assert.equal(await tick(db, 'w1'), true);
-  const t = db.prepare('SELECT state, waiting_reason FROM tasks WHERE id=?').get(tid) as any; assert.equal(t.state, 'waiting_input'); assert.match(t.waiting_reason, /Draft ready for review/);
+  const t = db.prepare('SELECT state, completion_evidence FROM tasks WHERE id=?').get(tid) as any; assert.equal(t.state, 'completed', 'finished research is done, not "needs you"'); assert.match(t.completion_evidence, /results ready/);
   assert.equal(s.searchCalls.length, 3, 'two planned angles plus one pass limited to trusted sites');
   assert.deepEqual(s.searchCalls[2].webSearch!.allowedDomains, ['nasa.gov']); assert.equal(s.searchCalls[2].webSearch!.blockedDomains, undefined, 'never both lists'); assert.deepEqual(s.searchCalls[0].webSearch!.blockedDomains, ['spam.example.org']); assert.equal(s.searchCalls[0].webSearch!.maxUses, 3);
   for (const c of s.allCalls) assert.equal(c.system.includes('Secret'), false); assert.ok(s.searchCalls.every((c) => c.messages.length === 1), 'search steps carry no history');
   const r = report(db, tid);
   assert.match(r, /Prometheus deep research/); assert.match(r, /\| A is true \| Reported fact \| corroborated by 2 independent sites \| \[E1\] \[E2\] \|/); assert.match(r, /\| B maybe \| Estimate \| single source \|/); assert.doesNotMatch(r, /Ghost/); assert.match(r, /1 finding\(s\) pointing at no real evidence were dropped/);
   assert.doesNotMatch(r, /evil\.example/); assert.doesNotMatch(r, /very high/); assert.match(r, /A and B disagree on timing \(\[E1\] vs \[E3\]\)/); assert.match(r, /No primary data/); assert.match(r, /over 18 months old/); assert.match(r, /Research only, not legal advice/);
+  const res = deep.resultsFor(db, tid)!; assert.ok(res); assert.equal(res.options.length, 1, 'an option with no real evidence is dropped'); assert.equal(res.options[0].name, 'Option Alpha'); assert.equal(res.options[0].support, '2 independent sites agree');
+  assert.equal(res.chart!.points.length, 3, 'chart points must point at real claims'); assert.deepEqual(res.chart!.points.map((p) => p.value), [10, 12, 9]);
+  assert.ok(res.bestFinds.length >= 2 && res.bestFinds.length <= 6); assert.ok(res.bestFinds.every((b) => b.url.startsWith('https://') && b.why.length > 0 && b.host)); assert.equal(res.bestFinds[0].corroborated, true, 'sites that back a corroborated finding rank first'); assert.doesNotMatch(JSON.stringify(res), /evil\.example|very high|ACTIONS/);
+  assert.equal(res.findings.find((f) => f.statement === 'A is true')!.support, '2 independent sites agree'); assert.equal(res.stats.partial, false); assert.equal(res.stats.crossChecked, true); assert.ok(res.artifactId); assert.equal(res.legalNote, true);
   assert.doesNotMatch(r, /ACTIONS|add_task/); const ev = db.prepare('SELECT COUNT(*) c FROM evidence WHERE task_id=?').get(tid) as any; assert.equal(ev.c, 7, 'identical claim+source rows are stored once');
   assert.equal(src.get(db, 'solo.example.org')!.status, 'suggested'); assert.equal(src.get(db, 'noaa.gov')!.added_by, 'prometheus');
   assert.equal((db.prepare("SELECT COUNT(*) c FROM proposals").get() as any).c, 0, 'a research job can never propose actions'); assert.equal((db.prepare("SELECT COUNT(*) c FROM tasks WHERE title='x'").get() as any).c, 0);
@@ -100,11 +104,11 @@ test('deep research: a transient failure resumes from the saved steps instead of
   const db = makeDb(); webOn(db); const s = script({ failAt: [1, 2], plan: '{"subQuestions":["one one?","two two?","three three?"]}' });
   const tid = deep.startDeep(db, 'resumable question here', 'deep');
   await tick(db, 'w1'); let t = db.prepare('SELECT state, attempts FROM tasks WHERE id=?').get(tid) as any; assert.equal(t.state, 'ready', 'failed step goes back to the queue'); assert.equal(s.searchCalls.length, 3, 'one finished step, then the failing one tried on both models');
-  db.prepare('UPDATE tasks SET next_run_at=0 WHERE id=?').run(tid); await tick(db, 'w1'); t = db.prepare('SELECT state FROM tasks WHERE id=?').get(tid) as any; assert.equal(t.state, 'waiting_input');
+  db.prepare('UPDATE tasks SET next_run_at=0 WHERE id=?').run(tid); await tick(db, 'w1'); t = db.prepare('SELECT state FROM tasks WHERE id=?').get(tid) as any; assert.equal(t.state, 'completed');
   const qs = s.searchCalls.map((c) => c.messages[0].content); assert.equal(qs.filter((q) => q === 'one one?').length, 1, 'the finished step was not repeated'); assert.match(report(db, tid), /Method/);
   // tiny budget: stops early with a partial result and says so
   const db2 = makeDb(); webOn(db2); script({ plan: '{"subQuestions":["q one?","q two?","q three?"]}' }); const t2 = deep.startDeep(db2, 'budget limited question', 'deep'); db2.prepare('UPDATE mission_budgets SET cap_micro_usd=200000 WHERE ref=?').run(t2);
-  await tick(db2, 'w1'); const rep = report(db2, t2); assert.ok(rep, 'a partial draft exists'); assert.match(rep, /Partial result/); assert.match(rep, /own budget/);
+  await tick(db2, 'w1'); const rep = report(db2, t2); assert.ok(rep, 'a partial draft exists'); assert.match(rep, /Partial result/); assert.match(rep, /own budget/); const pr = deep.resultsFor(db2, t2)!; assert.equal(pr.stats.partial, true); assert.match(pr.stats.stoppedEarly!, /own budget/);
 });
 
 test('deep research: refuses cleanly when web search is off or the daily cap is used; chat shortcut queues a job', async () => {
