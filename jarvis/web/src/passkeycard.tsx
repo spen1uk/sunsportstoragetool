@@ -178,7 +178,7 @@ export function WebSearchCard() {
       <p className="muted small">Lets Jarvis look things up on the internet <b>when you ask on purpose</b>: start a message with <code>search:</code> (or say "search the web for …", "google …"). The search runs on Anthropic's servers and comes back as a short answer with its sources; Jarvis's own server never opens the web pages. About 1 cent per search plus a few cents of model use, counted in your budget and your device limits.</p>
       <ul className="muted small">
         <li>A search question is walled off: it sees none of your calendar, tasks, memories or earlier chat, and it can't propose or do anything.</li>
-        <li>Web pages can be wrong or hostile, so every answer is labelled as unverified and shows its sources. Check anything that matters.</li>
+        <li>Web pages can be wrong or hostile. Jarvis answers in plain conversation and doesn't list links; ask “where did you get that?” (or “sources”) and it shows the pages it used. Check anything that matters.</li>
         <li>Not available over text messages. If the answer says web search "is not enabled", an administrator of your Anthropic account has it switched off in the Claude Console settings (that page can also limit which sites it uses).</li>
       </ul>
       <div className="row wrap section">

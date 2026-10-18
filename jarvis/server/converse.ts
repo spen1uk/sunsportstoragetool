@@ -11,7 +11,7 @@ import { extractProposals, createProposals } from './proposals.ts';
 import { autoRun } from './standing.ts';
 import { getDefaults } from './missionbudget.ts';
 import { refresh as refreshWeather } from './weather.ts';
-import { parseWebRequest, looksLikeWebQuestion, ask as askWeb, gate as webGate } from './websearch.ts';
+import { parseWebRequest, looksLikeWebQuestion, asksForSources, lastSources, ask as askWeb, gate as webGate } from './websearch.ts';
 import { startDeep } from './deepresearch.ts';
 import { describe as knowDescribe } from './knowledge.ts';
 import { mentions as chatMentions } from './chatimport.ts';
@@ -40,6 +40,11 @@ function history(db: DB): ChatMessage[] {
  */
 export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string; brief?: boolean; deviceId?: string } = {}): Promise<ChatReply> {
   const text = textIn.trim().slice(0, 2000), priv = !!o.private, cfg = getConfig(db);
+  if (!priv && asksForSources(text)) {   // sources are shown only when he asks
+    const reply = lastSources(db);
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
+    return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
   const knowQ = text.match(/^what (?:do|did|does) (?:you|we|jarvis) know about\s+(.{2,80}?)\s*[?.!]*$/i);
   if (knowQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // deterministic: reads the knowledge graph, no model, nothing sent anywhere
     const said = chatMentions(db, knowQ[1]); const reply = knowDescribe(db, knowQ[1]) + (said.length ? `\nAlso in chats you imported and made searchable: ${said.join('; ')}.` : '');
