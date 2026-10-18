@@ -414,3 +414,24 @@ test('over HTTP: briefs and imports need a session; deleting every import needs 
     for (const p of ['/api/briefs', '/api/imports']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
   } finally { t.close(); }
 });
+
+test('over HTTP: improvement pages need a session; promoting, rolling back and switching on self-drafting each need a fresh step-up; a device cannot reach any of it', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/improve')).status, 401);
+    const g = await (await t.api('/api/improve/gaps', { method: 'POST', headers: t.me, body: { title: 'Summarise my week automatically' } })).json() as any; assert.ok(g.id);
+    assert.equal((await t.api('/api/improve/gaps', { method: 'POST', headers: t.me, body: { title: 'Use key sk-ant-abcdefghijklmnopqrstuv now' } })).status, 400);
+    const m = await (await t.api('/api/improve', { headers: t.me })).json() as any; assert.equal(m.gaps.length, 1); assert.equal(m.auto, false);
+    assert.equal((await t.api(`/api/improve/gaps/${g.id}/draft`, { method: 'POST', headers: t.me, body: {} })).status, 400, 'no model connected in tests');
+    assert.equal((await t.api('/api/improve/x/promote', { method: 'POST', headers: t.me })).status, 403);
+    assert.equal((await t.api('/api/improve/x/rollback', { method: 'POST', headers: t.me })).status, 403);
+    assert.equal((await t.api('/api/improve/settings', { method: 'PUT', headers: t.me, body: { auto: true } })).status, 403, 'turning it on needs step-up');
+    assert.equal((await t.api('/api/improve/settings', { method: 'PUT', headers: t.me, body: { auto: false } })).status, 200, 'turning it off never does');
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    assert.equal((await t.api('/api/improve/settings', { method: 'PUT', headers: t.me, body: { auto: true } })).status, 200);
+    assert.equal((await t.api('/api/improve/x/promote', { method: 'POST', headers: t.me })).status, 403, 'that step-up was spent');
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any;
+    for (const p of ['/api/improve']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
+  } finally { t.close(); }
+});

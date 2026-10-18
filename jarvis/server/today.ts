@@ -31,6 +31,7 @@ const fmtDay = (t: number) => new Date(t).toLocaleDateString('en-US', { timeZone
 /** Briefing in the required order: urgent → updates → schedule/priorities → recommendations. Text only (read-aloud arrives with voice, deferred). */
 import { briefingItems as missionBriefing } from './missions.ts';
 import { due as decisionsDue } from './decisions.ts';
+import { briefingItems as improveBriefing } from './improve/rollout.ts';
 export function buildBriefing(db: DB, now = Date.now()) {
   const p = chicagoParts(now), isMonday = p.dow === 1;
   const urgent: Item[] = [], updates: Item[] = [], recs: Item[] = [], unavailable: string[] = [];
@@ -56,6 +57,7 @@ export function buildBriefing(db: DB, now = Date.now()) {
 
   for (const a of rows(db, "SELECT * FROM artifacts WHERE status='in_review' AND is_demo=0")) updates.push({ text: `Ready for review: ${a.title} (v${a.current_version})`, link: '#/review', level: 'info' });
   for (const d of decisionsDue(db, now)) updates.push({ text: `Time to look back: you decided "${d.title}" and expected to know how it went by ${d.expected_by}.`, link: '#/knowledge', level: 'info' });
+  for (const it of improveBriefing(db)) updates.push({ text: it.text, link: it.link, level: 'info' });
   for (const it of missionBriefing(db, now)) updates.push({ text: it.text, link: it.link, level: 'info' });   // self-started research that found something corroborated
   const since = new Date(now - 24 * 3600_000).toISOString();
   const done = rows(db, "SELECT title FROM tasks WHERE state='completed' AND completed_at > ? AND is_demo=0", since);

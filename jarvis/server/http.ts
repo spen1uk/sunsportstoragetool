@@ -43,6 +43,10 @@ import * as dec from './decisions.ts';
 import * as excl from './exclusions.ts';
 import { PRICES } from './llm/prices.ts';
 import * as briefs from './briefs.ts';
+import * as gaps from './improve/gaps.ts';
+import * as cand from './improve/candidates.ts';
+import * as sbox from './improve/sandbox.ts';
+import * as roll from './improve/rollout.ts';
 import * as cimp from './chatimport.ts';
 import * as providers from './llm/providers.ts';
 import * as mroutes from './llm/routes.ts';
@@ -178,6 +182,8 @@ route('POST', '/api/tasks/:id/tonight', ({ db, params, body }) => {
 });
 route('GET', '/api/projects', ({ db }) => ms.listProjects(db));
 route('GET', '/api/projects/:id', ({ db, params }) => { const d = ms.projectDetail(db, params.id); if (!d) throw new HttpError(404, 'not found'); return { ...d, tasks: rows(db, "SELECT id,title,state,kind,milestone_id FROM tasks WHERE project_id=? AND state!='canceled' ORDER BY created_at", params.id) }; });
+/** guard for async work: a rejected promise becomes the same 400 a thrown error would. */
+const aguard = async <T,>(f: () => Promise<T>): Promise<T> => { try { return await f(); } catch (e) { const m = e instanceof z.ZodError ? (e.issues[0]?.message ?? 'invalid input') : (e as Error).message; throw bad(/constraint|sqlite|SQL|no such (table|column)|syntax error/i.test(m) ? 'That could not be saved.' : m); } };
 const guard = <T,>(f: () => T): T => { try { return f(); } catch (e) { const m = e instanceof z.ZodError ? (e.issues[0]?.message ?? 'invalid input') : (e as Error).message; throw bad(/constraint|sqlite|SQL|no such (table|column)|syntax error/i.test(m) ? 'That could not be saved.' : m); } };
 route('POST', '/api/projects/:id/milestones', ({ db, params, body }) => {
   const b = parse(z.object({ title: z.string().min(1).max(200), description: z.string().max(2000).optional(), due: z.number().int().nullish(), dependsOn: z.string().nullish() }), body);
@@ -402,7 +408,7 @@ route('POST', '/api/proposals/:id/dismiss', ({ db, params }) => ({ ok: props.dis
 // ---- integrations: Claude Code briefs, handed-over chats ----
 route('GET', '/api/briefs', ({ db }) => ({ items: briefs.list(db), rules: briefs.FIXED_RULES }));
 route('POST', '/api/briefs', ({ db, body }) => ({ brief: guard(() => briefs.create(db, body)) }));
-route('POST', '/api/briefs/draft', async ({ db, body }) => { const b = parse(z.object({ request: z.string().min(10).max(3000), repo: z.string().max(170).default('') }), body); return { brief: await guard(() => briefs.draftFrom(db, b.request, b.repo)) }; });
+route('POST', '/api/briefs/draft', async ({ db, body }) => { const b = parse(z.object({ request: z.string().min(10).max(3000), repo: z.string().max(170).default('') }), body); return { brief: await aguard(() => briefs.draftFrom(db, b.request, b.repo)) }; });
 route('PATCH', '/api/briefs/:id', ({ db, params, body }) => ({ brief: guard(() => briefs.update(db, params.id, body)) }));
 route('POST', '/api/briefs/:id/ready', ({ db, params }) => ({ brief: guard(() => briefs.markReady(db, params.id)) }));
 route('POST', '/api/briefs/:id/launched', ({ db, params }) => ({ brief: guard(() => briefs.markLaunched(db, params.id)) }));
@@ -417,6 +423,20 @@ route('PATCH', '/api/imports/:id', ({ db, params, body }) => ({ ok: guard(() => 
 route('POST', '/api/imports/:id/suggest-memories', async ({ db, params }) => { const r = await cimp.suggestMemories(db, params.id); if (!r.ok) throw new HttpError(409, r.error); return r; });
 route('DELETE', '/api/imports/:id', ({ db, params }) => ({ ok: cimp.remove(db, params.id) }));
 route('DELETE', '/api/imports', ({ db, session, body }) => stepped(db, session, () => ({ deleted: cimp.removeAll(db) })));
+// ---- autonomous skill improvement: gaps → candidates → sandbox → staged → promoted (only by you) ----
+route('GET', '/api/improve', ({ db }) => ({ gaps: gaps.list(db), improvements: cand.list(db), auto: roll.autoDraft(db), modelReady: gw.ready(db, 'analysis'), capDefaultMicroUsd: cand.DEFAULT_CAP_MICRO, capMaxMicroUsd: cand.MAX_CAP_MICRO }));
+route('GET', '/api/improve/:id', ({ db, params }) => { const i = cand.get(db, params.id); if (!i) throw new HttpError(404, 'not found'); return { improvement: i, events: cand.events(db, params.id) }; });
+route('POST', '/api/improve/scan', ({ db }) => ({ found: gaps.scan(db) }));
+route('POST', '/api/improve/gaps', ({ db, body }) => ({ id: guard(() => gaps.file(db, body)) }));
+route('POST', '/api/improve/gaps/:id/dismiss', ({ db, params }) => ({ ok: gaps.setStatus(db, params.id, 'dismissed') }));
+route('POST', '/api/improve/gaps/:id/draft', async ({ db, params, body }) => { const b = parse(z.object({ capMicro: z.number().int().min(20_000).max(cand.MAX_CAP_MICRO).default(cand.DEFAULT_CAP_MICRO) }), body ?? {}); const imp = await aguard(() => cand.generate(db, params.id, { capMicro: b.capMicro })); if (imp && imp.status === 'proposed') await sbox.evaluate(db, imp.id); return { improvement: cand.get(db, imp!.id) }; });
+route('POST', '/api/improve/:id/test', async ({ db, params }) => ({ report: await aguard(() => sbox.evaluate(db, params.id)) }));
+route('POST', '/api/improve/:id/stage', ({ db, params }) => ({ improvement: guard(() => roll.stage(db, params.id)) }));
+route('POST', '/api/improve/:id/promote', async ({ db, session, params }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); const r = await aguard(() => roll.promote(db, params.id)); auth.consumeStepUp(db, session!); return { improvement: r }; });
+route('POST', '/api/improve/:id/rollback', ({ db, session, params }) => stepped(db, session, () => roll.rollback(db, params.id)));
+route('POST', '/api/improve/:id/brief', ({ db, params }) => ({ brief: guard(() => cand.toBrief(db, params.id)) }));
+route('POST', '/api/improve/:id/reject', ({ db, params }) => ({ ok: cand.reject(db, params.id) }));
+route('PUT', '/api/improve/settings', ({ db, session, body }) => { const b = parse(z.object({ auto: z.boolean() }), body); if (b.auto) return stepped(db, session, () => { roll.setAutoDraft(db, true); return { auto: true }; }); roll.setAutoDraft(db, false); return { auto: false }; });
 // ---- model router and evaluations ----
 const taskEnum = z.enum(['chat', 'analysis', 'ping', 'web']);
 route('GET', '/api/models', ({ db }) => { evals.sweepStale(db); return {

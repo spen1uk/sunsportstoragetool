@@ -21,4 +21,4 @@ id (`area.name`), title, purpose, owner (jarvis / prometheus), version, **permis
 A new *version* of an existing skill: add a second `define` with a higher `version`; it appears staged and you activate or roll back on the page.
 
 ## Not in this phase
-Autonomous skill discovery/creation (Phase 9) and third-party skills (any install needs your approval and the review in docs/DEPENDENCIES.md). Re-routing chat suggestions and approvals through `invoke` happens only after a period of parity.
+Third-party skills and any skill written by an agent (Phase 9 only proposes workflows of existing skills, or words for a person to build; see STATUS.md) (any install needs your approval and the review in docs/DEPENDENCIES.md). Re-routing chat suggestions and approvals through `invoke` happens only after a period of parity.

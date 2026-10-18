@@ -1,5 +1,6 @@
 import { openDb } from './db.ts';
 import { sweepStale as sweepEvals } from './evals/run.ts';
+import { daily as improveDaily, monitor as improveMonitor } from './improve/rollout.ts';
 import { config, dbPath } from './config.ts';
 import { createServer } from './http.ts';
 import { isConfigured } from './auth.ts';
@@ -24,7 +25,7 @@ createServer(db).listen(config.port, config.host, () => console.log(`Jarvis API 
 if (process.env.JARVIS_EMBEDDED_WORKER !== '0') { startWorker(db); console.log('Embedded worker started (set JARVIS_EMBEDDED_WORKER=0 and run `npm run worker` separately to split).'); }
 
 // Local, cheap: a 30-second tick decides what is due. No model calls, no polling of external services.
-const tick = () => { try { db.prepare('DELETE FROM sessions WHERE expires_at<?').run(Date.now()); db.prepare('DELETE FROM passkey_challenges WHERE created_at<?').run(Date.now() - 120_000); tickNotifications(db); maybeApplyRetention(db); } catch (e) { console.error('[notify]', (e as Error).message); } void maybeAutoSuggest(db).catch((e) => console.error('[memory]', (e as Error).message)); };
+const tick = () => { try { db.prepare('DELETE FROM sessions WHERE expires_at<?').run(Date.now()); db.prepare('DELETE FROM passkey_challenges WHERE created_at<?').run(Date.now() - 120_000); tickNotifications(db); maybeApplyRetention(db); improveMonitor(db); } catch (e) { console.error('[notify]', (e as Error).message); } void improveDaily(db).catch((e) => console.error('[improve]', (e as Error).message)); void maybeAutoSuggest(db).catch((e) => console.error('[memory]', (e as Error).message)); };
 setInterval(tick, 30_000); tick();
 // Missions: plan, start, watch and finish research missions (cheap, no model call unless a step needs planning or a review).
 let missionBusy = false; const missionTick = () => { if (missionBusy) return; missionBusy = true; void missions.tick(db).catch((e) => console.error('[missions]', (e as Error).message)).finally(() => { missionBusy = false; }); };

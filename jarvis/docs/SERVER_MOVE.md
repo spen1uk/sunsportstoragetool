@@ -71,7 +71,7 @@ Server $5–12/month, Tailscale free tier, outside alert free tier, Anthropic us
 
 - [x] Live web search (built: Anthropic's web search tool, opt-in, walled off from private data; needs a real-world test)
 
-- [ ] **Master expansion** (docs/MASTER_EXPANSION_AUDIT.md): Phases 1–6 and 8 built (8 = Claude Code briefs and ChatGPT imports only; email/SMS still waiting on F8–F21). Next, on your word: Phase 7 access broker (needs a human security review first) or Phase 8 integrations. Phase 5: decide your retention windows on the Knowledge page (default keeps everything). Open questions F8–F21 still to answer.
+- [ ] **Master expansion** (docs/MASTER_EXPANSION_AUDIT.md): Phases 1–6, 8 and 9 built (8 = Claude Code briefs and ChatGPT imports only; email/SMS still waiting on F8–F21). Next: Phase 7 access broker (needs a human security review first; the only phase left). Phase 5: decide your retention windows on the Knowledge page (default keeps everything). Open questions F8–F21 still to answer.
 
 **Blocked on others**
 - [ ] Trading/Investing report format (waiting on those chats)
