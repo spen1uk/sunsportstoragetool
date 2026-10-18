@@ -15,6 +15,7 @@ export function anthropicProvider(opts: { baseURL?: string; apiKey?: string; max
   return {
     id: 'anthropic',
     available: () => !!key(),
+    capabilities: { webSearch: true },
     async complete(req: CompletionRequest): Promise<Completion> {
       const c = get();
       try {

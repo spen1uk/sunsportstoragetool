@@ -41,6 +41,11 @@ import * as deep from './deepresearch.ts';
 import * as know from './knowledge.ts';
 import * as dec from './decisions.ts';
 import * as excl from './exclusions.ts';
+import { PRICES } from './llm/prices.ts';
+import * as providers from './llm/providers.ts';
+import * as mroutes from './llm/routes.ts';
+import * as evals from './evals/run.ts';
+import { CASES } from './evals/cases.ts';
 import * as sources from './sources.ts';
 import * as missions from './missions.ts';
 import * as tempagents from './tempagents.ts';
@@ -392,6 +397,21 @@ route('DELETE', '/api/workspaces/:name', ({ db, params }) => guard(() => { ws.de
 route('GET', '/api/proposals', ({ db }) => props.listPending(db));
 route('POST', '/api/proposals/:id/confirm', ({ db, params }) => props.confirm(db, params.id));
 route('POST', '/api/proposals/:id/dismiss', ({ db, params }) => ({ ok: props.dismiss(db, params.id) }));
+// ---- model router and evaluations ----
+const taskEnum = z.enum(['chat', 'analysis', 'ping', 'web']);
+route('GET', '/api/models', ({ db }) => { evals.sweepStale(db); return {
+  providers: providers.list(db),
+  routes: mroutes.ROUTABLE.map((t) => ({ task: t, effective: mroutes.effective(db, t), overridden: mroutes.isOverridden(db, t), default: gw.DEFAULT_ROUTES[t] })),
+  knownModels: Object.keys(PRICES).map((m) => ({ model: m, inPerMTok: PRICES[m].in, outPerMTok: PRICES[m].out })),
+  runs: evals.runs(db), scores: evals.scores(db), live: evals.liveStats(db), recommendations: (['chat', 'analysis'] as const).map((t) => evals.recommend(db, t)),
+  cases: CASES.map((c) => ({ id: c.id, task: c.task, title: c.title })), defaultCapMicroUsd: evals.DEFAULT_CAP_MICRO, maxCapMicroUsd: evals.MAX_CAP_MICRO, threshold: evals.THRESHOLD,
+}; });
+route('POST', '/api/models/eval/estimate', ({ db, body }) => { const b = parse(z.object({ task: z.enum(['chat', 'analysis']), provider: z.string(), model: z.string() }), body); return { ...evals.estimate(b.task, b.model), refusal: evals.refusal(db, b.provider, b.model) }; });
+route('POST', '/api/models/eval', ({ db, session, body }) => stepped(db, session, () => ({ id: evals.startEval(db, body).id })));
+route('GET', '/api/models/eval/:id', ({ db, params }) => { const r = db.prepare('SELECT * FROM eval_runs WHERE id=?').get(params.id); if (!r) throw new HttpError(404, 'not found'); return { run: r, results: evals.results(db, params.id) }; });
+route('PUT', '/api/models/routes/:task', ({ db, session, params, body }) => { const t = parse(taskEnum, params.task); return stepped(db, session, () => ({ route: mroutes.setRoute(db, t, (body as any)?.candidates) })); });
+route('DELETE', '/api/models/routes/:task', ({ db, params }) => ({ ok: mroutes.clearRoute(db, parse(taskEnum, params.task)) }));
+route('PUT', '/api/models/providers/:id', ({ db, session, params, body }) => { const b = parse(z.object({ approved: z.boolean(), allowPrivate: z.boolean() }), body); return stepped(db, session, () => ({ provider: providers.setApproval(db, params.id, b) })); });
 // ---- knowledge graph, decisions, exclusions, retention ----
 route('GET', '/api/knowledge', ({ db, url }) => { const q = (url.searchParams.get('q') ?? '').trim(); return q ? know.knowAbout(db, q) : { entities: know.listEntities(db), kinds: know.KINDS, rels: know.RELS, scopes: know.SCOPES }; });
 route('GET', '/api/knowledge/graph', ({ db, url }) => know.graph(db, url.searchParams.get('centre') ?? undefined));
@@ -458,7 +478,7 @@ route('PUT', '/api/persona', ({ db, body }) => { const r = personaSchema.safePar
 route('GET', '/api/llm', ({ db }) => ({
   providers: Object.values(gw.registry.providers).map((p) => ({ id: p.id, configured: p.available() })),
   anthropicKeyConfigured: hasSecret('anthropic'),
-  config: gw.getConfig(db), routes: gw.DEFAULT_ROUTES, usage: gw.usageSummary(db), spentTodayMicroUsd: gw.spentToday(db),
+  config: gw.getConfig(db), routes: Object.fromEntries(mroutes.ROUTABLE.map((t) => [t, mroutes.effective(db, t)])), usage: gw.usageSummary(db), spentTodayMicroUsd: gw.spentToday(db),
   note: 'Keys live server-side only (env var or data/secrets.json, mode 0600). Set with: npm run secret:set -- anthropic',
 }));
 route('PUT', '/api/llm/config', ({ db, body }) => {

@@ -7,8 +7,9 @@ import { LlmError, type ChatMessage, type Effort, type Provider } from './types.
 import { anthropicProvider } from './anthropic.ts';
 import { costMicro, estTokens, SEARCH_MICRO } from './prices.ts';
 import { wouldExceed } from '../missionbudget.ts';
+import { effective, order } from './routes.ts';
 
-export type Task = 'chat' | 'analysis' | 'ping' | 'web';
+export type Task = 'chat' | 'analysis' | 'ping' | 'web' | 'eval';
 export type Candidate = { provider: string; model: string; effort: Effort; maxTokens: number };
 export type LlmConfig = { dailyCeilingMicroUsd: number; strongEnabled: boolean; allowInPrivate: boolean };
 
@@ -17,6 +18,7 @@ export const DEFAULT_ROUTES: Record<Task, Candidate[]> = {
   chat: [{ provider: 'anthropic', model: 'claude-haiku-5-5', effort: 'low', maxTokens: 700 }, { provider: 'anthropic', model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 700 }],
   analysis: [{ provider: 'anthropic', model: 'claude-sonnet-5-5', effort: 'medium', maxTokens: 2500 }, { provider: 'anthropic', model: 'claude-haiku-5-5', effort: 'medium', maxTokens: 2500 }],
   ping: [{ provider: 'anthropic', model: 'claude-haiku-5-5', effort: 'low', maxTokens: 16 }],
+  eval: [],   // evaluation runs name their model explicitly (`pin`); there is no default route
   web: [{ provider: 'anthropic', model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 900 }, { provider: 'anthropic', model: 'claude-haiku-5-5', effort: 'low', maxTokens: 900 }],   // search turns read untrusted pages: the stronger model goes first
 };
 export const DEFAULT_CONFIG: LlmConfig = { dailyCeilingMicroUsd: 1_000_000, strongEnabled: true, allowInPrivate: false }; // $1.00/day
@@ -32,7 +34,7 @@ export function spentToday(db: DB, now = Date.now()) {
 }
 
 export function ready(db: DB, task: Task = 'chat'): boolean {
-  return !isPaused(db) && DEFAULT_ROUTES[task].some((c) => registry.providers[c.provider]?.available());
+  return !isPaused(db) && effective(db, task).some((c) => registry.providers[c.provider]?.available());
 }
 
 export type Result = { ok: true; text: string; model: string; costMicroUsd: number; searches?: number; sources?: { url: string; title: string }[]; claims?: import('./types.ts').Claim[]; pageAges?: Record<string, string> } | { ok: false; kind: string; error: string };
@@ -42,29 +44,31 @@ export type Result = { ok: true; text: string; model: string; costMicroUsd: numb
  * Transient failures (rate limit, network, 5xx) and auth failures fall through to the next candidate; refusals and
  * bad requests do not. Every attempt is recorded in llm_usage; the reservation is replaced by actual cost.
  */
-export async function complete(db: DB, o: { task: Task; system: string; messages: ChatMessage[]; strong?: boolean; ref?: string; optional?: boolean; channel?: string; deviceId?: string; webSearch?: { maxUses: number; timezone?: string; allowedDomains?: string[]; blockedDomains?: string[] } }, now = Date.now()): Promise<Result> {
+export async function complete(db: DB, o: { task: Task; system: string; messages: ChatMessage[]; strong?: boolean; ref?: string; optional?: boolean; channel?: string; deviceId?: string; webSearch?: { maxUses: number; timezone?: string; allowedDomains?: string[]; blockedDomains?: string[] }; pin?: Candidate }, now = Date.now()): Promise<Result> {
   if (isPaused(db)) return { ok: false, kind: 'paused', error: 'Jarvis is paused; no model calls.' };
   const cfg = getConfig(db);
-  let route = DEFAULT_ROUTES[o.task];
-  if (o.strong && cfg.strongEnabled && o.task === 'chat') route = [...DEFAULT_ROUTES.analysis];
+  let route = o.pin ? [o.pin] : effective(db, o.task);
+  if (o.strong && cfg.strongEnabled && o.task === 'chat') route = [...effective(db, 'analysis')];
+  if (!o.pin) route = order(db, route, now);
   if (!cfg.strongEnabled) route = route.filter((c) => !c.model.includes('sonnet'));
   const inChars = o.system + o.messages.map((m) => m.content).join('\n');
   let lastError = 'No model provider is configured.', lastKind = 'unavailable';
 
   for (const c of route) {
     const p = registry.providers[c.provider];
-    if (!p?.available()) continue;
+    if (!p?.available() || (o.webSearch && p.capabilities && !p.capabilities.webSearch)) continue;
     const est = costMicro(c.model, estTokens(inChars) + (o.webSearch ? 20_000 * o.webSearch.maxUses : 0), c.maxTokens) + (o.webSearch ? o.webSearch.maxUses * SEARCH_MICRO : 0);   // search results are read as input tokens: reserve for them
     if (spentToday(db, now) + est > cfg.dailyCeilingMicroUsd) return { ok: false, kind: 'daily_ceiling', error: `Daily model-spend ceiling reached ($${(cfg.dailyCeilingMicroUsd / 1e6).toFixed(2)}). Raising it needs your approval.` };
     const mb = wouldExceed(db, o.ref, est); if (mb.exceeded) return { ok: false, kind: 'mission_budget', error: `This mission's own budget ($${((mb.capMicro ?? 0) / 1e6).toFixed(2)}) would be exceeded (used $${((mb.spentMicro ?? 0) / 1e6).toFixed(2)}). Raising it needs your approval.` };
     const res = reserve(db, est, `llm:${o.task}`, { optional: o.optional ?? o.task === 'analysis', ref: o.ref });
     if (!res.ok) return { ok: false, kind: 'budget', error: res.reason };
+    const t0 = Date.now();
     try {
       const r = await p.complete({ model: c.model, system: o.system, messages: o.messages, maxTokens: c.maxTokens, effort: c.effort, ...(o.webSearch ? { webSearch: o.webSearch } : {}) });
       const cost = costMicro(c.model, r.usage.inputTokens, r.usage.outputTokens) + (r.searches ?? 0) * SEARCH_MICRO; // price the model we asked for, not whatever alias the provider echoes
       settle(db, res.id, cost, `llm:${o.task}`);
-      db.prepare('INSERT INTO llm_usage(at,task,provider,model,input_tokens,output_tokens,cache_read_tokens,cost_micro_usd,ok,ref,channel,device_id) VALUES(?,?,?,?,?,?,?,?,1,?,?,?)')
-        .run(now, o.task, c.provider, c.model, r.usage.inputTokens, r.usage.outputTokens, r.usage.cacheReadTokens, cost, o.ref ?? null, o.channel ?? null, o.deviceId ?? null);
+      db.prepare('INSERT INTO llm_usage(at,task,provider,model,input_tokens,output_tokens,cache_read_tokens,cost_micro_usd,ok,ref,channel,device_id,latency_ms) VALUES(?,?,?,?,?,?,?,?,1,?,?,?,?)')
+        .run(now, o.task, c.provider, c.model, r.usage.inputTokens, r.usage.outputTokens, r.usage.cacheReadTokens, cost, o.ref ?? null, o.channel ?? null, o.deviceId ?? null, Date.now() - t0);
       return { ok: true, text: r.text, model: c.model, costMicroUsd: cost, searches: r.searches ?? 0, sources: r.sources ?? [], claims: r.claims ?? [], pageAges: r.pageAges ?? {} };
     } catch (e) {
       releaseReservation(db, res.id);

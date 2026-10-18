@@ -369,3 +369,27 @@ test('over HTTP: knowledge and decisions need a session; import and retention ch
     for (const p of ['/api/knowledge', '/api/decisions', '/api/exclusions', '/api/knowledge/export']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
   } finally { t.close(); }
 });
+
+test('over HTTP: model page needs a session; route, provider and evaluation changes each need a fresh step-up that is spent; bad routes are refused; a device cannot reach any of it', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/models')).status, 401);
+    const m = await (await t.api('/api/models', { headers: t.me })).json() as any; assert.ok(m.providers.some((p: any) => p.id === 'anthropic' && p.approved) && m.providers.some((p: any) => p.id === 'openai' && !p.connected)); assert.ok(m.cases.length >= 10 && m.routes.length === 4);
+    const body = { candidates: [{ provider: 'anthropic', model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 500 }] };
+    assert.equal((await t.api('/api/models/routes/chat', { method: 'PUT', headers: t.me, body })).status, 403);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    assert.equal((await t.api('/api/models/routes/chat', { method: 'PUT', headers: t.me, body })).status, 200);
+    assert.equal((await t.api('/api/models/routes/chat', { method: 'PUT', headers: t.me, body })).status, 403, 'spent');
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    assert.equal((await t.api('/api/models/routes/chat', { method: 'PUT', headers: t.me, body: { candidates: [{ provider: 'openai', model: 'gpt-x', effort: 'low', maxTokens: 500 }] } })).status, 400);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    assert.equal((await t.api('/api/models/providers/openai', { method: 'PUT', headers: t.me, body: { approved: true, allowPrivate: false } })).status, 400, 'no code, nothing to approve');
+    assert.equal((await t.api('/api/models/routes/bogus', { method: 'DELETE', headers: t.me })).status, 400);
+    assert.equal((await t.api('/api/models/routes/chat', { method: 'DELETE', headers: t.me })).status, 200);
+    assert.equal((await t.api('/api/models/eval', { method: 'POST', headers: t.me, body: { task: 'chat', provider: 'anthropic', model: 'claude-haiku-5-5' } })).status, 400, 'no API key in tests, so refused before any call (a failed action does not spend the step-up)');
+    const est = await (await t.api('/api/models/eval/estimate', { method: 'POST', headers: t.me, body: { task: 'chat', provider: 'anthropic', model: 'claude-haiku-5-5' } })).json() as any; assert.ok(est.microUsd > 0 && est.cases === 6);
+    const { token } = await (async () => { await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } }); return await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; })();
+    for (const p of ['/api/models']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
+
+  } finally { t.close(); }
+});

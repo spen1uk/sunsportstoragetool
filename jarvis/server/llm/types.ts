@@ -17,5 +17,7 @@ export interface Provider {
   id: string;
   /** True when credentials exist. Never exposes them. */
   available(): boolean;
+  /** What this provider can do beyond plain text. Absent means text only. */
+  capabilities?: { webSearch?: boolean };
   complete(req: CompletionRequest): Promise<Completion>;
 }

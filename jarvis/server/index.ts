@@ -1,4 +1,5 @@
 import { openDb } from './db.ts';
+import { sweepStale as sweepEvals } from './evals/run.ts';
 import { config, dbPath } from './config.ts';
 import { createServer } from './http.ts';
 import { isConfigured } from './auth.ts';
@@ -15,6 +16,7 @@ import { bus } from './events.ts';
 import { startHeartbeat } from './heartbeat.ts';
 
 const db = openDb(dbPath());
+sweepEvals(db, Date.now() + 600_001);   // an evaluation cannot survive a restart
 seedStructure(db);
 if (!isConfigured(db)) { console.error('Not set up yet. Run: npm run setup'); process.exit(1); }
 if (config.host !== '127.0.0.1' && config.host !== 'localhost') console.warn('WARNING: binding to a non-loopback address. Put TLS and a reverse proxy in front; never expose this port directly.');
