@@ -65,3 +65,18 @@ test('web search: settings validate; turning on is the only step that needs step
   for (const bad of [{ enabled: true, perDay: 0 }, { enabled: true, perDay: 51 }, { enabled: 'yes', perDay: 5 }, { enabled: true, perDay: 5, extra: 1 }]) assert.throws(() => ws.setConfig(db, bad));
   on(db, 7); assert.equal(ws.getConfig(db).perDay, 7); assert.match(getMeta(db, 'web:config')!, /"enabled":true/);
 });
+
+test('everyday questions that need the internet go to the web on their own; anything about Luke’s own things, commands, private mode, SMS, or search being off stay ordinary', async () => {
+  const { looksLikeWebQuestion: L } = await import('../websearch.ts');
+  for (const q of ["what's the weather in West Allis", 'Any news on the Brewers today?', 'who won the game last night', 'how much is a boat trailer hitch', 'look up the opening hours for Menards', 'what is the latest on the Fed rate decision']) assert.equal(L(q), true, q);
+  for (const q of ['what is on my calendar today', 'remind me about the weather tomorrow', 'add a task to check the forecast', 'tell me a joke', 'hi', 'what are my tasks', 'approve it', 'deep research: latest storage costs', 'how are you today']) assert.equal(L(q), false, q);
+});
+
+test('everyday web questions are answered from the web without "search:", seeing nothing private; with search off they quietly stay ordinary chat; private mode and SMS never search', async () => {
+  const db = makeDb(); createTask(db, { title: 'Secret marina deal', kind: 'manual', priority: 1 } as any);
+  const calls = fake('Sunny, 62°F.', { searches: 1 }); const off = await converse(db, "what's the weather in West Allis");
+  assert.ok(calls.every((c) => !c.webSearch), 'search off: a normal chat, not a search'); assert.ok(!/switched off/i.test(off.text));
+  on(db); calls.length = 0; const r = await converse(db, "what's the weather in West Allis"); assert.ok(calls.some((c) => c.webSearch), 'it searched on its own'); assert.ok(!JSON.stringify(calls).includes('Secret marina deal'));
+  calls.length = 0; await converse(db, "what's the weather in West Allis", { private: true }); assert.ok(calls.every((c) => !c.webSearch)); await converse(db, "what's the weather in West Allis", { channel: 'sms' }); assert.ok(calls.every((c) => !c.webSearch));
+  calls.length = 0; await converse(db, 'what is on my calendar today'); assert.ok(calls.every((c) => !c.webSearch), 'questions about his own things stay private'); void r;
+});

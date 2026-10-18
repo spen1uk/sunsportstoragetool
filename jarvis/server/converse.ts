@@ -11,7 +11,7 @@ import { extractProposals, createProposals } from './proposals.ts';
 import { autoRun } from './standing.ts';
 import { getDefaults } from './missionbudget.ts';
 import { refresh as refreshWeather } from './weather.ts';
-import { parseWebRequest, ask as askWeb, gate as webGate } from './websearch.ts';
+import { parseWebRequest, looksLikeWebQuestion, ask as askWeb, gate as webGate } from './websearch.ts';
 import { startDeep } from './deepresearch.ts';
 import { describe as knowDescribe } from './knowledge.ts';
 import { mentions as chatMentions } from './chatimport.ts';
@@ -63,7 +63,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   }
   if (!priv && /^(dig deeper|go deeper|research (this|that) properly)\b/i.test(text) && (o.channel ?? 'dashboard') !== 'sms') {
     const last = getMeta(db, 'web:last'); const why = webGate(db, { channel: o.channel ?? 'dashboard' });
-    const reply = !last ? "There's nothing to dig into yet, sir. Ask me something starting with \"search:\" first." : why ? why : (startDeep(db, last, 'deep'), `Understood, sir. I've handed that to Prometheus for a proper look: "${last.slice(0, 80)}". The results will be on its page when it's done.`);
+    const reply = !last ? "There's nothing to dig into yet, sir. Ask me something that needs the internet first." : why ? why : (startDeep(db, last, 'deep'), `Understood, sir. I've handed that to Prometheus for a proper look: "${last.slice(0, 80)}". The results will be on its page when it's done.`);
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
@@ -72,6 +72,8 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   const modelOk = ready(db, 'chat') && (!priv || cfg.allowInPrivate);
   const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk, channel: o.channel });
   if (!cmd.fallback) return { ...cmd, source: 'command' };
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && looksLikeWebQuestion(text) && !webGate(db, { channel: o.channel ?? 'dashboard' }))   // everyday questions that need the internet just go there; if search is off or at its limit, fall through to a normal chat
+    return await webTurn(db, text, text, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
 
   const strong = /^deep:\s*/i.test(text); const prompt = text.replace(/^deep:\s*/i, '');
   const messages: ChatMessage[] = [...(priv ? [] : history(db)), { role: 'user', content: prompt }];

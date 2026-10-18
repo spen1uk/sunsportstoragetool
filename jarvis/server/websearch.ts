@@ -35,6 +35,19 @@ export function parseWebRequest(text: string): string | null {
   return null;
 }
 
+/**
+ * Everyday questions that need the internet (weather, news, prices, scores, "look up", opening hours…) go to the web on their own, so Luke
+ * does not have to type "search:". Deliberately plain rules, no model: anything that mentions his own tasks, calendar, notes, memory or
+ * messages stays an ordinary private chat, and the web turn itself never sees any of his data.
+ */
+const PRIVATE_WORDS = /\b(my|our|mine)\s+(tasks?|to-?dos?|calendar|schedule|reminders?|notes?|habits?|memor(?:y|ies)|projects?|budget|approvals?|e-?mails?|messages?|texts?|passphrase|password|goals?|day|week|briefing)\b|\b(remind me|add (?:a )?task|remember that|approve|deny)\b/i;
+const WEB_WORDS = /\b(weather|forecast|temperature|rain(?:ing)?|snow(?:ing)?|news|headlines?|latest|breaking|right now|currently|today'?s|tonight|this (?:week|weekend)|score|scores|who won|standings|stock|share price|price of|how much (?:is|are|does|do)|exchange rate|release date|when (?:is|does|did|will)|what happened|what'?s happening|opening hours|open (?:now|today)|look(?:ing)? up|look it up|find (?:me|out|information|info)|search for|any news|trending|review of|reviews of)\b/i;
+export function looksLikeWebQuestion(text: string): boolean {
+  const t = text.trim(); if (t.length < 8 || t.length > 400) return false;
+  if (/^(deep|deep research|prometheus|mission|research deeply)\s*:/i.test(t) || PRIVATE_WORDS.test(t)) return false;
+  return WEB_WORDS.test(t);
+}
+
 const bad = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f​-‏‪-‮⁠-⁤⁦-⁩﻿]/g;
 export const clean = (s: string, n: number) => s.replace(bad, '').replace(/<[^>\n]{0,200}>/g, '').replace(/[<>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, n);
 /** Keep only plain https links, show the site name, drop duplicates. Titles are page-controlled text, so they are cleaned and clipped. */
