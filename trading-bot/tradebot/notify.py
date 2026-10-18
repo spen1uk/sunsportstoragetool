@@ -1,4 +1,4 @@
-"""Optional push updates to your phone via a Discord webhook and/or a Telegram bot."""
+"""Push updates: Jarvis (your assistant), Telegram and/or Discord - whichever are configured."""
 import json
 import os
 import time
@@ -14,9 +14,18 @@ def _post(url, payload, form=False):
         r.read()
 
 
-def notify(cfg, text, log=print):
+def notify(cfg, text, log=print, kind="info", data=None):
+    """kind: trade_opened / trade_closed / daily_summary / learning / memory / error / halt / test.
+    Jarvis gets the kind and structured data too; chat apps just get the text."""
     rep = cfg.get("reports", {})
     sent = False
+    if rep.get("jarvis_webhook_url"):
+        from .jarvis import deliver, make_event
+        try:
+            sent = deliver(rep["jarvis_webhook_url"], rep.get("jarvis_secret", ""),
+                           make_event(kind, text, data), log) or sent
+        except Exception as e:  # alerts must never stop trading
+            log(f"[notify] Jarvis failed: {e}")
     if rep.get("discord_webhook_url"):
         try:
             _post(rep["discord_webhook_url"], {"content": text[:1900]})

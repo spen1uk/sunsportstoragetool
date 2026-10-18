@@ -10,6 +10,7 @@
   python run.py rollback            # undo the last self-improvement change
   python run.py demo                # offline demo on SIMULATED prices (no internet needed)
   python run.py telegram            # connect phone alerts (Telegram), step by step
+  python run.py jarvis              # connect Jarvis (your assistant) for alerts + questions
   python run.py test-alert          # send a test alert to your phone
   python run.py dashboard           # live dashboard at http://127.0.0.1:8050 (run next to `run`)
   python run.py dashboard --demo    # dashboard filled with SIMULATED data, to try it out
@@ -25,7 +26,7 @@ sys.path.insert(0, HERE)
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["run", "once", "status", "report", "backtest", "learn",
-                                        "resume", "rollback", "demo", "dashboard", "telegram", "test-alert"])
+                                        "resume", "rollback", "demo", "dashboard", "telegram", "jarvis", "test-alert"])
     ap.add_argument("--config", default=None)
     ap.add_argument("--bars", type=int, default=None, help="history length for backtest")
     ap.add_argument("--demo", action="store_true", help="dashboard: use simulated data")
@@ -49,10 +50,15 @@ def main():
         telegram_setup(os.path.join(HERE, ".env"))
         print("If the bot runs on a server, restart it so it picks this up:  sudo systemctl restart tradebot")
         return
+    if args.command == "jarvis":
+        from tradebot.jarvis import jarvis_setup
+        jarvis_setup(os.path.join(HERE, ".env"))
+        print("If the bot runs on a server, restart it:  sudo systemctl restart tradebot tradebot-dashboard")
+        return
     if args.command == "test-alert":
         from tradebot.notify import notify
-        ok = notify(cfg, "🔔 Test alert from your trading bot - alerts are working.")
-        print("Sent!" if ok else "Nothing sent - run `python3 run.py telegram` first.")
+        ok = notify(cfg, "🔔 Test alert from your trading bot - alerts are working.", kind="test")
+        print("Sent!" if ok else "Nothing sent - run `python3 run.py jarvis` or `python3 run.py telegram` first.")
         return
     if args.command == "dashboard":
         from tradebot.dashboard import build_demo, serve, write_snapshot

@@ -8,7 +8,8 @@ import unittest
 
 TMP = tempfile.mkdtemp(prefix="tradebot-test-")
 os.environ["TRADEBOT_DATA_DIR"] = TMP
-for _secret in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "DISCORD_WEBHOOK_URL", "ANTHROPIC_API_KEY"):
+for _secret in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "DISCORD_WEBHOOK_URL", "ANTHROPIC_API_KEY",
+                "JARVIS_WEBHOOK_URL", "JARVIS_SECRET", "JARVIS_API_TOKEN"):
     os.environ[_secret] = ""  # tests must never message your phone, even if a real .env exists
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -423,6 +424,131 @@ class Telegram(unittest.TestCase):
             self.assertEqual(notify.telegram_setup(path, token="123:abc"), 777)
         self.assertIn("TELEGRAM_CHAT_ID=777", open(path).read())
         self.assertEqual(post.call_args[0][1]["chat_id"], 777)  # test message sent
+
+
+class Jarvis(unittest.TestCase):
+    def _fake_jarvis(self, secret):
+        """A stand-in for Jarvis: records events whose signature checks out."""
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        from tradebot.jarvis import verify
+        got = []
+
+        class H(BaseHTTPRequestHandler):
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers["Content-Length"]))
+                ok = verify(secret, body, self.headers.get("X-Bot-Signature"))
+                if ok:
+                    got.append(json.loads(body))
+                self.send_response(200 if ok else 403)
+                self.end_headers()
+
+            def log_message(self, *a):
+                pass
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        return srv, got, f"http://127.0.0.1:{srv.server_address[1]}/hook"
+
+    def setUp(self):
+        from tradebot.jarvis import outbox_path
+        if os.path.exists(outbox_path()):
+            os.remove(outbox_path())
+        self._no_proxy = os.environ.get("no_proxy"), os.environ.get("NO_PROXY")
+        os.environ["no_proxy"] = os.environ["NO_PROXY"] = "127.0.0.1,localhost"
+
+    def tearDown(self):
+        for k, v in zip(("no_proxy", "NO_PROXY"), self._no_proxy):
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+    def test_signed_events_reach_jarvis(self):
+        from tradebot.notify import notify
+        srv, got, url = self._fake_jarvis("s3cret")
+        cfg = copy.deepcopy(CFG)
+        cfg["reports"].update(jarvis_webhook_url=url, jarvis_secret="s3cret")
+        self.assertTrue(notify(cfg, "🟢 Opened LONG BTC", lambda *a: None, "trade_opened", {"coin": "BTC"}))
+        srv.shutdown()
+        self.assertEqual(got[0]["type"], "trade_opened")
+        self.assertEqual(got[0]["data"]["coin"], "BTC")
+        self.assertEqual(got[0]["text"], "🟢 Opened LONG BTC")
+
+    def test_wrong_secret_is_rejected(self):
+        from tradebot.jarvis import deliver, make_event, outbox_path
+        srv, got, url = self._fake_jarvis("right")
+        self.assertFalse(deliver(url, "wrong", make_event("test", "x"), lambda *a: None))
+        srv.shutdown()
+        self.assertEqual(got, [])
+        self.assertTrue(os.path.exists(outbox_path()))  # kept for retry
+
+    def test_messages_wait_while_jarvis_is_down_then_arrive_in_order(self):
+        from tradebot.jarvis import deliver, make_event, outbox_path
+        dead = "http://127.0.0.1:9/nothing-here"
+        self.assertFalse(deliver(dead, "k", make_event("trade_opened", "first"), lambda *a: None))
+        self.assertFalse(deliver(dead, "k", make_event("trade_closed", "second"), lambda *a: None))
+        srv, got, url = self._fake_jarvis("k")
+        self.assertTrue(deliver(url, "k", make_event("daily_summary", "third"), lambda *a: None))
+        srv.shutdown()
+        self.assertEqual([e["text"] for e in got], ["first", "second", "third"])
+        self.assertFalse(os.path.exists(outbox_path()))
+
+    def test_summary_is_plain_english(self):
+        from tradebot.dashboard import build_demo
+        from tradebot.jarvis import summary
+        out = summary(build_demo(copy.deepcopy(CFG)))
+        self.assertIn("Paper account is at $", out["text"])
+        self.assertIn("equity", out["data"])
+        self.assertIn("hasn't produced any data", summary(None)["text"])
+
+    def test_summary_endpoint_needs_token(self):
+        import threading
+        import urllib.error
+        import urllib.request
+        from http.server import ThreadingHTTPServer
+        from tradebot import dashboard
+        path = os.path.join(TMP, "snap-j.json")
+        dashboard.write_snapshot(dashboard.build_demo(copy.deepcopy(CFG)), path)
+        os.environ["JARVIS_API_TOKEN"] = "tok123"
+        srv = {}
+        orig = ThreadingHTTPServer.serve_forever
+
+        def capture(self, *a, **k):
+            srv["s"] = self
+            orig(self, *a, **k)
+        ThreadingHTTPServer.serve_forever = capture
+        try:
+            threading.Thread(target=dashboard.serve, args=("127.0.0.1", 0, path), daemon=True).start()
+            import time
+            for _ in range(50):
+                if "s" in srv:
+                    break
+                time.sleep(0.05)
+        finally:
+            ThreadingHTTPServer.serve_forever = orig
+        url = f"http://127.0.0.1:{srv['s'].server_address[1]}/api/jarvis/summary"
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with self.assertRaises(urllib.error.HTTPError) as e:
+            opener.open(url)
+        self.assertEqual(e.exception.code, 401)
+        req = urllib.request.Request(url, headers={"Authorization": "Bearer tok123"})
+        self.assertIn("Paper account", json.loads(opener.open(req).read())["text"])
+        srv["s"].shutdown()
+        os.environ["JARVIS_API_TOKEN"] = ""
+
+    def test_setup_keeps_existing_keys(self):
+        from unittest import mock
+        from tradebot.jarvis import jarvis_setup
+        path = os.path.join(TMP, "env-jarvis")
+        if os.path.exists(path):
+            os.remove(path)
+        first = jarvis_setup(path, url="", log=lambda *a: None)
+        with mock.patch("tradebot.jarvis.deliver", return_value=True):
+            second = jarvis_setup(path, url="https://jarvis.example/hook", log=lambda *a: None)
+        self.assertEqual(first["JARVIS_API_TOKEN"], second["JARVIS_API_TOKEN"])  # no re-pairing needed
+        self.assertIn("JARVIS_WEBHOOK_URL=https://jarvis.example/hook", open(path).read())
+        for k in ("JARVIS_WEBHOOK_URL", "JARVIS_SECRET"):
+            os.environ[k] = ""
 
 
 class NoLookahead(unittest.TestCase):

@@ -84,7 +84,9 @@ class PaperBot:
                                   ctx={"btc_up": btc.get(candles[i].ts)})
             for t in self.engine.closed[before:]:
                 notify(self.cfg, f"{'💰' if t.net_pnl > 0 else '🔻'} {t.side} {t.symbol} closed ({t.exit_reason}): ${t.net_pnl:+.2f} "
-                                 f"({t.r_multiple:+.2f}R). Balance ${t.balance_after:.2f}", log)
+                                 f"({t.r_multiple:+.2f}R). Balance ${t.balance_after:.2f}", log, "trade_closed",
+                       {"coin": t.symbol.split("-")[0], "side": t.side, "pnl": round(t.net_pnl, 2),
+                        "r": round(t.r_multiple, 2), "how": t.exit_reason, "balance": round(t.balance_after, 2)})
             if sym in self.engine.positions and self.engine.positions[sym].entry_ts == candles[newest].ts:
                 p = self.engine.positions[sym]
                 log(f"ENTER {'LONG' if p.side > 0 else 'SHORT'} {sym} @ {p.entry_price:.4f} stop {p.stop:.4f} "
@@ -92,7 +94,9 @@ class PaperBot:
                 half = any(r.startswith("memory:") for r in p.reasons)
                 notify(self.cfg, f"🟢 Opened {'LONG' if p.side > 0 else 'SHORT'} {sym.split('-')[0]} @ {p.entry_price:,.4g}\n"
                                  f"Stop {p.stop:,.4g} · Target {p.target:,.4g}"
-                                 + ("\n🧠 Half size - looks like a past mistake" if half else ""), log)
+                                 + ("\n🧠 Half size - looks like a past mistake" if half else ""), log, "trade_opened",
+                       {"coin": sym.split("-")[0], "side": "LONG" if p.side > 0 else "SHORT", "entry": p.entry_price,
+                        "stop": p.stop, "target": p.target, "half_size": half})
             self.prices[sym] = candles[-1].c
             ctx = {"btc_up": btc.get(candles[newest].ts)}
             market[sym] = {"candles": candles, "ind": ind, "ctx": ctx}
@@ -117,7 +121,8 @@ class PaperBot:
             text = summary_text(self.cfg, self.engine, self.journal, self.prices)
             write_html(self.cfg, self.journal, self.engine)
             log(text)
-            notify(self.cfg, text, log)
+            notify(self.cfg, text, log, "daily_summary",
+                   {"balance": round(self.engine.balance, 2), "open_trades": len(self.engine.positions)})
             self.meta["last_report"] = now_ms
             self.save()
         L = self.cfg["learning"]
@@ -154,7 +159,7 @@ class PaperBot:
             self.journal.event("learn", "Reviewed; no change passed the out-of-sample test")
             msg = "Learning cycle: no change passed testing; rules unchanged.\n- " + "\n- ".join(report["lessons"][:4])
         log(msg)
-        notify(self.cfg, msg, log)
+        notify(self.cfg, msg, log, "learning", {"changes": [c["change"] for c in report["changes"]]})
         self.save()
 
     # ----------------------------------------------------------------- forever
@@ -181,7 +186,7 @@ class PaperBot:
                     except Exception:
                         pass
                 if time.time() - last_err_note > 3600:
-                    notify(self.cfg, f"Trading bot error (it keeps retrying): {e}", log)
+                    notify(self.cfg, f"Trading bot error (it keeps retrying): {e}", log, "error", {"error": str(e)[:300]})
                     last_err_note = time.time()
             for _ in range(poll_seconds):
                 if self._stop:

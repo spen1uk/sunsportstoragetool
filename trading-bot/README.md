@@ -147,6 +147,14 @@ Check on it anytime: `ssh` in and run `python3 run.py status`, or download `data
 
 Prefer Docker? `docker compose -f deploy/docker-compose.yml up -d --build`.
 
+## Jarvis (your assistant)
+
+If you have a personal assistant ("Jarvis") with its own number, it can deliver the bot's news and
+answer "how's the trading bot doing?". Run `python3 run.py jarvis` and give Jarvis the two keys it
+prints. The full contract for whoever builds Jarvis is in [`docs/JARVIS.md`](docs/JARVIS.md).
+Messages are signed, queue up while Jarvis is offline, and Jarvis can only *read*. It can't trade
+or change anything.
+
 ## Getting updates on your phone (Telegram)
 
 1. In Telegram, open **@BotFather**, send `/newbot`, pick a name, and copy the **token** it gives you.

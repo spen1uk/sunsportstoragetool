@@ -244,6 +244,25 @@ def serve(host="127.0.0.1", port=8050, snapshot_path=SNAPSHOT, replay=None):
                 self.end_headers()
                 self.wfile.write(body)
                 return
+            if self.path.split("?")[0] == "/api/jarvis/summary":
+                from .jarvis import authorized, summary
+                token = os.environ.get("JARVIS_API_TOKEN", "")
+                if not authorized(self.headers.get("Authorization"), token):
+                    code, out = 401, {"error": "missing or wrong token" if token else "Jarvis isn't set up - run: python3 run.py jarvis"}
+                else:
+                    try:
+                        with open(snapshot_path) as f:
+                            snap = json.load(f)
+                    except (OSError, ValueError):
+                        snap = None
+                    code, out = 200, summary(snap)
+                body = json.dumps(out).encode()
+                self.send_response(code)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+                return
             if self.path.split("?")[0] == "/api/state":
                 try:
                     with open(snapshot_path, "rb") as f:

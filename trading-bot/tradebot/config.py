@@ -22,6 +22,8 @@ def load_config(path=None):
     rep["discord_webhook_url"] = os.environ.get("DISCORD_WEBHOOK_URL", rep.get("discord_webhook_url", ""))
     rep["telegram_bot_token"] = os.environ.get("TELEGRAM_BOT_TOKEN", rep.get("telegram_bot_token", ""))
     rep["telegram_chat_id"] = os.environ.get("TELEGRAM_CHAT_ID", rep.get("telegram_chat_id", ""))
+    rep["jarvis_webhook_url"] = os.environ.get("JARVIS_WEBHOOK_URL", rep.get("jarvis_webhook_url", ""))
+    rep["jarvis_secret"] = os.environ.get("JARVIS_SECRET", rep.get("jarvis_secret", ""))
     os.makedirs(DATA_DIR, exist_ok=True)
     return cfg
 
