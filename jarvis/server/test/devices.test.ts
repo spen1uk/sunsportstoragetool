@@ -435,3 +435,12 @@ test('over HTTP: improvement pages need a session; promoting, rolling back and s
     for (const p of ['/api/improve']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
   } finally { t.close(); }
 });
+
+test('over HTTP: the agents overview needs a session and a device cannot read it', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/agents/overview')).status, 401); const o = await (await t.api('/api/agents/overview', { headers: t.me })).json() as any; assert.deepEqual(o.agents.map((a: any) => a.id), ['jarvis', 'prometheus']);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; assert.ok([401, 404].includes((await t.api('/api/agents/overview', { headers: { authorization: `Bearer ${token}` } })).status));
+  } finally { t.close(); }
+});

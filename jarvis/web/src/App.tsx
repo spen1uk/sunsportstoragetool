@@ -16,6 +16,7 @@ import { KnowledgePage } from './knowledge.tsx';
 import { ModelsPage } from './models.tsx';
 import { IntegrationsPage } from './integrations.tsx';
 import { ImprovePage } from './improve.tsx';
+import { AgentsPage } from './agents.tsx';
 import { WorkspacePage } from './workspace.tsx';
 import { BriefingsPage, OvernightPage, ModeControl, Notifications } from './today.tsx';
 import { TasksPage, ReviewPage, ApprovalsPage, MemoryPage, ConnectionsPage, ActivityPage, SettingsPage, PlannedPage } from './pages.tsx';
@@ -24,6 +25,7 @@ export const NAV: { hash: string; label: string; planned?: string }[] = [
   { hash: '#/command', label: 'Command Center' },
   { hash: '#/life', label: 'My Life' },
   { hash: '#/workspace', label: 'Modular Workspace' },
+  { hash: '#/agents', label: 'Agents' },
   { hash: '#/universe', label: 'Agent Universe' },
   { hash: '#/tasks', label: 'Tasks & Projects' },
   { hash: '#/calendar', label: 'Calendar' },
@@ -217,6 +219,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         {hash === '#/models' && <ModelsPage />}
         {hash === '#/integrations' && <IntegrationsPage />}
         {hash === '#/improve' && <ImprovePage />}
+        {hash === '#/agents' && <AgentsPage />}
         {hash === '#/activity' && <ActivityPage />}
         {hash === '#/settings' && st && <SettingsPage st={st} reload={reload} quality={quality} setQuality={setQuality} reduced={reduced} setReduced={setReduced} osReduced={osReduced} resetLayout={() => api('/api/layout', 'DELETE').then(() => setLayoutVersion((v) => v + 1))} />}
       </main>

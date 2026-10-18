@@ -43,6 +43,7 @@ import * as dec from './decisions.ts';
 import * as excl from './exclusions.ts';
 import { PRICES } from './llm/prices.ts';
 import * as briefs from './briefs.ts';
+import { overview as agentsOverview } from './agentsview.ts';
 import * as gaps from './improve/gaps.ts';
 import * as cand from './improve/candidates.ts';
 import * as sbox from './improve/sandbox.ts';
@@ -424,6 +425,7 @@ route('POST', '/api/imports/:id/suggest-memories', async ({ db, params }) => { c
 route('DELETE', '/api/imports/:id', ({ db, params }) => ({ ok: cimp.remove(db, params.id) }));
 route('DELETE', '/api/imports', ({ db, session, body }) => stepped(db, session, () => ({ deleted: cimp.removeAll(db) })));
 // ---- autonomous skill improvement: gaps → candidates → sandbox → staged → promoted (only by you) ----
+route('GET', '/api/agents/overview', ({ db }) => agentsOverview(db));
 route('GET', '/api/improve', ({ db }) => ({ gaps: gaps.list(db), improvements: cand.list(db), auto: roll.autoDraft(db), modelReady: gw.ready(db, 'analysis'), capDefaultMicroUsd: cand.DEFAULT_CAP_MICRO, capMaxMicroUsd: cand.MAX_CAP_MICRO }));
 route('GET', '/api/improve/:id', ({ db, params }) => { const i = cand.get(db, params.id); if (!i) throw new HttpError(404, 'not found'); return { improvement: i, events: cand.events(db, params.id) }; });
 route('POST', '/api/improve/scan', ({ db }) => ({ found: gaps.scan(db) }));
