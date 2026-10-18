@@ -89,3 +89,13 @@ test('web answers read like a person: markdown and headings are removed; asking 
   for (const q of ['sources', 'Show me the links', 'where did you find that', 'how do you know?']) assert.match((await converse(db, q)).text, /weather\.gov/, q);
   const { asksForSources } = await import('../websearch.ts'); for (const t of ['tell me about sources of income', 'links in my notes', 'add a task about sources']) assert.equal(asksForSources(t), false, t);
 });
+
+test('questions the plain rules miss are judged by a tiny model check (question text only); YES searches, NO or any doubt stays a normal chat; nothing is asked when search is off', async () => {
+  const { looksLikeWebQuestion: L } = await import('../websearch.ts'); assert.equal(L('when do the milwaukee brewers play'), true); assert.equal(L('what time is the Packers game'), true);
+  const mk = (verdict: string) => { const calls: CompletionRequest[] = []; gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req) { calls.push(req); const cls = req.system.includes('YES or NO'); return { text: cls ? verdict : req.webSearch ? 'They play at 7pm.' : 'Plain chat answer.', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 5, cacheReadTokens: 0 }, searches: req.webSearch ? 1 : 0 } as Completion; } } as Provider }; return calls; };
+  const db = makeDb(); createTask(db, { title: 'Secret marina deal', kind: 'manual', priority: 1 } as any); let calls = mk('YES');
+  await converse(db, 'is the Hoan Bridge closed?'); assert.ok(calls.every((c) => !c.system.includes('YES or NO') && !c.webSearch), 'search off: not even the check runs');
+  on(db); calls = mk('YES'); const r = await converse(db, 'is the Hoan Bridge closed?'); assert.ok(calls[0].system.includes('YES or NO') && calls[0].messages[0].content === 'is the Hoan Bridge closed?' && !JSON.stringify(calls[0]).includes('Secret marina')); assert.ok(calls.some((c) => c.webSearch)); assert.match(r.text, /7pm/);
+  for (const v of ['NO', 'maybe', '']) { calls = mk(v); const n = await converse(db, 'why is the sky blue and how does it work?'); assert.ok(calls.every((c) => !c.webSearch), v); assert.match(n.text, /Plain chat/); }
+  calls = mk('YES'); await converse(db, 'what are my tasks today?'); assert.ok(calls.every((c) => !c.system.includes('YES or NO')), 'questions about his own things are never sent to the check'); await converse(db, 'hello there my friend'); assert.ok(calls.every((c) => !c.webSearch));
+});

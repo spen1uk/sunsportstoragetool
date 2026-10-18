@@ -11,7 +11,7 @@ import { extractProposals, createProposals } from './proposals.ts';
 import { autoRun } from './standing.ts';
 import { getDefaults } from './missionbudget.ts';
 import { refresh as refreshWeather } from './weather.ts';
-import { parseWebRequest, looksLikeWebQuestion, asksForSources, lastSources, ask as askWeb, gate as webGate } from './websearch.ts';
+import { parseWebRequest, looksLikeWebQuestion, needsWebModel, asksForSources, lastSources, ask as askWeb, gate as webGate } from './websearch.ts';
 import { startDeep } from './deepresearch.ts';
 import { describe as knowDescribe } from './knowledge.ts';
 import { mentions as chatMentions } from './chatimport.ts';
@@ -77,7 +77,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   const modelOk = ready(db, 'chat') && (!priv || cfg.allowInPrivate);
   const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk, channel: o.channel });
   if (!cmd.fallback) return { ...cmd, source: 'command' };
-  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && looksLikeWebQuestion(text) && !webGate(db, { channel: o.channel ?? 'dashboard' }))   // everyday questions that need the internet just go there; if search is off or at its limit, fall through to a normal chat
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !webGate(db, { channel: o.channel ?? 'dashboard' }) && (looksLikeWebQuestion(text) || await needsWebModel(db, text)))   // everyday questions that need the internet just go there; if search is off or at its limit, fall through to a normal chat
     return await webTurn(db, text, text, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
 
   const strong = /^deep:\s*/i.test(text); const prompt = text.replace(/^deep:\s*/i, '');
