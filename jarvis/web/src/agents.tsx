@@ -6,9 +6,9 @@ const when = (t: number) => { const m = Math.round((Date.now() - t) / 60_000); r
 
 /** Who does what, in plain words. Everything here is read live from Jarvis's own records; nothing is typed in by hand. */
 export function AgentsPage() {
-  const { data } = useLive<any>(() => api('/api/agents/overview'), ['tasks', 'missions', 'approvals', 'chat', 'improve']);
+  const { data, error } = useLive<any>(() => api('/api/agents/overview'), ['tasks', 'missions', 'approvals', 'chat', 'improve']);
   const [open, setOpen] = useState<string | null>(null);
-  if (!data) return <section className="page"><h1>Agents</h1><p className="muted">Loading…</p></section>;
+  if (!data) return <section className="page"><h1>Agents</h1>{error ? <p className="err small" role="alert">Couldn't load this page: {error}. If it says “not found”, restart Jarvis so it picks up the latest version (Ctrl+C in its Terminal window, then npm run build and npm start).</p> : <p className="muted">Loading…</p>}</section>;
   return (
     <section className="page"><h1>Agents</h1>
       <p className="muted">The agents that actually exist in Jarvis today, what each one is allowed to do, what it has been doing, and what it cost this month. Everything else on your org chart is shown at the bottom as planned.</p>
