@@ -1,5 +1,5 @@
 import type { DB } from './db.ts';
-import { now } from './db.ts';
+import { now, getMeta, setMeta } from './db.ts';
 import { handleChat, type ChatReply } from './chat.ts';
 import { complete, ready, getConfig } from './llm/gateway.ts';
 import { buildSystemPrompt } from './persona.ts';
@@ -13,6 +13,7 @@ import { getDefaults } from './missionbudget.ts';
 import { refresh as refreshWeather } from './weather.ts';
 import { parseWebRequest, ask as askWeb, gate as webGate } from './websearch.ts';
 import { startDeep } from './deepresearch.ts';
+import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
 function relevantMemories(db: DB, text: string): string[] {
   const rows = new Map<string, string>();
@@ -42,6 +43,19 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     const why = webGate(db, { channel: o.channel ?? 'dashboard' });
     const reply = why ? why : `Understood, sir. I've asked Prometheus to research that. It runs in the background within a $${(getDefaults(db).deepMicro / 1e6).toFixed(2)} budget and I'll put the draft in Ready for Review when it's done.`;
     if (!why) startDeep(db, deepQ[1], 'deep');
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+    return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
+  const missionQ = text.match(/^mission\s*:\s*(.{8,500})$/is);
+  if (missionQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {
+    const gateMsg = webGate(db, { channel: o.channel ?? 'dashboard' }); let reply: string;
+    if (gateMsg && /switched off/.test(gateMsg)) reply = gateMsg; else { createAssigned(db, { goal: missionQ[1] }); reply = `Understood, sir. Mission created: Prometheus will plan it in steps, within a $${(ASSIGNED_DEFAULT_CAP / 1e6).toFixed(2)} budget. Watch it on the Missions page; you can pause or stop it there.`; }
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+    return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
+  if (!priv && /^(dig deeper|go deeper|research (this|that) properly)\b/i.test(text) && (o.channel ?? 'dashboard') !== 'sms') {
+    const last = getMeta(db, 'web:last'); const why = webGate(db, { channel: o.channel ?? 'dashboard' });
+    const reply = !last ? "There's nothing to dig into yet, sir. Ask me something starting with \"search:\" first." : why ? why : (startDeep(db, last, 'deep'), `Understood, sir. I've handed that to Prometheus for a proper look: "${last.slice(0, 80)}". The results will be on its page when it's done.`);
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
@@ -79,6 +93,7 @@ async function webTurn(db: DB, text: string, query: string, o: { private: boolea
   const channel = o.channel ?? 'dashboard';
   publish({ type: 'thinking', on: true });
   try {
+    if (query.length >= 5) setMeta(db, 'web:last', query.slice(0, 400));
     const r = await askWeb(db, query, { channel, deviceId: o.deviceId, brief: o.brief, private: o.private });
     if (!o.private) {
       db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,0)').run('luke', text, now(), channel);

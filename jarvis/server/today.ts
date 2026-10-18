@@ -29,6 +29,7 @@ const fmtTime = (t: number) => new Date(t).toLocaleTimeString('en-US', { timeZon
 const fmtDay = (t: number) => new Date(t).toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric' });
 
 /** Briefing in the required order: urgent → updates → schedule/priorities → recommendations. Text only (read-aloud arrives with voice, deferred). */
+import { briefingItems as missionBriefing } from './missions.ts';
 export function buildBriefing(db: DB, now = Date.now()) {
   const p = chicagoParts(now), isMonday = p.dow === 1;
   const urgent: Item[] = [], updates: Item[] = [], recs: Item[] = [], unavailable: string[] = [];
@@ -53,6 +54,7 @@ export function buildBriefing(db: DB, now = Date.now()) {
   if (db.prepare("SELECT 1 FROM meta WHERE key='paused' AND value='1'").get()) urgent.push({ text: 'Jarvis is paused: no new automated work is starting.', link: '#/settings', level: 'urgent' });
 
   for (const a of rows(db, "SELECT * FROM artifacts WHERE status='in_review' AND is_demo=0")) updates.push({ text: `Ready for review: ${a.title} (v${a.current_version})`, link: '#/review', level: 'info' });
+  for (const it of missionBriefing(db, now)) updates.push({ text: it.text, link: it.link, level: 'info' });   // self-started research that found something corroborated
   const since = new Date(now - 24 * 3600_000).toISOString();
   const done = rows(db, "SELECT title FROM tasks WHERE state='completed' AND completed_at > ? AND is_demo=0", since);
   if (done.length) updates.push({ text: `${done.length} task(s) completed in the last 24 hours.`, level: 'info' });

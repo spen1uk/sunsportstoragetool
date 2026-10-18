@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, useLive, usd } from './api.ts';
 
 /** Plain-language status for a research job, and what (if anything) you can do about it. */
@@ -71,14 +71,15 @@ function Results({ id, onBack }: { id: string; onBack: () => void }) {
 }
 
 /** Prometheus: ask a question, see clear results; the checking material and the source catalog are tucked away but there. */
-export function ResearchPage() {
+export function ResearchPage({ jobId }: { jobId?: string }) {
   const { data, reload } = useLive<any>(() => api('/api/research'), ['tasks', 'artifacts', 'chat']);
   const { data: cat, reload: reloadCat } = useLive<any>(() => api('/api/sources'), ['approvals']);
-  const [q, setQ] = useState(''), [tier, setTier] = useState('deep'), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [view, setView] = useState<string | null>(null);
+  const [q, setQ] = useState(''), [tier, setTier] = useState('deep'), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [view, setView] = useState<string | null>(jobId ?? null);
+  useEffect(() => { setView(jobId ?? null); }, [jobId]);
   const [host, setHost] = useState(''), [cls, setCls] = useState('unknown'), [status, setStatus] = useState('trusted'), [topics, setTopics] = useState(''), [rel, setRel] = useState(''), [cad, setCad] = useState(''), [note, setNote] = useState('');
   const run = async (f: () => Promise<unknown>, ok: string) => { setMsg(null); try { await f(); setMsg({ ok: true, t: ok }); } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) }); } finally { reload(); reloadCat(); } };
   if (!data) return <section className="page"><h1>Prometheus</h1><p className="muted">Loading…</p></section>;
-  if (view) return <section className="page"><h1>Prometheus <span className="muted small">research</span></h1><Results id={view} onBack={() => setView(null)} /></section>;
+  if (view) return <section className="page"><h1>Prometheus <span className="muted small">research</span></h1><Results id={view} onBack={() => { setView(null); location.hash = '#/research'; }} /></section>;
   return (
     <section className="page"><h1>Prometheus <span className="muted small">research agent</span></h1>
       <p className="muted">Ask a question. Prometheus searches the web from several angles and gives you the best options, articles and key facts in plain language. The checking material (every source and quote) is kept one click away. Chat shortcut: <code>deep research: your question</code>.</p>

@@ -57,14 +57,16 @@ export function access(db: DB, principal: string, skillId: string): Access {
   if (r.state.status !== 'active') why.push('switched off');
   const tier = tierOf(m); if (tier >= 3) why.push(`tier ${tier}: can only ever be an approval request, never run by an agent`);
   const human = principal === 'luke-test';
-  const ceil = human ? PRINCIPALS.jarvis : isPrincipal(principal) ? PRINCIPALS[principal] : null;
+  const tmp = principal.startsWith('temp:') ? (db.prepare('SELECT status, expires_at FROM temp_agents WHERE id=?').get(principal.slice(5)) as { status: string; expires_at: number } | undefined) : undefined;
+  if (principal.startsWith('temp:') && (!tmp || tmp.status !== 'active' || tmp.expires_at <= Date.now())) return { allowed: false, reasons: ['this temporary agent has been torn down or has expired'] };
+  const ceil = human ? PRINCIPALS.jarvis : isPrincipal(principal) ? PRINCIPALS[principal] : tmp ? PRINCIPALS.prometheus : null;   // a temporary agent is never above Prometheus
   if (!ceil) return { allowed: false, reasons: ['unknown agent'] };
-  const missing = m.permissions.filter((p) => !(ceil.capabilities as string[]).includes(p)); if (missing.length) why.push(`${human ? 'test runs' : PRINCIPALS[principal as 'jarvis'].label} cannot hold: ${missing.join(', ')}`);
+  const missing = m.permissions.filter((p) => !(ceil.capabilities as string[]).includes(p)); if (missing.length) why.push(`${human ? 'test runs' : isPrincipal(principal) ? PRINCIPALS[principal].label : 'a temporary agent'} cannot hold: ${missing.join(', ')}`);
   if (SENS_RANK[m.dataSensitivity] > SENS_RANK[ceil.maxSensitivity]) why.push(`handles ${m.dataSensitivity} data, above this agent's ${ceil.maxSensitivity} ceiling`);
   if (why.length) return { allowed: false, reasons: why };
   if (human) return { allowed: true, via: 'human', reasons: [] };
   if (db.prepare('SELECT 1 FROM skill_grants WHERE principal=? AND skill_id=?').get(principal, skillId)) return { allowed: true, via: 'grant', reasons: [] };
-  if (m.autoShare && tier === 0 && m.sideEffects === 'none' && m.dataSensitivity === 'public' && m.cost.perCallMicroUsd === 0) return { allowed: true, via: 'auto', reasons: [] };
+  if (!tmp && m.autoShare && tier === 0 && m.sideEffects === 'none' && m.dataSensitivity === 'public' && m.cost.perCallMicroUsd === 0) return { allowed: true, via: 'auto', reasons: [] };
   return { allowed: false, reasons: ['not granted to this agent'] };
 }
 

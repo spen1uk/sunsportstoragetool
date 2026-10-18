@@ -9,6 +9,8 @@ import { getConfig as weather } from './weather.ts';
 import { ACTION_TYPES } from './proposals.ts';
 import { list as missionBudgets, getDefaults } from './missionbudget.ts';
 import { listPasskeys } from './passkey.ts';
+import { list as tempAgents } from './tempagents.ts';
+import { exploreCommitted } from './missions.ts';
 
 /** One read-only page of "who and what may do what right now". Everything here is derived from the live records; nothing is cached or guessed. */
 export function permissionLedger(db: DB, now = Date.now()) {
@@ -22,6 +24,7 @@ export function permissionLedger(db: DB, now = Date.now()) {
     domains: (db.prepare('SELECT host, added_at FROM allowed_domains ORDER BY host').all() as { host: string; added_at: string }[]),
     protectedActions: Object.entries(ACTIONS).map(([type, a]) => ({ type, risk: a.risk, runnable: !!a.handler, why: a.unavailableReason ?? null })),
     chatSuggestionKinds: [...ACTION_TYPES],
+    tempAgents: tempAgents(db, now).filter((a) => a.live), exploration: exploreCommitted(db, now),
     missionBudgets: missionBudgets(db), budgetDefaults: getDefaults(db),
     neverGrantable: ['approve or confirm anything from a device', 'change settings or permissions from a device', 'send messages', 'spend beyond the budget caps', 'trade or transfer money'],
   };

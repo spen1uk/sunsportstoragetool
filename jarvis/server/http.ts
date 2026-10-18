@@ -39,6 +39,8 @@ import * as workflow from './skills/workflow.ts';
 import { PRINCIPALS, tierOf } from './skills/manifest.ts';
 import * as deep from './deepresearch.ts';
 import * as sources from './sources.ts';
+import * as missions from './missions.ts';
+import * as tempagents from './tempagents.ts';
 import { planRoutes } from './researchrouter.ts';
 import { permissionLedger } from './ledger.ts';
 import { emergencyStop } from './emergency.ts';
@@ -246,6 +248,18 @@ route('PUT', '/api/mission-defaults', ({ db, session, body }) => {
   if (raising && !auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required to raise a budget');
   guard(() => missionBudget.setDefaults(db, b)); if (raising) auth.consumeStepUp(db, session!); return { ok: true };
 });
+route('GET', '/api/missions', ({ db }) => missions.overview(db));
+route('GET', '/api/missions/:id', ({ db, params }) => { const m = missions.get(db, params.id); if (!m) throw new HttpError(404, 'no such mission'); return { events: missions.events(db, params.id) }; });
+route('POST', '/api/missions', ({ db, body }) => { if (!websearch.getConfig(db).enabled) throw new HttpError(409, 'Web search is off. Turn it on in Settings → Web search first.'); const b = parse(z.object({ goal: z.string().min(8).max(500), title: z.string().max(90).optional(), priority: z.number().int().min(1).max(5).optional(), capUsd: z.number().min(0.05).max(10).optional(), value: z.string().max(200).optional() }), body); return { id: guard(() => missions.createAssigned(db, { goal: b.goal, title: b.title, priority: b.priority, capMicro: b.capUsd === undefined ? undefined : Math.round(b.capUsd * 1e6), value: b.value })) }; });
+for (const [verb, fn] of [['pause', (db: any, id: string) => missions.pause(db, id)], ['resume', (db: any, id: string) => missions.resume(db, id)], ['stop', (db: any, id: string) => missions.stop(db, id)], ['retry', (db: any, id: string) => missions.retryStep(db, id)], ['accept', (db: any, id: string) => missions.accept(db, id)], ['dismiss', (db: any, id: string) => missions.dismiss(db, id)]] as const)
+  route('POST', `/api/missions/:id/${verb}`, ({ db, params }) => { guard(() => fn(db, params.id)); return { ok: true }; });
+route('POST', '/api/missions/:id/wrap-up', async ({ db, params }) => { try { await missions.finishPartial(db, params.id); } catch (e) { throw new HttpError(400, (e as Error).message); } return { ok: true }; });
+route('POST', '/api/missions/:id/more-evidence', ({ db, params, body }) => { const b = parse(z.object({ question: z.string().min(8).max(400) }), body); guard(() => missions.addStep(db, params.id, b.question)); return { ok: true }; });
+route('POST', '/api/watches', ({ db, body }) => { const b = parse(z.object({ topic: z.string().min(8).max(200), cadenceDays: z.number().int().min(1).max(90), tier: z.enum(['quick', 'deep']).default('quick') }), body); return { id: guard(() => missions.addWatch(db, b)) }; });
+route('POST', '/api/watches/presets', ({ db }) => ({ added: missions.addPresets(db) }));
+route('POST', '/api/watches/:id/enabled', ({ db, params, body }) => { missions.setWatchEnabled(db, params.id, !!(body as any)?.enabled); return { ok: true }; });
+route('DELETE', '/api/watches/:id', ({ db, params }) => ({ ok: missions.removeWatch(db, params.id) }));
+route('POST', '/api/agents/temp/:id/teardown', ({ db, params }) => ({ ok: tempagents.teardown(db, params.id, 'ended by you') }));
 route('GET', '/api/research', ({ db }) => ({
   webSearch: websearch.getConfig(db), budgets: missionBudget.getDefaults(db), legalFooter: deep.legalFooterOn(db), dueForReview: sources.dueForReview(db),
   jobs: (db.prepare("SELECT id,title,state,waiting_reason,last_error,created_at,input FROM tasks WHERE kind='research' AND json_extract(input,'$.mode')='deep' ORDER BY created_at DESC LIMIT 30").all() as any[]).map((t) => {

@@ -49,6 +49,10 @@ export function PermissionsPage() {
       <div className="glass pad section"><h2>Websites Jarvis may fetch ({d.domains.length})</h2>
         {d.domains.length === 0 ? <p className="muted small">None yet; each new site asks you first.</p> : <p className="small">{d.domains.map((x: any) => x.host).join(' · ')}</p>}
       </div>
+      <div className="glass pad section"><h2>Temporary agents &amp; missions <a className="small" href="#/missions">manage ›</a></h2>
+        <p className="small">{d.tempAgents.length === 0 ? 'No temporary agents are running.' : `${d.tempAgents.length} temporary agent(s) running: ${d.tempAgents.map((a: any) => a.name).join(', ')}.`} Each has its own small allowance, may use only the read-only skills it was given, and is removed automatically.</p>
+        <p className="small">Self-started research this month: {usd(d.exploration.spent)} of {usd(d.exploration.cap)} (nothing starts by itself except the watches you create).</p>
+      </div>
       <div className="glass pad section"><h2>Mission budgets</h2>
         <p className="small">Defaults: quick lookup {usd(d.budgetDefaults.quickMicro)} · deep project {usd(d.budgetDefaults.deepMicro)} · self-started exploration {usd(d.budgetDefaults.exploreMonthlyMicro)} a month in total. The monthly cap and daily ceiling always apply on top.</p>
         {d.missionBudgets.length > 0 && <ul className="plain small">{d.missionBudgets.map((m: any) => <li key={m.ref}>{m.label}: {usd(m.spentMicroUsd)} of {usd(m.capMicroUsd)}{m.closed ? ' (closed)' : ''}</li>)}</ul>}

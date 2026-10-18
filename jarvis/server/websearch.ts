@@ -90,7 +90,7 @@ export async function ask(db: DB, query: string, o: { channel: string; deviceId?
   const body = clean(stripActions(r.text), 1800).trim();
   if (!body) return { ok: false, text: "The search didn't give me an answer I can stand behind, sir. Try rephrasing the question." };
   const src = formatSources(r.sources);
-  const text = o.brief ? body : `${body}\n\nFrom the internet (unverified; check the sources):\n${src.length ? src.join('\n') : 'no sources were returned, so treat this with caution.'}`;
+  const text = o.brief ? body : `${body}\n\nFrom the internet (unverified; check the sources):\n${src.length ? src.join('\n') : 'no sources were returned, so treat this with caution.'}\n\nSay "dig deeper" and I'll hand this to Prometheus for a thorough, cross-checked look.`;
   return { ok: true, text, costMicroUsd: r.costMicroUsd, model: r.model, searches: r.searches };
 }
 

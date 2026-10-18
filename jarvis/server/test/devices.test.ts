@@ -320,3 +320,27 @@ test('research results and retry: results appear only once a job has finished; r
     const list = await (await t.api('/api/research', { headers: t.me })).json() as any; assert.equal(list.jobs[0].hasResults, false);
   } finally { t.close(); }
 });
+
+test('mission endpoints: sign-in only; creating needs web search on; controls work; devices reach nothing; chat shortcuts create missions and hand over to Prometheus', async () => {
+  const t = await boot();
+  try {
+    const M = await import('../missions.ts'); const ws = await import('../websearch.ts');
+    for (const p of ['/api/missions']) assert.equal((await t.api(p)).status, 401);
+    assert.equal((await t.api('/api/missions', { method: 'POST', headers: t.me, body: { goal: 'A mission goal that is long enough' } })).status, 409, 'web search is off');
+    ws.setConfig(t.db, { enabled: true, perDay: 20 });
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } }); const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any;
+    for (const [p, m] of [['/api/missions', 'GET'], ['/api/missions', 'POST'], ['/api/watches', 'POST'], ['/api/watches/presets', 'POST']] as const) assert.equal((await t.api(p, { method: m, headers: { authorization: `Bearer ${token}` }, body: m === 'POST' ? { goal: 'A mission goal that is long enough', topic: 'a topic long enough', cadenceDays: 7 } : undefined })).status, 401, p);
+    assert.equal((await t.api('/api/missions', { method: 'POST', headers: t.me, body: { goal: 'short' } })).status, 400); assert.equal((await t.api('/api/missions', { method: 'POST', headers: t.me, body: { goal: 'A mission goal that is long enough', capUsd: 50 } })).status, 400, 'cap above $10 refused');
+    const c = await (await t.api('/api/missions', { method: 'POST', headers: t.me, body: { goal: 'A mission goal that is long enough', capUsd: 2, priority: 2 } })).json() as any; assert.ok(c.id);
+    const ov = await (await t.api('/api/missions', { headers: t.me })).json() as any; assert.equal(ov.missions[0].id, c.id); assert.equal(ov.missions[0].capMicroUsd, 2_000_000); assert.equal(ov.exploration.cap, 10_000_000); assert.equal(ov.caps.maxActiveProactive, 2);
+    assert.equal((await t.api(`/api/missions/${c.id}/pause`, { method: 'POST', headers: t.me, body: {} })).status, 200); assert.equal((await t.api(`/api/missions/${c.id}/pause`, { method: 'POST', headers: t.me, body: {} })).status, 400, 'already paused'); assert.equal((await t.api(`/api/missions/${c.id}/resume`, { method: 'POST', headers: t.me, body: {} })).status, 200);
+    assert.equal((await t.api(`/api/missions/${c.id}/stop`, { method: 'POST', headers: t.me, body: {} })).status, 200); assert.equal((await t.api('/api/missions/nope', { headers: t.me })).status, 404);
+    assert.equal((await t.api('/api/watches', { method: 'POST', headers: t.me, body: { topic: 'a topic long enough', cadenceDays: 7 } })).status, 200); assert.equal(((await (await t.api('/api/watches/presets', { method: 'POST', headers: t.me, body: {} })).json()) as any).added, 3);
+    // chat shortcuts
+    const { converse } = await import('../converse.ts'); model('ok');
+    const r1 = await converse(t.db, 'mission: figure out the best marine insurance options for a small business'); assert.match(r1.text, /Mission created/); assert.equal((t.db.prepare("SELECT COUNT(*) c FROM missions WHERE kind='assigned'").get() as any).c, 2);
+    assert.match((await converse(t.db, 'dig deeper')).text, /nothing to dig into/); t.db.prepare("INSERT INTO meta(key,value) VALUES('web:last','marine insurance cost drivers') ON CONFLICT(key) DO UPDATE SET value=excluded.value").run();
+    assert.match((await converse(t.db, 'Dig deeper please')).text, /handed that to Prometheus/); assert.equal((t.db.prepare("SELECT COUNT(*) c FROM tasks WHERE title LIKE 'Deep research: marine insurance%'").get() as any).c, 1);
+    ws.setConfig(t.db, { enabled: false, perDay: 20 }); assert.match((await converse(t.db, 'mission: something that cannot start without search')).text, /switched off/); void M;
+  } finally { t.close(); }
+});
