@@ -19,6 +19,7 @@ import * as deleg from './delegation.ts';
 import { chatDelete as calendarDelete, chatCreate as calendarCreate, directOn as calDirect, applyNow as calApplyNow } from './calendarwrite.ts';
 import { requestApproval } from './approvals.ts';
 import { intentTurn } from './intent.ts';
+import { wantsDraftOpened, openDraft } from './opener.ts';
 import { mentions as chatMentions } from './chatimport.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
@@ -68,6 +69,13 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     const reply = lastSources(db);
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && wantsDraftOpened(text)) {   // "open it": puts his draft in Mail or Messages for him to read and send himself
+    const reply = await openDraft(db);
+    if (reply) {
+      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+      return { text: reply, persisted: true, source: 'command', proposals: [] };
+    }
   }
   const findQ = text.match(/^(?:please\s+)?(?:search|find|look)\s+(?:through\s+|in\s+)?(?:my|our)\s+(?:\w+\s+)?(?:for|about)\s+(.{2,100}?)\s*[?.!]*$/i) ?? text.match(/^(?:please\s+)?(?:search|find)\s+(?:everything|all)\s+(?:for|about)\s+(.{2,100}?)\s*[?.!]*$/i);
   if (findQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // deterministic search of his own records; no model, and imported chats are never quoted here
@@ -126,8 +134,8 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // plain requests ("build me a …", "start a goal to …", "have someone look into …"): one cheap pick from a fixed menu, then ordinary code does it
     const done = await intentTurn(db, text, { channel: o.channel ?? 'dashboard' });
     if (done) {
-      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', done, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
-      return { text: done, persisted: true, source: 'command', proposals: [] };
+      db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,0)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,?)').run('jarvis', done.text, now(), o.channel ?? 'dashboard', done.web ? 1 : 0); publish({ type: 'chat' });
+      return { text: done.text, persisted: true, source: 'command', proposals: [], ...(done.navigate ? { action: { navigate: done.navigate } } : {}) };
     }
   }
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !webGate(db, { channel: o.channel ?? 'dashboard' }) && (looksLikeWebQuestion(text) || (justSearched(db) && isQuestionLike(text)) || await needsWebModel(db, text)))   // everyday questions that need the internet just go there; if search is off or at its limit, fall through to a normal chat

@@ -45,3 +45,5 @@
 Screen observation, Mac companion, telephony, third-party OAuth connections — none exist, so none of their threats are mitigated yet; each needs its own model before building.
 
 | Direct mode (calendar) | A bad actor makes Jarvis change the calendar without Luke | Only Luke's own typed chat message or an authenticated page call can trigger it; web, imported-chat and agent text cannot; devices (car/watch) cannot; pause and emergency stop block it; audited; switch-off needs a step-up | Prompt-injection into a typed message is not possible; a stolen unlocked session could edit events (accepted by Luke) |
+
+| Open and show (opener) | A web page, imported chat or agent makes Jarvis open a malicious page or send a message | Only Luke's typed message can ask; https public pages only; an address not in his words is never opened directly; pages from search are opened only on his request; fixed app list; drafts are never sent, only opened for him; rate limit; pause; audit (host only) | Opening a page is like clicking a search result; a hostile result page could still load in his browser (he chose this) |
