@@ -65,3 +65,7 @@ Status key: **Built** (works, tested) · **Partial** (some of it works) · **Not
 6. **Documents** (#6) once you approve a parser library.
 
 Your own top-10 list: items 1, 3, 4, 5, 8 and 10 are already built, 2 and 6 are partial, and 9 (email) is blocked on you. So the foundation you asked for is largely done; the value now is in the gaps above.
+
+
+## Update, 2026-10-19: what changed since this plan
+Built since: universal search (#39), plain-words routing, workflow triggers and schedules (#29), delegation and scorecards (#21, #23), the Agent Foundry (#24), calendar writing with protected times, travel/prep and change alerts (#1), task categories and breakdown (#2), goals linked to projects and agents (#10), spaced repetition, study plans and summaries (#12), model skills for comparing, fact-checking, trip plans, feature plans, change reviews, content ideas, decision prep and a weekly review (#4, #11, #31), the 10 PM recap that asks for decisions (#9), and research findings kept in the knowledge graph (#4). Still blocked on you: email (#3), the business items (#13 to #19), computer automation (#30), SMS and calls, meetings (#5, needs a transcript source), documents (#6, needs a reader library you approve), and the human security review. See STATUS.md for details of each.
