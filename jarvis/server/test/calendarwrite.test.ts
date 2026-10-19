@@ -82,7 +82,7 @@ test('calendar change alerts: new, moved and removed events in the next 48 hours
 
 test('deleting: single, timed events only; it needs an approval; chat finds the event by name, asks which when unsure, and the delete goes through the outbox', async () => {
   const db = setup(); W.setTarget(db, 'Work');
-  assert.throws(() => W.requestDelete(db, { uid: 'r1', calendar: 'Home' }, req(db)), /repeating/); assert.throws(() => W.requestDelete(db, { uid: 'ad', calendar: 'Home' }, req(db)), /All-day/); assert.throws(() => W.requestDelete(db, { uid: 'zzz', calendar: 'Home' }, req(db)), /not in the calendar copy/);
+  assert.throws(() => W.requestDelete(db, { uid: 'r1', calendar: 'Home' }, req(db)), /repeating event/); assert.throws(() => W.requestDelete(db, { uid: 'ad', calendar: 'Home' }, req(db)), /All-day/); assert.throws(() => W.requestDelete(db, { uid: 'zzz', calendar: 'Home' }, req(db)), /not in the calendar copy/);
   assert.equal(W.chatDelete(db, 'what is the weather', req(db), NOW), null); assert.equal(W.chatDelete(db, 'cancel my subscription', req(db), NOW), null, 'not about the calendar');
   assert.match(W.chatDelete(db, 'delete the nonexistent meeting', req(db), NOW)!, /couldn't find/); assert.equal((db.prepare("SELECT COUNT(*) c FROM approvals WHERE action_type='calendar_delete'").get() as any).c, 0, 'nothing asked yet');
   const said = W.chatDelete(db, 'Delete the team call event', req(db), NOW)!; assert.match(said, /asked for your approval to delete “Team call”/);
@@ -99,4 +99,13 @@ test('direct mode: on by default; deletes and adds Luke asks for in chat are que
   const say = W.chatDelete(db, 'delete the team call meeting', W.applyNow(db), NOW, true)!; assert.match(say, /^Done\. I've deleted “Team call”/); assert.equal((db.prepare('SELECT COUNT(*) c FROM approvals').get() as any).c, 0, 'no approval raised'); await new Promise((r) => setTimeout(r, 20)); assert.ok(seen.some((x) => x.includes('C.delete(')), 'applied on the Mac'); assert.equal(W.outbox(db)[0].status, 'done');
   W.setDirect(db, false); assert.equal(W.directOn(db), false); assert.match(W.chatDelete(db, 'delete the holiday event', req(db), NOW, false)!, /couldn't find/);
   setPaused(db, true); W.setDirect(db, true); setRunner(async () => '{"ok":true}'); const w2 = setup(); void w2; W.chatDelete(db, 'delete the team call meeting', W.applyNow(db), NOW, true); await new Promise((r) => setTimeout(r, 20)); assert.equal(W.outbox(db).filter((o) => o.status === 'queued').length, 1, 'while paused nothing is applied'); setPaused(db, false);
+});
+
+test('deleting a repeating event: needs "on all dates"; typos in the name still match; no event word is needed; the whole series goes in one change', async () => {
+  const db = setup(); W.setTarget(db, 'Home'); const sent: string[] = []; setRunner(async (s2) => { sent.push(s2); return '{"ok":true}'; });
+  storeCalendar(db, [1, 2, 3].map((n) => ({ calendar: 'Home', uid: 'win', title: 'How to Win Friends and Influence People', start: ci(2026, 10, 19 + n, 20, 0), end: ci(2026, 10, 19 + n, 21, 0), allDay: false, location: '' })), {}, NOW);
+  const one = W.chatDelete(db, 'delete how to win freinds and influence people', W.applyNow(db), NOW, true)!; assert.match(one, /repeating event|has 3 dates/, 'asks first for the whole series'); assert.equal(W.outbox(db).length, 0);
+  const all = W.chatDelete(db, 'delete how to win freinds and influence people on all dates', W.applyNow(db), NOW, true)!; assert.match(all, /^Done\. I've deleted the whole “How to Win Friends and Influence People” series, all 3 dates/);
+  await new Promise((r) => setTimeout(r, 20)); assert.ok(sent.some((x) => x.includes('C.delete(')) && W.outbox(db)[0].payload.series === true);
+  assert.equal(W.chatDelete(db, 'delete my appointment with nobody at all', W.applyNow(db), NOW, true)?.startsWith('I couldn'), true); assert.equal(W.chatDelete(db, 'delete the cache folder', W.applyNow(db), NOW, true), null, 'not a calendar thing');
 });

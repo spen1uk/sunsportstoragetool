@@ -89,29 +89,46 @@ export function requestMove(db: DB, o: { uid: string; calendar: string; newStart
   const payload = movePayload.parse({ uid: o.uid, calendar: o.calendar, title: ev.title, oldStart: ev.start_ms, newStart: o.newStart, newEnd, heads_up: headsUp(c) }); return { check: c, approvalId: request('calendar_move', payload) };
 }
 
-export const deletePayload = z.object({ uid: z.string().min(1).max(200), calendar: z.string().min(1).max(80), title: z.string().max(120), start: z.number().int() }).strict();
-export const describeDelete = (p: any) => `Delete “${p.title}” (${p.calendar}) on ${fmt(p.start)}. This removes it from Apple Calendar.`;
-/** Asks to delete one single, timed event. Repeating events are never deleted (that would remove the whole series). Never deletes by itself. */
-export function requestDelete(db: DB, o: { uid: string; calendar: string }, request: (type: string, payload: unknown) => string) {
-  const rows = db.prepare('SELECT * FROM calendar_events WHERE uid=? AND calendar=?').all(o.uid, o.calendar) as any[]; if (!rows.length) throw new Error('That event is not in the calendar copy Jarvis has. Sync the calendar first.');
-  if (rows.length > 1) throw new Error('That is a repeating event. Jarvis will not delete one, because it could remove the whole series. Delete it in Calendar yourself.');
-  const ev = rows[0]; if (ev.all_day) throw new Error('All-day events are not deleted by Jarvis.');
-  return { approvalId: request('calendar_delete', deletePayload.parse({ uid: o.uid, calendar: o.calendar, title: ev.title, start: ev.start_ms })), title: ev.title as string, start: ev.start_ms as number };
+export const deletePayload = z.object({ uid: z.string().min(1).max(200), calendar: z.string().min(1).max(80), title: z.string().max(120), start: z.number().int(), series: z.boolean().optional(), count: z.number().int().optional() }).strict();
+export const describeDelete = (p: any) => p.series ? `Delete the whole repeating series “${p.title}” (${p.calendar}), all ${p.count ?? ''} dates. This removes every date from Apple Calendar.` : `Delete “${p.title}” (${p.calendar}) on ${fmt(p.start)}. This removes it from Apple Calendar.`;
+/** Asks to delete one event. A repeating event is only deleted as a whole series, and only when asked for explicitly (series: true). All-day events are never deleted. */
+export function requestDelete(db: DB, o: { uid: string; calendar: string; series?: boolean }, request: (type: string, payload: unknown) => string) {
+  const rows = db.prepare('SELECT * FROM calendar_events WHERE uid=? AND calendar=? ORDER BY start_ms').all(o.uid, o.calendar) as any[]; if (!rows.length) throw new Error('That event is not in the calendar copy Jarvis has. Sync the calendar first.');
+  if (rows.length > 1 && !o.series) throw new Error('That is a repeating event. Say “delete it on all dates” to remove the whole series.');
+  const ev = rows[0]; if (rows.every((r) => r.all_day)) throw new Error('All-day events are not deleted by Jarvis.');
+  const series = rows.length > 1;
+  return { approvalId: request('calendar_delete', deletePayload.parse({ uid: o.uid, calendar: o.calendar, title: ev.title, start: ev.start_ms, ...(series ? { series: true, count: rows.length } : {}) })), title: ev.title as string, start: ev.start_ms as number, series, count: rows.length };
 }
+const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+function close(a: string, b: string) {   // equal, or one letter off for longer words ("freinds" is "friends")
+  if (a === b) return true; if (a.length < 5 || b.length < 5 || Math.abs(a.length - b.length) > 1) return false;
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]); for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  if (d[a.length][b.length] <= 1) return true; return a[0] === b[0] && a[a.length - 1] === b[b.length - 1] && a.length === b.length && [...a].sort().join('') === [...b].sort().join('');   // one letter off, or two swapped letters
+}
+const STOP = new Set(['the', 'a', 'an', 'my', 'our', 'that', 'this', 'to', 'of', 'and', 'on', 'for', 'in', 'all', 'dates', 'event', 'events', 'meeting', 'meetings', 'appointment', 'calendar']);
+const matches = (title: string, words: string[]) => { const tw = norm(title).split(' '); return words.length > 0 && words.every((w) => tw.some((t) => close(w, t) || (w.length >= 3 && t.startsWith(w)))); };
 /**
- * Plain-words delete from chat ("delete the dentist appointment", "remove that event"). Returns null when the message is not about a calendar event.
- * It only finds the event and raises the approval; the delete itself happens after Luke approves with his passkey.
+ * Plain-words delete from chat ("delete the dentist appointment", "remove that event", "delete how to win friends on all dates"). Returns null when the message is not about a calendar event.
+ * "on all dates / every time / the whole series" deletes a repeating event as a whole series. In direct mode it is done at once; otherwise it raises an approval.
  */
 export function chatDelete(db: DB, text: string, request: (type: string, payload: unknown) => string, now = Date.now(), direct = false): string | null {
-  const m = text.trim().match(/^(?:please\s+|can you\s+|could you\s+)?(?:delete|remove|cancel)\s+(?:(?:that|the|my|this|our)\s+)?(.{2,100}?)\s*(?:event|meeting|appointment|test event)?\s*(?:from (?:my |the )?calendar)?\s*[?.!]*$/i); if (!m) return null;
-  const mentionsCal = /\b(event|meeting|appointment|calendar)\b/i.test(text); const what = m[1].trim().toLowerCase().replace(/\b(event|meeting|appointment|calendar)\b/g, '').replace(/\s+/g, ' ').trim(); const vague = /^(it|that|this|one|last|the last|the one|that one|test)?$/.test(what);
-  if (!mentionsCal && !vague) return null;
-  const evs = upcoming(db, now - 7 * 24 * H, now + 120 * 24 * H).filter((e) => !e.allDay); let hit: typeof evs = [];
+  const m = text.trim().match(/^(?:please\s+|can you\s+|could you\s+)?(?:delete|remove|cancel|get rid of)\s+(.{2,160}?)\s*[?.!]*$/i); if (!m) return null;
+  const all = /\b(on all dates|all (?:the )?(?:dates|occurrences|instances|of them)|every (?:date|time|one|occurrence)|the whole series|entire series|whole series|all of it|everywhere)\b/i.test(m[1]);
+  const mentionsCal = /\b(event|meeting|appointment|calendar)\b/i.test(text) || all;
+  const words = norm(m[1]).split(' ').filter((w) => w && !STOP.has(w)); const vague = words.length === 0 || (words.length === 1 && ['it', 'one', 'last', 'test'].includes(words[0]));
+  if (!mentionsCal && vague) return null;
+  const evs = upcoming(db, now - 30 * 24 * H, now + 400 * 24 * H).filter((e) => !e.allDay); let hit: typeof evs = [];
   if (vague) { const last = (db.prepare("SELECT payload FROM calendar_outbox WHERE kind='create' AND status='done' ORDER BY created_at DESC LIMIT 1").get() as { payload: string } | undefined); const t = last ? String(JSON.parse(last.payload).title).toLowerCase() : ''; hit = t ? evs.filter((e) => e.title.toLowerCase() === t) : []; if (!hit.length) return 'Which event? Tell me its name, like “delete the dentist appointment”.'; }
-  else { const words = what.split(/\s+/).filter((w) => w.length > 1); hit = words.length ? evs.filter((e) => words.every((w) => e.title.toLowerCase().includes(w))) : []; }
-  if (!hit.length) return `I couldn't find an upcoming event matching “${m[1].trim()}” in your calendar copy. If it was just added, wait a minute for the sync and ask again.`;
-  hit = hit.sort((a, b) => Math.abs(a.start - now) - Math.abs(b.start - now)); if (hit.length > 1 && !vague) { const same = hit.filter((e) => e.title === hit[0].title); if (hit.length > 3 || same.length < hit.length) return `I found ${hit.length} events that match: ${hit.slice(0, 4).map((e) => `“${e.title}” (${fmt(e.start)})`).join('; ')}. Tell me which one, with its full name.`; }
-  try { const r = requestDelete(db, { uid: hit[0].uid, calendar: hit[0].calendar }, request); return direct ? `Done. I've deleted “${r.title}” (${fmt(r.start)}). It will disappear from Apple Calendar within a minute.` : `I've asked for your approval to delete “${r.title}” on ${fmt(r.start)}. Nothing is deleted until you approve it on the Approvals page with your passkey.`; } catch (e) { return (e as Error).message; }
+  else hit = evs.filter((e) => matches(e.title, words));
+  if (!hit.length) return mentionsCal ? `I couldn't find an upcoming event matching “${m[1].trim()}” in your calendar copy. If it was just added, wait a minute for the sync and ask again.` : null;
+  const groups = new Map<string, typeof evs>(); for (const e of hit) groups.set(`${e.calendar}|${e.uid}`, [...(groups.get(`${e.calendar}|${e.uid}`) ?? []), e]);
+  const titles = new Set(hit.map((e) => e.title)); if (groups.size > 1 && (titles.size > 1 || groups.size > 3) && !vague) return `I found ${titles.size} events that match: ${[...titles].slice(0, 4).map((t) => `“${t}”`).join('; ')}. Tell me which one, with its full name.`;
+  const best = [...groups.values()].sort((x, y) => Math.abs(x[0].start - now) - Math.abs(y[0].start - now))[0]; const repeating = best.length > 1;
+  try { const r = requestDelete(db, { uid: best[0].uid, calendar: best[0].calendar, series: all && repeating }, request);
+    if (r.series) return direct ? `Done. I've deleted the whole “${r.title}” series, all ${r.count} dates. It will disappear from Apple Calendar within a minute.` : `I've asked for your approval to delete the whole “${r.title}” series (${r.count} dates). Nothing is deleted until you approve it on the Approvals page with your passkey.`;
+    return direct ? `Done. I've deleted “${r.title}” (${fmt(r.start)}). It will disappear from Apple Calendar within a minute.` : `I've asked for your approval to delete “${r.title}” on ${fmt(r.start)}. Nothing is deleted until you approve it on the Approvals page with your passkey.`;
+  } catch (e) { return (e as Error).message.replace('Say “delete it on all dates” to remove the whole series.', `It has ${best.length} dates. Say “delete ${m[1].trim()} on all dates” to remove the whole series.`); }
 }
 
 const SPEC = 'Turn a request to add a calendar event into JSON only: {"title": string, "start": "YYYY-MM-DD HH:MM", "end": "YYYY-MM-DD HH:MM" or null, "location": string}. Times are Chicago local time, 24-hour. If no length is given use one hour. If the date or time is missing or unclear, answer exactly {"error":"..."} with a short question. Output nothing but the JSON.';
