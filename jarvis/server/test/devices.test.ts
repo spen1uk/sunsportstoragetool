@@ -433,3 +433,12 @@ test('over HTTP: the agents overview needs a session and a device cannot read it
     const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; assert.ok([401, 404].includes((await t.api('/api/agents/overview', { headers: { authorization: `Bearer ${token}` } })).status));
   } finally { t.close(); }
 });
+
+test('over HTTP: search needs a session and a device cannot use it', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/search?q=marina')).status, 401); const r = await (await t.api('/api/search?q=marina', { headers: t.me })).json() as any; assert.equal(r.total, 0); assert.deepEqual(r.groups, []);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; assert.ok([401, 404].includes((await t.api('/api/search?q=marina', { headers: { authorization: `Bearer ${token}` } })).status));
+  } finally { t.close(); }
+});
