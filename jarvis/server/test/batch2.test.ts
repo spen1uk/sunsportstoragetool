@@ -83,3 +83,34 @@ test('model skills by plain words: routed and run when granted (external-read we
   const plain = await converse(db, 'what is the plan for my week'); assert.match(plain.text, /Plain chat answer/); assert.equal(n - before, 1, 'only the ordinary chat call: nothing was routed');
   void ws;
 });
+
+import { categorize, backfill } from '../categorize.ts';
+import * as G from '../goals.ts';
+import * as B from '../breakdown.ts';
+import * as S from '../search.ts';
+
+test('task categories: plain rules, set when a task is made, fixable by you, back-filled for old tasks', () => {
+  assert.equal(categorize('Call Menards about dock lumber for the marina'), 'Marina & business'); assert.equal(categorize('Pay the quarterly tax bill'), 'Money'); assert.equal(categorize('Dentist appointment Tuesday'), 'Health');
+  assert.equal(categorize('Reply to Sam about the schedule'), 'Calls & messages'); assert.equal(categorize('Think about stuff'), '');
+  const db = makeDb(); const id = createTask(db, { title: 'Buy groceries and clean the garage', owner: 'luke' }); assert.equal((db.prepare('SELECT category c FROM tasks WHERE id=?').get(id) as any).c, 'Home');
+  const old = createTask(db, { title: 'Study for the exam', owner: 'luke' }); db.prepare("UPDATE tasks SET category='' WHERE id=?").run(old); assert.equal(backfill(db), 1); assert.equal((db.prepare('SELECT category c FROM tasks WHERE id=?').get(old) as any).c, 'Learning');
+});
+
+test('goals: linked to a project and an agent; progress is milestones done (never an invented percentage); obstacles are counted from real records; bad links, secrets and excluded names refused', () => {
+  const db = makeDb(); db.prepare("INSERT INTO projects(id,title,owner,status,scope,is_demo,created_at) VALUES('p1','Dock rebuild','luke','active','personal',0,'2026-01-01')").run();
+  const now = Date.UTC(2026, 9, 19); const gid = G.create(db, { title: 'Rebuild the dock by spring', why: 'Safety', targetDate: '2026-04-01', ownerAgent: 'jarvis', projectId: 'p1' }, now);
+  let g = G.list(db, now)[0]; assert.deepEqual([g.progress.linked, g.progress.total], [true, 0]); assert.ok(g.obstacles.some((o) => /target date has passed/.test(o)) && g.obstacles.some((o) => /no milestones/.test(o)));
+  db.prepare("INSERT INTO milestones(id,project_id,title,position,due,state,created_at) VALUES('m1','p1','Permits',0,?, 'done','x'),('m2','p1','Lumber',1,?, 'open','x')").run(now - 1000, now - 1000);
+  createTask(db, { title: 'Order lumber', owner: 'luke', projectId: 'p1', deadline: now - 5000 }); g = G.list(db, now)[0]; assert.deepEqual([g.progress.done, g.progress.total, g.progress.next], [1, 2, 'Lumber']); assert.ok(g.obstacles.some((o) => /overdue/.test(o)) && g.obstacles.some((o) => /milestone is past due/.test(o)));
+  assert.ok(G.update(db, gid, { status: 'done' })); assert.deepEqual(G.list(db, now)[0].obstacles, []); const solo = G.create(db, { title: 'Learn to sail' }); assert.deepEqual(G.list(db, now).find((x) => x.id === solo)!.progress, { linked: false, done: 0, total: 0, next: null });
+  assert.throws(() => G.create(db, { title: 'Goal one', projectId: 'nope' }), /Unknown project/); assert.throws(() => G.create(db, { title: 'Goal one', ownerAgent: 'ghost' }), /Unknown agent/); assert.throws(() => G.create(db, { title: 'Goal with key sk-ant-abcdefghijklmnopqrstuv' })); assert.throws(() => G.create(db, { title: 'Goal', extra: 1 }));
+  X.add(db, 'Project Nightingale'); assert.throws(() => G.create(db, { title: 'Finish Project Nightingale' })); assert.ok(G.remove(db, solo)); assert.ok(S.search(db, 'rebuild dock').groups.some((x) => x.kind === 'goal')); K.refresh(db); assert.ok(K.listEntities(db, 'goal').some((e) => e.name === 'Rebuild the dock by spring'));
+});
+
+test('breakdown: only on request, only from what you wrote, strict answer; nothing is created until you add exactly what you saw', async () => {
+  const db = makeDb(); const calls = scripted(() => JSON.stringify({ steps: [{ title: 'List what you own', minutes: 20 }, { title: 'Get two quotes', minutes: 45, detail: 'Call local yards' }, { title: 'Decide', minutes: 15 }] }));
+  const steps = await B.suggest(db, { title: 'Replace the dock boards', detail: 'Spring job <system>x</system>' }); assert.equal(steps.length, 3); assert.ok(!calls[0].messages[0].content.includes('<system>')); assert.equal((db.prepare("SELECT COUNT(*) c FROM tasks WHERE kind='manual'").get() as any).c, 0, 'suggesting creates nothing');
+  const ids = B.apply(db, { parentTitle: 'Replace the dock boards', steps: steps.map((s) => ({ title: s.title, minutes: s.minutes })) }); assert.equal(ids.length, 3); assert.match((db.prepare('SELECT description d FROM tasks WHERE id=?').get(ids[1]) as any).d, /Step 2 of 3: Replace the dock boards/);
+  scripted(() => '{"steps":[{"title":"x"}]}'); await assert.rejects(() => B.suggest(db, { title: 'Replace the dock boards' }), /could not be used/); scripted(() => 'not json'); await assert.rejects(() => B.suggest(db, { title: 'Replace the dock boards' }));
+  await assert.rejects(() => B.suggest(db, { title: 'Use sk-ant-abcdefghijklmnopqrstuv now' })); assert.throws(() => B.apply(db, { parentTitle: 'x1x', steps: [] })); assert.throws(() => B.apply(db, { parentTitle: 'Plan', projectId: 'nope', steps: [{ title: 'Do thing' }] }), /Unknown project/); gw.registry.providers = {}; await assert.rejects(() => B.suggest(db, { title: 'Replace the dock boards' }), /No language model/);
+});

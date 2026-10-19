@@ -4,6 +4,7 @@ import { PersonaCard, ModelsCard } from './ai.tsx';
 import { ProjectsPanel } from './projects.tsx';
 import { MemorySuggestions } from './memsug.tsx';
 import { PasskeyCard, BackupCard, HealthCard, DevicesCard, StandingCard, WebSearchCard } from './passkeycard.tsx';
+import { BreakdownBox } from './goals.tsx';
 import { passkeySupported, stepUpWithPasskey } from './passkey.ts';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -24,7 +25,7 @@ export function TasksPage() {
   const { data: projects } = useLive<any[]>(() => api('/api/projects'), ['projects']);
   const [taskProj, setTaskProj] = useState(''), [taskMs, setTaskMs] = useState(''), [title, setTitle] = useState(''), [mins, setMins] = useState('30'), [due, setDue] = useState(''), [q, setQ] = useState(''), [urls, setUrls] = useState(''), [open, setOpen] = useState<string | null>(null);
   const { data: pdet } = useLive<any>(() => (taskProj ? api(`/api/projects/${taskProj}`) : Promise.resolve(null)), ['projects'], [taskProj]);
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]), [bdTask, setBdTask] = useState<any>(null);
   const a = useAction();
   const groups = useMemo(() => {
     const g: Record<string, any[]> = { 'Needs you': [], 'In progress': [], Done: [] };
@@ -58,6 +59,7 @@ export function TasksPage() {
           <button className="primary" disabled={q.trim().length < 3 || !urls.trim()}>Queue research</button>
         </form>
       </div>
+      {bdTask && <BreakdownBox title={bdTask.title} detail={bdTask.description} projectId={bdTask.project_id} onDone={reload} onClose={() => setBdTask(null)} />}
       {Object.entries(groups).map(([name, list]) => (
         <div key={name} className="glass pad section">
           <h2>{name} <span className="muted">{list.length}</span></h2>
@@ -72,6 +74,8 @@ export function TasksPage() {
                 <div className="grow">
                   <button className="link" onClick={async () => { if (open === t.id) setOpen(null); else { setOpen(t.id); setEvents((await api(`/api/tasks/${t.id}`)).events); } }}>{t.title}</button>
                   {t.is_demo ? <span className="badge demo sm">DEMO</span> : null}
+                  {t.kind === 'manual' && t.category ? <span className="badge sm" title="Category (worked out from the words in the task)">{t.category}</span> : null}
+                  {t.kind === 'manual' && t.state !== 'completed' && t.state !== 'canceled' ? <button className="link small" onClick={() => setBdTask(t)}>Break down</button> : null}
                   <div className="muted small"><span className={`state ${t.state}`}>{t.state.replace('_', ' ')}</span>{t.waiting_reason ? ` · ${t.waiting_reason}` : ''}{t.last_error ? ` · last error: ${t.last_error}` : ''}{t.attempts ? ` · attempt ${t.attempts}/${t.max_attempts}` : ''}</div>
                   {open === t.id && <ol className="events">{events.map((e) => <li key={e.id}><time>{ago(e.at)}</time> {e.kind} {e.detail}</li>)}</ol>}
                 </div>

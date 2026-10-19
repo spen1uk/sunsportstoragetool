@@ -116,6 +116,7 @@ export function refresh(db: DB) {
     for (const p of db.prepare('SELECT id,title,status,scope FROM projects WHERE is_demo=0').all() as any[]) push(`project:${p.id}`, 'project', p.title, `Project (${p.status}).`, p.scope === 'business' ? 'business' : 'personal');
     for (const p of db.prepare('SELECT id,name,relationship,notes FROM people').all() as any[]) push(`person:${p.id}`, 'person', p.name, [p.relationship, p.notes].filter(Boolean).join('. '));
     for (const g of db.prepare('SELECT id,name,unit,per_week FROM learning_goals WHERE archived=0').all() as any[]) push(`goal:${g.id}`, 'goal', g.name, `Learning goal: ${g.per_week} ${g.unit} a week.`);
+    for (const g of db.prepare("SELECT id,title,why,status FROM goals WHERE status<>'dropped'").all() as any[]) push(`ggoal:${g.id}`, 'goal', g.title, `Goal (${g.status}). ${g.why}`.trim());
     for (const a of db.prepare('SELECT id,name,role,description FROM agents').all() as any[]) push(`agent:${a.id}`, 'agent', a.name, `${a.role}. ${a.description}`.trim());
     for (const m of db.prepare("SELECT id,title,status FROM missions WHERE kind='assigned' OR status IN ('active','done')").all() as any[]) push(`mission:${m.id}`, 'mission', m.title, `Research mission (${m.status}).`);
     for (const a of db.prepare('SELECT id,parent_id FROM agents WHERE parent_id IS NOT NULL').all() as any[]) {

@@ -7,7 +7,7 @@ import * as ex from './exclusions.ts';
  * on Luke's own search page, never in a chat reply (chat replies are stored and later shown to the model; imports are private).
  */
 export type Hit = { kind: string; id: string; title: string; snippet: string; at: number | null; link: string; score: number };
-export const LABELS: Record<string, string> = { memory: 'Memory', task: 'Tasks', research: 'Research', note: 'Notes', calendar: 'Calendar', decision: 'Decisions', knowledge: 'Knowledge', mission: 'Missions', person: 'People', project: 'Projects', report: 'Reports', brief: 'Claude Code briefs', chat: 'Conversations', import: 'Imported chats', gap: 'Improvements' };
+export const LABELS: Record<string, string> = { memory: 'Memory', task: 'Tasks', research: 'Research', note: 'Notes', calendar: 'Calendar', decision: 'Decisions', knowledge: 'Knowledge', mission: 'Missions', person: 'People', project: 'Projects', report: 'Reports', brief: 'Claude Code briefs', chat: 'Conversations', import: 'Imported chats', gap: 'Improvements', goal: 'Goals' };
 
 const esc = (s: string) => s.replace(/[\\%_]/g, (c) => '\\' + c);
 export const terms = (q: string) => [...new Set(q.toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, ' ').split(/\s+/).filter((t) => t.length >= 2))].slice(0, 6);
@@ -30,6 +30,7 @@ const SOURCES: Src[] = [
   { kind: 'report', sql: "FROM artifact_versions v JOIN artifacts a ON a.id=v.artifact_id WHERE a.is_demo=0 AND a.status<>'deleted' AND v.version=a.current_version", cols: ['a.title', 'v.content'], title: 'a.title', body: ['v.content', 'a.title'], id: 'a.id', at: 'v.created_at', link: () => '#/review' },
   { kind: 'brief', sql: 'FROM briefs', cols: ['title', 'goal', 'context', 'result_note'], title: 'title', body: ['goal', 'context', 'title'], id: 'id', at: 'updated_at', link: () => '#/integrations' },
   { kind: 'chat', sql: 'FROM messages', cols: ['content'], title: 'content', body: ['content'], id: 'id', at: 'at', link: () => '#/command' },
+  { kind: 'goal', sql: "FROM goals WHERE status<>'dropped'", cols: ['title', 'why', 'notes'], title: 'title', body: ['why', 'notes', 'title'], id: 'id', at: 'updated_at', link: () => '#/goals' },
   { kind: 'gap', sql: 'FROM gaps', cols: ['title', 'detail'], title: 'title', body: ['detail', 'title'], id: 'id', at: 'last_seen', link: () => '#/improve' },
   { kind: 'import', sql: 'FROM chat_import_messages m JOIN chat_imports c ON c.id=m.import_id', cols: ['c.title', 'm.text'], title: 'c.title', body: ['m.text', 'c.title'], id: 'c.id', at: 'c.imported_at', link: () => '#/integrations' },
 ];

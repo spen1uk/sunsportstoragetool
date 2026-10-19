@@ -43,6 +43,9 @@ import * as excl from './exclusions.ts';
 import { PRICES } from './llm/prices.ts';
 import * as briefs from './briefs.ts';
 import * as usearch from './search.ts';
+import { CATEGORIES } from './categorize.ts';
+import * as goalsMod from './goals.ts';
+import * as brk from './breakdown.ts';
 import * as trig from './triggers.ts';
 import { route as routeSkill, candidates as routeCandidates } from './skills/router.ts';
 import { overview as agentsOverview } from './agentsview.ts';
@@ -172,9 +175,9 @@ route('POST', '/api/tasks/:id/complete', ({ db, params }) => {
 route('POST', '/api/tasks/:id/reopen', ({ db, params }) => { tasks.reopenTask(db, params.id); return { ok: true }; });
 route('POST', '/api/tasks/:id/cancel', ({ db, params }) => { tasks.cancelTask(db, params.id); return { ok: true }; });
 route('PATCH', '/api/tasks/:id', ({ db, params, body }) => {
-  const b = parse(z.object({ minutes: z.number().int().min(5).max(480).optional(), deadline: z.number().int().nullable().optional(), priority: z.number().int().min(1).max(5).optional() }), body);
+  const b = parse(z.object({ minutes: z.number().int().min(5).max(480).optional(), deadline: z.number().int().nullable().optional(), priority: z.number().int().min(1).max(5).optional(), category: z.enum(['', ...CATEGORIES]).optional() }), body);
   const sets: string[] = [], vals: any[] = [];
-  if (b.minutes !== undefined) { sets.push('minutes=?'); vals.push(b.minutes); } if (b.deadline !== undefined) { sets.push('deadline=?'); vals.push(b.deadline); } if (b.priority !== undefined) { sets.push('priority=?'); vals.push(b.priority); }
+  if (b.minutes !== undefined) { sets.push('minutes=?'); vals.push(b.minutes); } if (b.deadline !== undefined) { sets.push('deadline=?'); vals.push(b.deadline); } if (b.priority !== undefined) { sets.push('priority=?'); vals.push(b.priority); } if (b.category !== undefined) { sets.push('category=?'); vals.push(b.category); }
   if (!sets.length) throw bad('nothing to change');
   db.prepare(`UPDATE tasks SET ${sets.join(',')}, version=version+1, updated_at=? WHERE id=?`).run(...vals, now(), params.id); audit(db, 'luke', 'task.updated', params.id, b); return { ok: true };
 });
@@ -430,6 +433,12 @@ route('POST', '/api/triggers/:id/enabled', ({ db, session, params, body }) => { 
 route('DELETE', '/api/triggers/:id', ({ db, params }) => ({ ok: trig.remove(db, params.id) }));
 route('POST', '/api/skills/route', async ({ db, body }) => { const b = parse(z.object({ text: z.string().min(3).max(300) }), body); const r = await routeSkill(db, b.text, { run: false }); return r.handled ? { skill: r.skill, say: r.text } : { skill: null, say: 'No skill fits that. It would be an ordinary chat.', candidates: routeCandidates(db).length }; });
 route('GET', '/api/search', ({ db, url }) => usearch.search(db, (url.searchParams.get('q') ?? '').slice(0, 120), { includeImports: url.searchParams.get('imports') === '1', perKind: 10 }));
+route('GET', '/api/goals', ({ db }) => ({ items: goalsMod.list(db), agents: rows(db, "SELECT id,name FROM agents WHERE parent_id='jarvis' OR id='jarvis' ORDER BY sort") }));
+route('POST', '/api/goals', ({ db, body }) => ({ id: guard(() => goalsMod.create(db, body)) }));
+route('PATCH', '/api/goals/:id', ({ db, params, body }) => ({ ok: guard(() => goalsMod.update(db, params.id, body)) }));
+route('DELETE', '/api/goals/:id', ({ db, params }) => ({ ok: goalsMod.remove(db, params.id) }));
+route('POST', '/api/breakdown', async ({ db, body }) => { const b = parse(z.object({ title: z.string().min(3).max(200), detail: z.string().max(600).optional() }), body); return { steps: await aguard(() => brk.suggest(db, b)) }; });
+route('POST', '/api/breakdown/apply', ({ db, body }) => ({ ids: guard(() => brk.apply(db, body)) }));
 route('GET', '/api/agents/overview', ({ db }) => agentsOverview(db));
 route('GET', '/api/improve', ({ db }) => ({ gaps: gaps.list(db), improvements: cand.list(db), auto: roll.autoDraft(db), modelReady: gw.ready(db, 'analysis'), capDefaultMicroUsd: cand.DEFAULT_CAP_MICRO, capMaxMicroUsd: cand.MAX_CAP_MICRO }));
 route('GET', '/api/improve/:id', ({ db, params }) => { const i = cand.get(db, params.id); if (!i) throw new HttpError(404, 'not found'); return { improvement: i, events: cand.events(db, params.id) }; });

@@ -1,3 +1,4 @@
+import { categorize } from './categorize.ts';
 import { type DB, tx, id, now } from './db.ts';
 import { audit } from './audit.ts';
 import { publish, pulse } from './events.ts';
@@ -28,6 +29,7 @@ export function createTask(db: DB, t: {
               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(tid, t.projectId ?? null, t.title.slice(0, 200), (t.description ?? '').slice(0, 4000), kind,
     'ready', t.priority ?? 3, t.owner ?? (kind === 'manual' ? 'luke' : 'jarvis'), t.requires ?? 'cloud', t.optional ? 1 : 0,
     JSON.stringify(t.input ?? {}), t.idempotencyKey ?? null, t.isDemo ? 1 : 0, ts, ts, Math.max(5, Math.min(480, t.minutes ?? 30)), t.deadline ?? null, t.milestoneId ?? null);
+  if (kind === 'manual') { const cat = categorize(t.title, t.description); if (cat) db.prepare('UPDATE tasks SET category=? WHERE id=?').run(cat, tid); }
   logEvent(db, tid, 'created', `${kind} task`);
   audit(db, 'luke', 'task.created', tid, { kind, title: t.title });
   publish({ type: 'tasks' });
