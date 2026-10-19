@@ -131,20 +131,28 @@ export function chatDelete(db: DB, text: string, request: (type: string, payload
   } catch (e) { return (e as Error).message.replace('Say “delete it on all dates” to remove the whole series.', `It has ${best.length} dates. Say “delete ${m[1].trim()} on all dates” to remove the whole series.`); }
 }
 
-const SPEC = 'Turn a request to add a calendar event into JSON only: {"title": string, "start": "YYYY-MM-DD HH:MM", "end": "YYYY-MM-DD HH:MM" or null, "location": string}. Times are Chicago local time, 24-hour. If no length is given use one hour. If the date or time is missing or unclear, answer exactly {"error":"..."} with a short question. Output nothing but the JSON.';
-/** Plain-words create from chat ("add dentist to my calendar Friday at 3pm"). Returns null when the message is not about adding a calendar event. */
+const SPEC = 'Turn a request to put one or more events on a calendar into JSON only: {"events": [{"title": string, "start": "YYYY-MM-DD HH:MM", "end": "YYYY-MM-DD HH:MM" or null, "location": string}]} (at most 10). Times are Chicago local time, 24-hour. If no time is given use 09:00. If no length is given use one hour. If a later event in the same message has no title of its own ("also make one for September 10th"), give it the same title as the event before it. Use the year stated; if none, the next time that date comes around. Only if a date is truly missing or unclear, answer exactly {"error":"..."} with one short question. Output nothing but the JSON.';
+/** Spelling does not matter: calendar, calender, calander, cal. */
+const CAL = /\b(calend[ae]r|calander|calendars|cal|agenda|schedule)\b/i;
+/** Plain-words create from chat ("put on the calendar for August 1st to put out the storage cards, also one for September 10th"). Returns null when the message is not about adding calendar events. */
 export async function chatCreate(db: DB, text: string, request: (type: string, payload: unknown) => string, now = Date.now(), direct = false): Promise<string | null> {
-  const t = text.trim(); if (!/^(?:please\s+|can you\s+|could you\s+)?(?:add|put|schedule|book|create|set up)\b/i.test(t) || !/\b(calendar|event|appointment|meeting)\b/i.test(t) || t.length > 300) return null;
+  const t = text.trim(); if (!/^(?:(?:hey |ok |okay |jarvis[, ]+)?(?:please |can you |could you |would you |i need you to |i want you to )?)(?:add|put|schedule|book|create|make|set up|mark|block|note|write|stick|throw|pencil)\b/i.test(t) || !(CAL.test(t) || /\b(event|appointment|meeting|reminder)\b/i.test(t)) || t.length > 600) return null;
   if (!ready(db, 'ping')) return 'I need a model connected to read that. Add it on the Calendar page instead.';
   const cp = chicagoParts(now); const r = await complete(db, { task: 'ping', ref: 'calendar-add', system: SPEC + ` Right now it is ${new Date(now).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })} (${cp.y}-${String(cp.m).padStart(2, '0')}-${String(cp.d).padStart(2, '0')}).`, messages: [{ role: 'user', content: t }], channel: 'dashboard' }, now);
   if (!r.ok) return 'I could not read that just now. Try the Calendar page, or ask again in a moment.';
-  let j: any; try { j = JSON.parse(r.text.slice(r.text.indexOf('{'), r.text.lastIndexOf('}') + 1)); } catch { return 'I could not work out the date and time. Tell me the day and time, like “add dentist to my calendar Friday at 3pm”.'; }
+  let j: any; try { j = JSON.parse(r.text.slice(r.text.indexOf('{'), r.text.lastIndexOf('}') + 1)); } catch { return 'I could not work out the dates. Tell me the day, like “put dentist on my calendar Friday at 3pm”.'; }
   if (j.error) return String(j.error).slice(0, 200);
   const at = (v: unknown) => { const m = String(v ?? '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/); return m ? chicagoInstant(+m[1], +m[2], +m[3], +m[4], +m[5]) : NaN; };
-  const start = at(j.start); const end = j.end ? at(j.end) : start + H; if (!Number.isFinite(start) || !Number.isFinite(end)) return 'I could not work out the date and time. Tell me the day and time, like “add dentist to my calendar Friday at 3pm”.';
-  try { const out = await requestCreate(db, { title: String(j.title ?? '').slice(0, 120), start, end, location: String(j.location ?? '').slice(0, 160) }, request, now); const heads = headsUp(out.check);
-    return (direct ? `Done. I've added “${out.check.event.title}” to your ${target(db)} calendar, ${fmt(start)} to ${fmt(end)}. It will appear in Apple Calendar within a minute.` : `I've asked for your approval to add “${out.check.event.title}”, ${fmt(start)} to ${fmt(end)}. Nothing is added until you approve it on the Approvals page.`) + (heads.length ? ` Heads up: ${heads.join(' ')}` : '');
-  } catch (e) { return (e as Error).message; }
+  const list: any[] = Array.isArray(j.events) ? j.events.slice(0, 10) : j.title ? [j] : []; if (!list.length) return 'I could not work out what to add. Tell me the day and what it is.';
+  const done: string[] = [], notes: string[] = [];
+  for (const e of list) {
+    const start = at(e.start), end = e.end ? at(e.end) : start + H; if (!Number.isFinite(start) || !Number.isFinite(end)) { notes.push(`I couldn't read the date for “${String(e.title ?? '').slice(0, 60)}”.`); continue; }
+    try { const out = await requestCreate(db, { title: String(e.title ?? '').slice(0, 120), start, end, location: String(e.location ?? '').slice(0, 160) }, request, now); const heads = headsUp(out.check).filter((x) => !/very early or late/.test(x));
+      done.push(`“${out.check.event.title}”, ${fmt(start)}${heads.length ? ` (heads up: ${heads.join(' ')})` : ''}`);
+    } catch (err) { notes.push((err as Error).message); if (/Choose which calendar/.test((err as Error).message)) break; }
+  }
+  const lead = !done.length ? '' : direct ? `Done. I've added ${done.length === 1 ? done[0] : `${done.length} events to your ${target(db)} calendar:\n- ${done.join('\n- ')}`}${done.length === 1 ? ` to your ${target(db)} calendar` : ''}. They'll appear in Apple Calendar within a minute.` : `I've asked for your approval to add ${done.length === 1 ? done[0] : `${done.length} events:\n- ${done.join('\n- ')}`}. Nothing is added until you approve it on the Approvals page.`;
+  return [lead, ...notes].filter(Boolean).join('\n');
 }
 
 // ---- applying approved changes ----

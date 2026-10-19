@@ -30,3 +30,13 @@ test('intent: questions and chit-chat pay nothing; a null pick, a bad form, a mi
   calls = model(() => ({ action: 'task', args: { title: 'x task here' } })); await converse(db, 'add a task to call sam please', { private: true }); await converse(db, 'build me a boat tracker thing', { channel: 'sms' }); X.add(db, 'Project Nightingale'); await converse(db, 'build me a tracker for Project Nightingale'); assert.equal(intentCalls(calls), 0);
   assert.ok(looksLikeRequest('Could you build a quote page for the marina') && !looksLikeRequest('how do I build a deck') && !looksLikeRequest('build'));
 });
+
+test('calendar by plain words: misspelling ("calender") still works, several events in one message are all added, a missing title reuses the first, and no calendar chosen is explained', async () => {
+  const db = makeDb(); const W = await import('../calendarwrite.ts'); const cal = await import('../calendar.ts');
+  cal.rememberSources(db, 'calendar', ['Home']); cal.setEnabled(db, 'calendar', ['Home']);
+  const calls: string[] = []; gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req) { calls.push(req.system.slice(0, 40)); const isCal = req.system.includes('put one or more events'); return { text: isCal ? JSON.stringify({ events: [{ title: 'Put out Sun Sport Marine storage cards', start: '2027-08-01 09:00', end: null, location: '' }, { title: 'Put out Sun Sport Marine storage cards', start: '2027-09-10 09:00', end: null, location: '' }] }) : 'Plain chat answer.', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 0 } } as Completion; } } as Provider };
+  const ask = 'Put on the calender for August 1st 2027 to Put out sun sport marine storage cards. also make one fo september 10th';
+  assert.match((await converse(db, ask)).text, /Choose which calendar/, 'no calendar chosen yet: says so, does not claim it cannot'); W.setTarget(db, 'Home');
+  const r = await converse(db, ask); assert.equal(r.source, 'command'); assert.match(r.text, /^Done\. I've added 2 events to your Home calendar/); assert.match(r.text, /Aug 1/); assert.match(r.text, /Sep 10/);
+  assert.equal(W.outbox(db).filter((o) => o.kind === 'create').length, 2); assert.deepEqual(W.outbox(db).map((o) => o.payload.title), ['Put out Sun Sport Marine storage cards', 'Put out Sun Sport Marine storage cards']);
+});
