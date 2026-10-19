@@ -27,7 +27,7 @@ test('routing: a plain request is matched to one skill; only an allowed, read-on
 
 test('routing: not granted → explained, nothing runs; model picks an unknown or null skill → ordinary chat; bad input → ordinary chat; paused, private mode and SMS never route', async () => {
   const db = makeDb(); memory.remember(db, 'secret-ish fact about boats', { source: 't' });
-  let calls = model(() => ({ skill: 'memory.search', input: { query: 'boats' } })); const no = await converse(db, 'check my memories on boats'); assert.match(no.text, /not allowed to use it yet.*Skills page/); assert.equal((db.prepare("SELECT COUNT(*) n FROM skill_runs WHERE ok=1").get() as any).n, 0);
+  let calls = model(() => ({ skill: 'memory.search', input: { query: 'boats' } })); const no = await converse(db, 'use the memory search for boats'); assert.match(no.text, /not allowed to use it yet.*Skills page/); assert.equal((db.prepare("SELECT COUNT(*) n FROM skill_runs WHERE ok=1").get() as any).n, 0);
   reg.grant(db, 'jarvis', 'memory.search', 'luke');
   for (const pick of [{ skill: null }, { skill: 'made.up' }, { skill: 'memory.search', input: { query: 1 } }, { skill: 'memory.search', input: { query: 'boats', extra: 'x' } }]) { calls = model(() => pick); const r = await converse(db, 'check my memories on boats'); assert.match(r.text, /Plain chat answer/, JSON.stringify(pick)); }
   calls = model(() => ({ skill: 'memory.search', input: { query: 'boats' } })); await converse(db, 'check my memories on boats', { private: true }); await converse(db, 'check my memories on boats', { channel: 'sms' }); assert.equal(routingCalls(calls), 0);

@@ -5,6 +5,7 @@ import { audit } from '../audit.ts';
 import { isPaused } from '../pause.ts';
 import { canonicalJson } from '../db.ts';
 import { ALL_BUILTIN, type Entry } from './catalog.ts';
+import { PROMPT_SKILLS } from './promptskills.ts';
 import { PRINCIPALS, SENS_RANK, tierOf, isPrincipal, type Manifest } from './manifest.ts';
 
 /**
@@ -19,7 +20,7 @@ import { PRINCIPALS, SENS_RANK, tierOf, isPrincipal, type Manifest } from './man
 const extra: Entry[] = [];
 /** TEST ONLY: add skills (e.g. a second version) to exercise rollback and composition. Never wired to config or requests. */
 export const _testEntries = { add: (...e: Entry[]) => { extra.push(...e); synced = new WeakSet(); }, clear: () => { extra.length = 0; synced = new WeakSet(); } };
-export const entries = (): Entry[] => [...ALL_BUILTIN, ...extra];
+export const entries = (): Entry[] => [...ALL_BUILTIN, ...PROMPT_SKILLS, ...extra];
 const semverCmp = (a: string, b: string) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; };
 export const versionsOf = (id: string) => entries().filter((e) => e.manifest.id === id).sort((a, b) => semverCmp(a.manifest.version, b.manifest.version));
 export const ids = () => [...new Set(entries().map((e) => e.manifest.id))].sort();

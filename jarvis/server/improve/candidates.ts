@@ -33,7 +33,7 @@ export const events = (db: DB, iid: string) => db.prepare('SELECT at,kind,detail
 function catalogText(db: DB) {
   return registry.summary(db).filter((s: any) => s.status === 'active').map((s: any) => {
     const d = registry.detail(db, s.id) as any; const keys = Object.keys((d?.inputSchema as any)?.properties ?? {});
-    return `${s.id} | ${fence(s.purpose, 140)} | tier ${s.tier}, effects ${s.sideEffects}, data ${s.dataSensitivity} | inputs: ${keys.join(',') || 'none'}${s.runPath === 'direct' && s.tier < 3 ? '' : ' | CANNOT be used in a workflow'}`;
+    return `${s.id} | ${fence(s.purpose, 140)} | tier ${s.tier}, effects ${s.sideEffects}, data ${s.dataSensitivity} | inputs: ${keys.join(',') || 'none'}${s.runPath === 'direct' && s.tier < 3 && !(registry.resolve(db, s.id)?.entry.manifest.cost.perCallMicroUsd) ? '' : ' | CANNOT be used in a workflow'}`;
   }).join('\n');
 }
 

@@ -36,6 +36,12 @@ export function validate(db: DB, stepsRaw: unknown, principal?: string): { ok: b
   return { ok: violations.length === 0, violations, effective };
 }
 
+/** True if any step calls a model (costs money). Such steps are fine when you run a workflow yourself, but never in scheduled runs or sandbox tests. */
+export function usesModel(db: DB, stepsRaw: unknown): boolean {
+  const p = stepsSchema.safeParse(stepsRaw); if (!p.success) return false;
+  return p.data.some((st) => (resolve(db, st.skill)?.entry.manifest.cost.perCallMicroUsd ?? 0) > 0);
+}
+
 export function save(db: DB, name: string, stepsRaw: unknown, by: string, now = Date.now()) {
   const n = String(name).trim(); if (!/^[A-Za-z0-9 _-]{3,50}$/.test(n)) throw new Error('A workflow name needs 3 to 50 letters, numbers, spaces, - or _.');
   const v = validate(db, stepsRaw); if (!v.ok) throw new Error(v.violations.join(' ')); if ((db.prepare('SELECT COUNT(*) c FROM skill_workflows').get() as any).c >= 50) throw new Error('You can keep up to 50 workflows.');

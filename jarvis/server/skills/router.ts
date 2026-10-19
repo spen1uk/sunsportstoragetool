@@ -22,7 +22,7 @@ export function candidates(db: DB, principal = 'jarvis'): Candidate[] {
   for (const s of registry.summary(db) as any[]) {
     if (s.status !== 'active' || s.tier >= 3) continue; const r = registry.resolve(db, s.id); if (!r || r.entry.manifest.runPath !== 'direct') continue;
     const a = registry.access(db, principal, s.id); const d = registry.detail(db, s.id) as any; const props = Object.entries((d?.inputSchema as any)?.properties ?? {}).map(([k, v]: [string, any]) => `${k}:${v.type ?? 'text'}`);
-    out.push({ id: s.id, kind: 'skill', title: s.title, purpose: s.purpose, fields: props, allowed: a.allowed, reasons: a.reasons, readOnly: s.sideEffects === 'none' });
+    out.push({ id: s.id, kind: 'skill', title: s.title, purpose: s.purpose, fields: props, allowed: a.allowed, reasons: a.reasons, readOnly: s.sideEffects === 'none' || s.sideEffects === 'external_read' });
   }
   for (const w of workflow.list(db) as any[]) {
     if (w.status !== 'active') continue; const v = workflow.validate(db, w.steps, principal);
@@ -33,7 +33,8 @@ export function candidates(db: DB, principal = 'jarvis'): Candidate[] {
 /** Cheap gate so ordinary chat never pays for a routing call: the request must share a meaningful word with at least one skill. */
 export function prefilter(text: string, cands: Candidate[]): Candidate[] {
   const w = words(text); if (w.size === 0) return [];
-  return cands.filter((c) => { const cw = words(`${c.title} ${c.purpose} ${c.id.replace(/[._:-]/g, ' ')}`); for (const x of w) if (cw.has(x)) return true; return false; });
+  // A skill Jarvis may use needs one shared word; one he may not use (so the answer would only be "switch it on") needs two, so ordinary chat is not hijacked by a stray word like "plan" or "review".
+  return cands.filter((c) => { const cw = words(`${c.title} ${c.purpose} ${c.id.replace(/[._:-]/g, ' ')}`); let n = 0; for (const x of w) if (cw.has(x)) n++; return n >= (c.allowed ? 1 : 2); });
 }
 
 const choice = z.object({ skill: z.string().nullable(), input: z.record(z.string(), z.unknown()).default({}) }).passthrough();
@@ -42,6 +43,7 @@ const fence = (s: string, n: number) => s.replace(/[<>]/g, ' ').replace(/[\u0000
 /** Turns a skill result into plain lines for Luke. No model; capped. */
 export function render(result: unknown): string {
   const line = (v: any): string => { if (v == null) return ''; if (typeof v === 'string') return v; if (typeof v !== 'object') return String(v); const vals = Object.entries(v).filter(([k, x]) => typeof x === 'string' && !/^(id|link|url)$/.test(k)).map(([, x]) => x as string); return vals.slice(0, 3).join(' — ') || Object.entries(v).slice(0, 4).map(([k, x]) => `${k}: ${typeof x === 'object' ? JSON.stringify(x) : x}`).join(', '); };
+  if (result && typeof result === 'object' && typeof (result as any).text === 'string') return String((result as any).text).slice(0, 2400);
   const rows = Array.isArray(result) ? result : result && typeof result === 'object' && Array.isArray((result as any).groups) ? (result as any).groups.flatMap((g: any) => g.items.slice(0, 3).map((h: any) => ({ s: g.label, t: h.title }))) : null;
   if (rows) return rows.length ? rows.slice(0, 12).map((r: any) => `- ${line(r)}`).join('\n').slice(0, 1400) : 'Nothing to show.';
   return line(result).slice(0, 1400) || 'Done, with nothing to show.';

@@ -116,9 +116,9 @@ export function gate(db: DB, o: { channel: string; private?: boolean }, now = Da
 
 export type Turn = { ok: true; text: string; claims: Claim[]; sources: { url: string; title: string }[]; pageAges: Record<string, string>; costMicroUsd: number; model: string; searches: number } | { ok: false; kind: string; error: string };
 /** One walled-off search turn (no private data, no tools but search, no actions). Raw result; callers decide how to present it. */
-export async function searchTurn(db: DB, query: string, o: { channel: string; deviceId?: string; brief?: boolean; ref?: string; allowedDomains?: string[]; blockedDomains?: string[]; maxUses?: number; system?: string; history?: { role: 'user' | 'assistant'; content: string }[] }, now = Date.now()): Promise<Turn> {
+export async function searchTurn(db: DB, query: string, o: { channel: string; deviceId?: string; brief?: boolean; ref?: string; allowedDomains?: string[]; blockedDomains?: string[]; maxUses?: number; system?: string; rawUser?: boolean; history?: { role: 'user' | 'assistant'; content: string }[] }, now = Date.now()): Promise<Turn> {
   const system = (o.system ?? systemPrompt(now)) + (o.brief ? '\nDELIVERY: your answer will be SPOKEN ALOUD while Luke is driving: at most two short sentences of plain speech.' : '');
-  const r = await complete(db, { task: 'web', system, messages: [...(o.history ?? []), { role: 'user', content: clean(query, 400) }], webSearch: { maxUses: o.maxUses ?? MAX_USES, timezone: config.timezone, allowedDomains: o.allowedDomains, blockedDomains: o.blockedDomains }, channel: o.channel, deviceId: o.deviceId, ref: o.ref }, now);
+  const r = await complete(db, { task: 'web', system, messages: [...(o.history ?? []), { role: 'user', content: o.rawUser ? query.slice(0, 7000) : clean(query, 400) }], webSearch: { maxUses: o.maxUses ?? MAX_USES, timezone: config.timezone, allowedDomains: o.allowedDomains, blockedDomains: o.blockedDomains }, channel: o.channel, deviceId: o.deviceId, ref: o.ref }, now);
   if (!r.ok) return { ok: false, kind: r.kind, error: r.error };
   return { ok: true, text: r.text, claims: r.claims ?? [], sources: r.sources ?? [], pageAges: r.pageAges ?? {}, costMicroUsd: r.costMicroUsd, model: r.model, searches: r.searches ?? 0 };
 }

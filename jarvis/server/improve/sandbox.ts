@@ -42,6 +42,7 @@ async function checkWorkflow(live: DB, steps: any[], now: number): Promise<Check
   const e = v.effective;
   add('tier', 'Needs nothing above tier 2 and nothing that sends, spends or deletes', e.tier <= 2 && ['none', 'internal_write'].includes(e.sideEffects), `tier ${e.tier}, effects ${e.sideEffects}`);
   add('offline', 'Does not read from the web or untrusted sources (so it can be fully tested offline)', !e.untrusted && e.runnable, e.untrusted ? 'uses web output' : 'includes a step the runner will not execute');
+  add('nomodel', 'Calls no model (so it costs nothing and can be tested offline)', !workflow.usesModel(live, steps), 'one of its steps calls a model');
   if (!out.every((c) => c.passed)) return out;
   const s = build(live, now);
   try {
