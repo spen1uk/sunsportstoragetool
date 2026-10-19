@@ -1,4 +1,5 @@
 import { disableAll as disableAllTriggers } from './triggers.ts';
+import { pauseAll as pauseFoundry } from './foundry.ts';
 import { type DB } from './db.ts';
 import { audit } from './audit.ts';
 import { setPaused, isPaused } from './pause.ts';
@@ -22,9 +23,10 @@ export function emergencyStop(db: DB, now = Date.now()) {
   db.prepare('UPDATE sessions SET step_up_until=0').run();
   const agents = teardownAll(db, 'stop everything', now);
   const schedules = disableAllTriggers(db, 'Switched off by "Stop everything"', now);
+  const foundryAgents = pauseFoundry(db);
   const missions = Number(db.prepare("UPDATE missions SET status='paused', blockers='Paused by \"Stop everything\"', next_action='Resume when ready', updated_at=? WHERE status IN ('active','blocked')").run(now).changes);
   const running = (db.prepare("SELECT COUNT(*) c FROM tasks WHERE state='running'").get() as { c: number }).c;
-  const summary = { schedulesOff: schedules, wasPaused, devicesRevoked: Number(devices), standingRevoked: Number(standing), helperRevoked: !!bridge, webSearchOff: web, jobsStillFinishing: running, tempAgentsTornDown: agents, missionsPaused: missions };
+  const summary = { foundryAgentsPaused: foundryAgents, schedulesOff: schedules, wasPaused, devicesRevoked: Number(devices), standingRevoked: Number(standing), helperRevoked: !!bridge, webSearchOff: web, jobsStillFinishing: running, tempAgentsTornDown: agents, missionsPaused: missions };
   audit(db, 'luke', 'system.emergency_stop', '', summary); publish({ type: 'system', paused: true });
   return summary;
 }

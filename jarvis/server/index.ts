@@ -3,6 +3,7 @@ import { backfill as backfillCategories } from './categorize.ts';
 import { sweepStale as sweepEvals } from './evals/run.ts';
 import { tick as triggerTick } from './triggers.ts';
 import { sync as syncDelegations } from './delegation.ts';
+import { sweepStale as sweepFoundry } from './foundry.ts';
 import { drain as drainCalendar } from './calendarwrite.ts';
 import { daily as improveDaily, monitor as improveMonitor } from './improve/rollout.ts';
 import { config, dbPath } from './config.ts';
@@ -21,7 +22,8 @@ import { bus } from './events.ts';
 import { startHeartbeat } from './heartbeat.ts';
 
 const db = openDb(dbPath());
-sweepEvals(db, Date.now() + 600_001);   // an evaluation cannot survive a restart
+sweepEvals(db, Date.now() + 600_001);
+sweepFoundry(db, Date.now() + 601_000);   // an evaluation cannot survive a restart
 seedStructure(db);
 backfillCategories(db);
 if (!isConfigured(db)) { console.error('Not set up yet. Run: npm run setup'); process.exit(1); }

@@ -99,10 +99,10 @@ export const PRESETS = [
   { topic: 'Security advisories for Node.js 22, React 19, three.js, zod and the Anthropic SDK', cadence: 14, hypothesis: 'Catch a vulnerability in something Jarvis depends on.' },
   { topic: 'New safe techniques for AI assistant memory, prompt-injection defence and agent permissions', cadence: 30, hypothesis: 'Find ways to make Jarvis smarter and safer.' },
 ] as const;
-export function addWatch(db: DB, o: { topic: string; cadenceDays: number; tier?: 'quick' | 'deep'; kind?: 'watch' | 'scout'; hypothesis?: string }, now = Date.now()) {
+export function addWatch(db: DB, o: { topic: string; cadenceDays: number; tier?: 'quick' | 'deep'; kind?: 'watch' | 'scout'; hypothesis?: string; agentName?: string; reportFormat?: string }, now = Date.now()) {
   const topic = clean(o.topic, 200); if (topic.length < 8) throw new Error('Describe the topic in a few words.'); if (!Number.isInteger(o.cadenceDays) || o.cadenceDays < 1 || o.cadenceDays > 90) throw new Error('Check every 1 to 90 days.');
   if ((db.prepare('SELECT COUNT(*) c FROM watches').get() as any).c >= 12) throw new Error('You can keep up to 12 watches.');
-  const wid = id(); db.prepare('INSERT INTO watches(id,topic,cadence_days,tier,kind,hypothesis,created_at) VALUES(?,?,?,?,?,?,?)').run(wid, topic, o.cadenceDays, o.tier ?? 'quick', o.kind ?? 'watch', clean(o.hypothesis ?? '', 200), now); audit(db, 'luke', 'watch.added', wid, { cadence: o.cadenceDays }); return wid;
+  const wid = id(); db.prepare('INSERT INTO watches(id,topic,cadence_days,tier,kind,hypothesis,created_at,agent_name,report_format) VALUES(?,?,?,?,?,?,?,?,?)').run(wid, topic, o.cadenceDays, o.tier ?? 'quick', o.kind ?? 'watch', clean(o.hypothesis ?? '', 200), now, o.agentName ? clean(o.agentName, 60) : null, o.reportFormat ? clean(o.reportFormat, 200) : null); audit(db, 'luke', 'watch.added', wid, { cadence: o.cadenceDays }); return wid;
 }
 export const addPresets = (db: DB) => { let n = 0; for (const p of PRESETS) { if (db.prepare('SELECT 1 FROM watches WHERE topic=?').get(p.topic)) continue; addWatch(db, { topic: p.topic, cadenceDays: p.cadence, tier: 'quick', kind: 'scout', hypothesis: p.hypothesis }); n++; } return n; };
 export const setWatchEnabled = (db: DB, wid: string, on: boolean) => { db.prepare('UPDATE watches SET enabled=? WHERE id=?').run(on ? 1 : 0, wid); audit(db, 'luke', on ? 'watch.enabled' : 'watch.disabled', wid); };
@@ -118,7 +118,7 @@ function originate(db: DB, now: number) {
     const ex = exploreCommitted(db, now); if (ex.remaining < PROACTIVE_CAP / 2) { event(db, 'system', 'explore_budget', 'monthly exploration budget used'); break; }
     const cap = Math.min(PROACTIVE_CAP, ex.remaining), mid = id();
     db.prepare("INSERT INTO missions(id,title,goal,kind,status,priority,owner,origin,value_hypothesis,cap_micro_usd,next_action,watch_id,created_at,updated_at,started_at) VALUES(?,?,?,?, 'active', 5,'prometheus','watch',?,?,?,?,?,?,?)")
-      .run(mid, `${w.kind === 'scout' ? 'Scouting' : 'Watching'}: ${w.topic}`.slice(0, 90), `${w.topic}: what is new or has changed in roughly the last month? Prefer official and primary sources.`, w.kind, w.hypothesis, cap, 'Searching', w.id, now, now, now);
+      .run(mid, (w.agent_name ? `${w.agent_name}: ${w.topic}` : `${w.kind === 'scout' ? 'Scouting' : 'Watching'}: ${w.topic}`).slice(0, 90), `${w.topic}: what is new or has changed in roughly the last month? Prefer official and primary sources.${w.report_format ? ` Report as: ${clean(w.report_format, 200)}` : ''}`, w.kind, w.hypothesis, cap, 'Searching', w.id, now, now, now);
     db.prepare('UPDATE watches SET last_run_at=? WHERE id=?').run(now, w.id); event(db, mid, 'created', `started by your ${w.kind} (every ${w.cadence_days} days)`); audit(db, 'system', 'mission.originated', mid, { watch: w.id, cap }); running++; today++;
   }
 }

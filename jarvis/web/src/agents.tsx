@@ -52,6 +52,7 @@ export function AgentsPage() {
           {a.recent.length > 0 && <div className="small"><b>Recently</b><ul className="plain">{a.recent.map((r: any, i: number) => <li key={i}>{r.text} <span className="muted">· {when(r.at)}</span></li>)}</ul></div>}
           <div className="row wrap">{a.links.map((l: any) => <a key={l.href} href={l.href}>{l.label} →</a>)}</div>
         </div>))}</div>
+      {data.foundryAgents?.length > 0 && <div className="glass pad section"><h2>Built by the Agent Foundry</h2><ul className="plain small">{data.foundryAgents.map((f: any) => <li key={f.id}><b>{f.name}</b> · {f.status === 'active' ? 'working' : 'paused'} · {f.purpose}</li>)}</ul><a href="#/foundry">Open the Foundry →</a></div>}
       <Delegations />
       <div className="glass pad section"><h2>Short-lived helpers</h2>
         {data.helpers.length === 0 ? <p className="muted small">None right now. Prometheus creates one for each step of a mission and removes it when the step is done.</p> : <ul className="plain small">{data.helpers.map((h: any) => <li key={h.id}><b>{h.name}</b>: {h.charter}</li>)}</ul>}</div>

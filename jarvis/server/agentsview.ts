@@ -4,6 +4,7 @@ import { PRINCIPALS, tierOf } from './skills/manifest.ts';
 import * as tempagents from './tempagents.ts';
 import { monthStartOf } from './llm/gateway.ts';
 import * as deleg from './delegation.ts';
+import * as foundry from './foundry.ts';
 
 /**
  * One honest page about who does what: the agents that really exist (Jarvis, Prometheus, short-lived mission agents), what each is allowed
@@ -54,6 +55,6 @@ export function overview(db: DB, now = Date.now()) {
   const helpers = live.map((a: any) => ({ id: a.id, name: a.name, charter: String(a.charter).slice(0, 160), expiresAt: a.expiresAt ?? a.expires_at ?? null }));
   const planned = (db.prepare("SELECT id,name,description,status_kind FROM agents WHERE parent_id='jarvis' ORDER BY sort").all() as any[]).filter((a) => !['proj'].includes(a.id)).map((a) => ({ id: a.id, name: a.name, note: String(a.description).slice(0, 160), status: a.status_kind }));
   const cards = deleg.scorecards(db, now);
-  return { agents: [{ ...jarvis, scorecard: cards.jarvis }, { ...prometheus, scorecard: cards.prometheus }], helpers, planned, note: 'What each agent can do is read live from the skills registry. Spending is approximate (grouped by kind of model call).' };
+  return { foundryAgents: foundry.agents(db).filter((a) => a.status !== 'retired').map((a) => ({ id: a.id, name: a.name, galaxyId: a.galaxyId, status: a.status, purpose: a.spec.purpose, version: a.version, lastRunAt: a.lastRunAt })), agents: [{ ...jarvis, scorecard: cards.jarvis }, { ...prometheus, scorecard: cards.prometheus }], helpers, planned, note: 'What each agent can do is read live from the skills registry. Spending is approximate (grouped by kind of model call).' };
 }
 export { tierOf };
