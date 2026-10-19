@@ -76,7 +76,11 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
   const calReq = (type: string, payload: unknown) => (calDirect(db) ? calApplyNow(db)(type, payload) : requestApproval(db, { actionType: type, payload, requestedBy: 'luke' }));
-  const calDel = !priv && (o.channel ?? 'dashboard') !== 'sms' ? (calendarDelete(db, text, calReq, Date.now(), calDirect(db)) ?? await calendarCreate(db, text, calReq, Date.now(), calDirect(db))) : null;
+  let calDel: string | null = null;
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms') {
+    try { calDel = calendarDelete(db, text, calReq, Date.now(), calDirect(db)) ?? await calendarCreate(db, text, calReq, Date.now(), calDirect(db)); }
+    catch (e) { console.error('[calendar chat error]', (e as Error).message); calDel = `I tried to do that on your calendar but it failed: ${(e as Error).message.slice(0, 200)}`; }
+  }
   if (calDel) {   // "delete the dentist appointment" / "add dentist to my calendar Friday at 3pm": done straight away (direct mode) or sent for approval; only ever from his own typed message
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', calDel, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: calDel, persisted: true, source: 'command', proposals: [] };
