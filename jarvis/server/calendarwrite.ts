@@ -106,7 +106,7 @@ function close(a: string, b: string) {   // equal, or one letter off for longer 
   for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
   if (d[a.length][b.length] <= 1) return true; return a[0] === b[0] && a[a.length - 1] === b[b.length - 1] && a.length === b.length && [...a].sort().join('') === [...b].sort().join('');   // one letter off, or two swapped letters
 }
-const STOP = new Set(['the', 'a', 'an', 'my', 'our', 'that', 'this', 'to', 'of', 'and', 'on', 'for', 'in', 'all', 'dates', 'event', 'events', 'meeting', 'meetings', 'appointment', 'calendar']);
+const STOP = new Set(['task', 'tasks', 'the', 'a', 'an', 'my', 'our', 'that', 'this', 'to', 'of', 'and', 'on', 'for', 'in', 'all', 'dates', 'event', 'events', 'meeting', 'meetings', 'appointment', 'calendar']);
 const matches = (title: string, words: string[]) => { const tw = norm(title).split(' '); return words.length > 0 && words.every((w) => tw.some((t) => close(w, t) || (w.length >= 3 && t.startsWith(w)))); };
 /**
  * Plain-words delete from chat ("delete the dentist appointment", "remove that event", "delete how to win friends on all dates"). Returns null when the message is not about a calendar event.
@@ -114,38 +114,59 @@ const matches = (title: string, words: string[]) => { const tw = norm(title).spl
  */
 export function chatDelete(db: DB, text: string, request: (type: string, payload: unknown) => string, now = Date.now(), direct = false): string | null {
   const m = text.trim().match(/^(?:please\s+|can you\s+|could you\s+)?(?:delete|remove|cancel|get rid of)\s+(.{2,160}?)\s*[?.!]*$/i); if (!m) return null;
-  const all = /\b(on all dates|all (?:the )?(?:dates|occurrences|instances|of them)|every (?:date|time|one|occurrence)|the whole series|entire series|whole series|all of it|everywhere)\b/i.test(m[1]);
-  const mentionsCal = /\b(event|meeting|appointment|calendar)\b/i.test(text) || all;
-  const words = norm(m[1]).split(' ').filter((w) => w && !STOP.has(w)); const vague = words.length === 0 || (words.length === 1 && ['it', 'one', 'last', 'test'].includes(words[0]));
+  const all = ALL.test(m[1]); const mentionsCal = /\b(event|meeting|appointment|calendar)\b/i.test(text) || all;
+  return deleteCore(db, m[1], { all, mentionsCal }, request, now, direct);
+}
+const ALL = /\b(on all dates|all (?:the )?(?:dates|occurrences|instances|of them)|every (?:date|time|one|occurrence)|the whole series|entire series|whole series|all of it|everywhere)\b/i;
+/** Finds the event named by `phrase` and deletes it (a repeating one only as a whole series, when asked for all dates). */
+function deleteCore(db: DB, phrase: string, o: { all: boolean; mentionsCal: boolean }, request: (type: string, payload: unknown) => string, now: number, direct: boolean): string | null {
+  const { all, mentionsCal } = o;
+  const words = norm(phrase).split(' ').filter((w) => w && !STOP.has(w)); const vague = words.length === 0 || (words.length === 1 && ['it', 'one', 'last', 'test'].includes(words[0]));
   if (!mentionsCal && vague) return null;
   const evs = upcoming(db, now - 30 * 24 * H, now + 400 * 24 * H).filter((e) => !e.allDay); let hit: typeof evs = [];
   if (vague) { const last = (db.prepare("SELECT payload FROM calendar_outbox WHERE kind='create' AND status='done' ORDER BY created_at DESC LIMIT 1").get() as { payload: string } | undefined); const t = last ? String(JSON.parse(last.payload).title).toLowerCase() : ''; hit = t ? evs.filter((e) => e.title.toLowerCase() === t) : []; if (!hit.length) return 'Which event? Tell me its name, like “delete the dentist appointment”.'; }
   else hit = evs.filter((e) => matches(e.title, words));
-  if (!hit.length) return mentionsCal ? `I couldn't find an upcoming event matching “${m[1].trim()}” in your calendar copy. If it was just added, wait a minute for the sync and ask again.` : null;
+  if (!hit.length) return mentionsCal ? `I couldn't find an upcoming event matching “${phrase.trim()}” in your calendar copy. If it was just added, wait a minute for the sync and ask again.` : null;
   const groups = new Map<string, typeof evs>(); for (const e of hit) groups.set(`${e.calendar}|${e.uid}`, [...(groups.get(`${e.calendar}|${e.uid}`) ?? []), e]);
   const titles = new Set(hit.map((e) => e.title)); if (groups.size > 1 && (titles.size > 1 || groups.size > 3) && !vague) return `I found ${titles.size} events that match: ${[...titles].slice(0, 4).map((t) => `“${t}”`).join('; ')}. Tell me which one, with its full name.`;
   const best = [...groups.values()].sort((x, y) => Math.abs(x[0].start - now) - Math.abs(y[0].start - now))[0]; const repeating = best.length > 1;
   try { const r = requestDelete(db, { uid: best[0].uid, calendar: best[0].calendar, series: all && repeating }, request);
     if (r.series) return direct ? `Done. I've deleted the whole “${r.title}” series, all ${r.count} dates. It will disappear from Apple Calendar within a minute.` : `I've asked for your approval to delete the whole “${r.title}” series (${r.count} dates). Nothing is deleted until you approve it on the Approvals page with your passkey.`;
     return direct ? `Done. I've deleted “${r.title}” (${fmt(r.start)}). It will disappear from Apple Calendar within a minute.` : `I've asked for your approval to delete “${r.title}” on ${fmt(r.start)}. Nothing is deleted until you approve it on the Approvals page with your passkey.`;
-  } catch (e) { return (e as Error).message.replace('Say “delete it on all dates” to remove the whole series.', `It has ${best.length} dates. Say “delete ${m[1].trim()} on all dates” to remove the whole series.`); }
+  } catch (e) { return (e as Error).message.replace('Say “delete it on all dates” to remove the whole series.', `It has ${best.length} dates. Say “delete ${phrase.trim()} on all dates” to remove the whole series.`); }
 }
 
-const SPEC = 'Turn a request to put one or more events on a calendar into JSON only: {"events": [{"title": string, "start": "YYYY-MM-DD HH:MM", "end": "YYYY-MM-DD HH:MM" or null, "location": string}]} (at most 10). Times are Chicago local time, 24-hour. If no time is given use 09:00. If no length is given use one hour. If a later event in the same message has no title of its own ("also make one for September 10th"), give it the same title as the event before it. Use the year stated; if none, the next time that date comes around. Fix obvious spelling mistakes in titles and write them tidily. Only if a date is truly missing or unclear, answer exactly {"error":"..."} with one short question. Output nothing but the JSON.';
+const SPEC = 'Read Luke\'s message about his calendar and answer with JSON only. Operations: {"op":"add","events":[{"title": string, "start": "YYYY-MM-DD HH:MM", "end": "YYYY-MM-DD HH:MM" or null, "location": string}]} (at most 10) | {"op":"delete","title": the words of the event\'s title, "all": true if he wants every date of a repeating event removed} | {"op":"move","title": the words of the event\'s title, "start": "YYYY-MM-DD HH:MM" the new start} | {"op":"none"} when the message is not asking to change the calendar (a question, another topic). Times are Chicago local time, 24-hour. If no time is given use 09:00. If no length is given use one hour. If a later event in the same message has no title of its own ("also make one for September 10th"), give it the same title as the event before it. Use the year stated; if none, the next time that date comes around. Fix obvious spelling mistakes in titles and write them tidily. Only if a date is truly missing or unclear, answer exactly {"error":"..."} with one short question. Output nothing but the JSON.';
 /** Spelling does not matter: calendar, calender, calander, cal. */
 const CAL = /\b(calend[ae]r|calander|calendars|cal|agenda|schedule)\b/i;
-/** Plain-words create from chat ("put on the calendar for August 1st to put out the storage cards, also one for September 10th"). Returns null when the message is not about adding calendar events. */
+const CAL_VERB = /\b(add|put|schedule|book|create|make|set up|mark|block|note|write|stick|throw|pencil|place|do|enter|log|delete|remove|cancel|clear|get rid of|take off|move|reschedule|push|shift|change|postpone)\b/i;
+/**
+ * Plain-words calendar changes from chat: add, delete or move, in any sentence shape ("put on the calender for August 1st…", "on my calender delete all the … events for every date").
+ * One model call reads the message (and the last few chat lines, so "those two dates" make sense) and returns a small form; ordinary code finds the event and does it.
+ * Returns null when the message is not about changing the calendar.
+ */
 export async function chatCreate(db: DB, text: string, request: (type: string, payload: unknown) => string, now = Date.now(), direct = false): Promise<string | null> {
   const t = text.trim(); const recent = (db.prepare('SELECT role, content FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 8) ORDER BY id').all() as { role: string; content: string }[]).map((m) => ({ role: m.role, content: m.content.replace(/\n\nFrom the internet[\s\S]*/, '').slice(0, 300) }));
   const explicit = CAL.test(t) || /\b(event|appointment|meeting|reminder)\b/i.test(t);
-  const followUp = !explicit && recent.some((m) => CAL.test(m.content) || /^Done\. I've added/.test(m.content)) && !/^(?:add task|new task|task:|remember|forget|complete|done with|search|find|what|how|why|who|when|where)\b/i.test(t);   // "add the cards for those two dates" right after talking about the calendar
-  if (!/^(?:(?:hey |ok |okay |jarvis[, ]+|also |and |now |then )?(?:please |can you |could you |would you |i need you to |i want you to )?)(?:add|put|schedule|book|create|make|set up|mark|block|note|write|stick|throw|pencil|place|do|enter|log)\b/i.test(t) || !(explicit || followUp) || t.length > 600) return null;
+  const followUp = !explicit && recent.some((m) => CAL.test(m.content) || /^Done\. I've (added|deleted|moved)/.test(m.content)) && !/^(?:add task|new task|task:|remember|forget|complete|done with|search|find|what|how|why|who|when|where)\b/i.test(t);   // "add the cards for those two dates" right after talking about the calendar
+  if (!CAL_VERB.test(t) || !(explicit || followUp) || t.length > 600 || /^(?:what|how|why|who|when|where|which|is|are|do you|does|did)\b/i.test(t)) return null;
   if (!ready(db, 'chat')) return explicit ? 'I need a model connected to read that. Add it on the Calendar page instead.' : null;
-  const cp = chicagoParts(now); const r = await complete(db, { task: 'chat', ref: 'calendar-add', system: SPEC + ` Right now it is ${new Date(now).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })} (${cp.y}-${String(cp.m).padStart(2, '0')}-${String(cp.d).padStart(2, '0')}).`, messages: [...(followUp || recent.length ? [{ role: 'user' as const, content: `<data kind="recent conversation, oldest first">\n${recent.map((m) => `${m.role === 'luke' ? 'Luke' : 'Jarvis'}: ${m.content.replace(/[<>]/g, ' ')}`).join('\n')}\n</data>\nThe request below is Luke's newest message. Use the conversation only to understand which dates and what he means.` }, { role: 'assistant' as const, content: 'Understood.' }] : []), { role: 'user', content: t }], channel: 'dashboard' }, now);
+  const cp = chicagoParts(now); const r = await complete(db, { task: 'chat', ref: 'calendar-add', system: SPEC + ` Right now it is ${new Date(now).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })} (${cp.y}-${String(cp.m).padStart(2, '0')}-${String(cp.d).padStart(2, '0')}).`, messages: [...(recent.length ? [{ role: 'user' as const, content: `<data kind="recent conversation, oldest first">\n${recent.map((m) => `${m.role === 'luke' ? 'Luke' : 'Jarvis'}: ${m.content.replace(/[<>]/g, ' ')}`).join('\n')}\n</data>\nThe request below is Luke's newest message. Use the conversation only to understand which dates and what he means.` }, { role: 'assistant' as const, content: 'Understood.' }] : []), { role: 'user', content: t }], channel: 'dashboard' }, now);
   if (!r.ok) return followUp ? null : 'I could not read that just now. Try the Calendar page, or ask again in a moment.';
   let j: any; try { j = JSON.parse(r.text.slice(r.text.indexOf('{'), r.text.lastIndexOf('}') + 1)); } catch { return followUp ? null : 'I could not work out the dates. Tell me the day, like “put dentist on my calendar Friday at 3pm”.'; }
   if (j.error) return followUp ? null : String(j.error).slice(0, 200);
   const at = (v: unknown) => { const m = String(v ?? '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/); return m ? chicagoInstant(+m[1], +m[2], +m[3], +m[4], +m[5]) : NaN; };
+  const op = j.op ?? (Array.isArray(j.events) || j.title ? 'add' : 'none');
+  if (op === 'none') return null;
+  if (op === 'delete') { const phrase = String(j.title ?? '').slice(0, 160).trim(); if (phrase.length < 2) return 'Which event should I delete? Tell me its name.'; return deleteCore(db, phrase, { all: !!j.all || ALL.test(t), mentionsCal: true }, request, now, direct); }
+  if (op === 'move') {
+    const phrase = String(j.title ?? '').slice(0, 160).trim(), start = at(j.start); const words = norm(phrase).split(' ').filter((w) => w && !STOP.has(w)); if (!words.length || !Number.isFinite(start)) return 'Which event should I move, and to when? For example “move the dentist to Friday at 3pm”.';
+    const hit = upcoming(db, now - 30 * 24 * H, now + 400 * 24 * H).filter((e) => !e.allDay && matches(e.title, words)); const uids = new Set(hit.map((e) => `${e.calendar}|${e.uid}`));
+    if (!hit.length) return `I couldn't find an upcoming event matching “${phrase}” in your calendar copy.`; if (uids.size > 1) return `I found ${uids.size} events that match: ${[...new Set(hit.map((e) => e.title))].slice(0, 4).map((x) => `“${x}”`).join('; ')}. Tell me which one, with its full name.`;
+    try { const mv = requestMove(db, { uid: hit[0].uid, calendar: hit[0].calendar, newStart: start }, request, now); const heads = headsUp(mv.check);
+      return (direct ? `Done. I've moved “${hit[0].title}” to ${fmt(start)}. It will update in Apple Calendar within a minute.` : `I've asked for your approval to move “${hit[0].title}” to ${fmt(start)}. Nothing moves until you approve it on the Approvals page.`) + (heads.length ? ` Heads up: ${heads.join(' ')}` : '');
+    } catch (err) { return (err as Error).message; }
+  }
   const list: any[] = Array.isArray(j.events) ? j.events.slice(0, 10) : j.title ? [j] : []; if (!list.length) return followUp ? null : 'I could not work out what to add. Tell me the day and what it is.';
   const done: string[] = [], notes: string[] = [];
   for (const e of list) {
