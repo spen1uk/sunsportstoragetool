@@ -114,3 +114,26 @@ test('breakdown: only on request, only from what you wrote, strict answer; nothi
   scripted(() => '{"steps":[{"title":"x"}]}'); await assert.rejects(() => B.suggest(db, { title: 'Replace the dock boards' }), /could not be used/); scripted(() => 'not json'); await assert.rejects(() => B.suggest(db, { title: 'Replace the dock boards' }));
   await assert.rejects(() => B.suggest(db, { title: 'Use sk-ant-abcdefghijklmnopqrstuv now' })); assert.throws(() => B.apply(db, { parentTitle: 'x1x', steps: [] })); assert.throws(() => B.apply(db, { parentTitle: 'Plan', projectId: 'nope', steps: [{ title: 'Do thing' }] }), /Unknown project/); gw.registry.providers = {}; await assert.rejects(() => B.suggest(db, { title: 'Replace the dock boards' }), /No language model/);
 });
+
+import * as L from '../learn.ts';
+import { chicagoInstant as chi } from '../tz.ts';
+
+test('learning cards: the schedule grows intervals for cards you know and brings missed ones back; due only today and earlier; limits and secrets enforced', () => {
+  const fresh = { interval_days: 0, ease: 2.5, reps: 0, lapses: 0 };
+  const g1 = L.schedule(fresh, 'good'); assert.deepEqual([g1.interval_days, g1.reps], [1, 1]); const g2 = L.schedule(g1, 'good'); assert.equal(g2.interval_days, 3); const g3 = L.schedule(g2, 'good'); assert.equal(g3.interval_days, 8); assert.ok(L.schedule(g3, 'good').interval_days > g3.interval_days);
+  const miss = L.schedule(g3, 'again'); assert.deepEqual([miss.interval_days, miss.reps, miss.lapses], [0, 0, 1]); assert.equal(miss.ease, 2.3); assert.equal(L.schedule({ ...fresh, ease: 1.3 }, 'again').ease, 1.3, 'ease has a floor'); assert.ok(L.schedule(fresh, 'easy').interval_days >= 4); assert.equal(L.schedule({ ...g3, interval_days: 900 }, 'easy').interval_days, 365);
+  const db = makeDb(); const now = chi(2026, 10, 19, 9, 0); const [a, b] = L.addCards(db, [{ front: 'Capital of Wisconsin?', back: 'Madison', deck: 'Geo' }, { front: 'Port side is which colour light?', back: 'Red', deck: 'Boating' }], now);
+  assert.equal(L.due(db, now).length, 2); assert.deepEqual([L.stats(db, now).due, L.stats(db, now).total], [2, 2]);
+  const r = L.review(db, a, 'good', now); assert.equal(r.nextDue, '2026-10-20'); assert.equal(L.due(db, now).length, 1); assert.equal(L.due(db, chi(2026, 10, 20, 9, 0)).length, 2, 'tomorrow it is due again'); L.review(db, b, 'again', now); assert.equal(L.due(db, now).length, 1, 'a missed card is due again today');
+  assert.throws(() => L.review(db, 'nope', 'good')); assert.throws(() => L.review(db, a, 'perfect' as any)); assert.throws(() => L.addCards(db, [{ front: 'Key?', back: 'sk-ant-abcdefghijklmnopqrstuv' }])); assert.throws(() => L.addCards(db, [{ front: 'x', back: 'y' }])); X.add(db, 'Project Nightingale'); assert.throws(() => L.addCards(db, [{ front: 'About Project Nightingale?', back: 'Secret' }]));
+  assert.equal(L.stats(db, now).reviewedToday, 2); assert.ok(L.removeCard(db, a)); assert.equal(L.stats(db, now).total, 1);
+});
+
+test('learning helpers: cards, plans and summaries come from a model only when asked and only from the text you give; strict answers; cards are proposals until you add them', async () => {
+  const db = makeDb(); let calls = scripted(() => JSON.stringify({ cards: [{ front: 'What is a slip?', back: 'A boat berth.' }, { front: 'What is a fender?', back: 'A bumper for the hull.' }] }));
+  const cards = await L.proposeCards(db, 'A slip is a berth where a boat is docked. A fender protects the hull from the dock. '.repeat(3), 'Boating', 5); assert.equal(cards.length, 2); assert.equal(cards[0].source, 'model'); assert.equal((db.prepare('SELECT COUNT(*) c FROM cards').get() as any).c, 0, 'proposing saves nothing'); assert.ok(calls[0].messages[0].content.startsWith('<data>')); L.addCards(db, cards); assert.equal((db.prepare('SELECT COUNT(*) c FROM cards').get() as any).c, 2);
+  calls = scripted(() => JSON.stringify({ summary: 'Learn the basics.', weeks: [{ week: 1, focus: 'Terms', activities: ['Read'], check: 'Quiz' }, { week: 2, focus: 'Knots', activities: ['Practice'] }], tips: ['Little and often'] }));
+  const pl = await L.makePlan(db, { topic: 'Boat handling', weeks: 2, hoursPerWeek: 3 }); assert.match(pl.plan, /Week 2: Knots/); assert.equal(L.plans(db).length, 1); assert.ok(L.removePlan(db, pl.id)); await assert.rejects(() => L.makePlan(db, { topic: 'x', weeks: 2, hoursPerWeek: 3 })); await assert.rejects(() => L.makePlan(db, { topic: 'Boat handling', weeks: 99, hoursPerWeek: 3 }));
+  scripted(() => JSON.stringify({ summary: 'A short summary.', keyIdeas: ['One'], questions: ['Why?'] })); const sm = await L.summarize(db, 'A long passage about boats and docks. '.repeat(10), 'Boats'); assert.equal(sm.keyIdeas.length, 1);
+  scripted(() => '{"cards":[]}'); await assert.rejects(() => L.proposeCards(db, 'text '.repeat(30)), /could not be used/); await assert.rejects(() => L.summarize(db, 'The key is sk-ant-abcdefghijklmnopqrstuv and more text here to be long enough. '.repeat(3)), /secret/); gw.registry.providers = {}; await assert.rejects(() => L.summarize(db, 'text '.repeat(30)), /No language model/);
+});

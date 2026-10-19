@@ -19,6 +19,7 @@ import { ImprovePage } from './improve.tsx';
 import { AgentsPage } from './agents.tsx';
 import { SearchPage } from './search.tsx';
 import { GoalsPage } from './goals.tsx';
+import { LearnPage } from './learn.tsx';
 import { WorkspacePage } from './workspace.tsx';
 import { BriefingsPage, OvernightPage, ModeControl, Notifications } from './today.tsx';
 import { TasksPage, ReviewPage, ApprovalsPage, MemoryPage, ConnectionsPage, ActivityPage, SettingsPage, PlannedPage } from './pages.tsx';
@@ -32,6 +33,7 @@ export const NAV: { hash: string; label: string; planned?: string }[] = [
   { hash: '#/universe', label: 'Agent Universe' },
   { hash: '#/tasks', label: 'Tasks & Projects' },
   { hash: '#/goals', label: 'Goals' },
+  { hash: '#/learn', label: 'Learn' },
   { hash: '#/calendar', label: 'Calendar' },
   { hash: '#/notes', label: 'Notes' },
   { hash: '#/briefings', label: 'Briefings' },
@@ -226,6 +228,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         {hash === '#/agents' && <AgentsPage />}
         {hash === '#/search' && <SearchPage />}
         {hash === '#/goals' && <GoalsPage />}
+        {hash === '#/learn' && <LearnPage />}
         {hash === '#/activity' && <ActivityPage />}
         {hash === '#/settings' && st && <SettingsPage st={st} reload={reload} quality={quality} setQuality={setQuality} reduced={reduced} setReduced={setReduced} osReduced={osReduced} resetLayout={() => api('/api/layout', 'DELETE').then(() => setLayoutVersion((v) => v + 1))} />}
       </main>
