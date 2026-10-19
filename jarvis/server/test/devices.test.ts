@@ -505,3 +505,13 @@ test('over HTTP: goals, learning, delegation and the Foundry need a session; app
     const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; for (const p of ['/api/my-goals', '/api/learn', '/api/delegations', '/api/foundry']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
   } finally { t.close(); }
 });
+
+test('over HTTP: the exact calendar sentence typed in the chat box adds both events (fenced model JSON, misspelling, two dates)', async () => {
+  const t = await boot();
+  try {
+    const { rememberSources, setEnabled } = await import('../calendar.ts'); rememberSources(t.db, 'calendar', ['Work']); setEnabled(t.db, 'calendar', ['Work']); const W = await import('../calendarwrite.ts'); W.setTarget(t.db, 'Work');
+    gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req: any) { const cal = req.system.includes('put one or more events'); return { text: cal ? '```json\n{"events":[{"title":"Put out Sun Sport Marine storage cards","start":"2027-08-01 09:00","end":null,"location":""},{"title":"Put out Sun Sport Marine storage cards","start":"2027-09-10 09:00","end":null,"location":""}]}\n```' : 'I can only search the web.', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10, cacheReadTokens: 0 } } as any; } } as any };
+    const res = await t.api('/api/chat', { method: 'POST', headers: t.me, body: { text: 'Put on the calender for August 1st 2027 to Put out sun sport marine storage cards. also make one fo september 10th' } }); const j = await res.json() as any;
+    assert.equal(res.status, 200, JSON.stringify(j)); assert.match(j.text, /^Done\. I've added 2 events/, j.text); assert.equal((t.db.prepare("SELECT COUNT(*) c FROM calendar_outbox WHERE kind='create'").get() as any).c, 2);
+  } finally { t.close(); }
+});
