@@ -486,3 +486,20 @@ test('over HTTP: calendar writing — choosing the target needs a step-up; a req
     const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; for (const p of ['/api/calendar/write', '/api/calendar/protected']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
   } finally { t.close(); }
 });
+
+test('over HTTP: goals, learning, delegation and the Foundry need a session; approving or switching on a Foundry agent needs a fresh step-up; devices reach none of it', async () => {
+  const t = await boot();
+  try {
+    for (const p of ['/api/my-goals', '/api/learn', '/api/delegations', '/api/foundry']) assert.equal((await t.api(p)).status, 401, p);
+    assert.equal((await t.api('/api/my-goals', { method: 'POST', headers: t.me, body: { title: 'Rebuild the dock by spring' } })).status, 200); assert.equal((await t.api('/api/my-goals', { method: 'POST', headers: t.me, body: { title: 'x' } })).status, 400);
+    assert.equal((await t.api('/api/learn/cards', { method: 'POST', headers: t.me, body: { front: 'Port side colour?', back: 'Red' } })).status, 200);
+    const due = await (await t.api('/api/learn', { headers: t.me })).json() as any; assert.equal(due.due.length, 1); assert.equal((await t.api('/api/learn/review', { method: 'POST', headers: t.me, body: { id: due.due[0].id, rating: 'good' } })).status, 200); assert.equal((await t.api('/api/learn/review', { method: 'POST', headers: t.me, body: { id: due.due[0].id, rating: 'perfect' } })).status, 400);
+    const pv = await (await t.api('/api/delegations/preview', { method: 'POST', headers: t.me, body: { request: 'Compare the best crypto wallets please' } })).json() as any; assert.equal(pv.agentId, 'prometheus');
+    assert.equal((await t.api('/api/delegations', { method: 'POST', headers: t.me, body: { request: 'Backtest the trading strategy on bitcoin' } })).status, 400, 'an agent that is not connected is refused');
+    assert.equal((await t.api('/api/foundry', { method: 'POST', headers: t.me, body: { need: 'Watch boat prices for me please', galaxyId: 'ssm' } })).status, 400, 'no model in tests');
+    assert.equal((await t.api('/api/foundry/nope/approve', { method: 'POST', headers: t.me })).status, 403, 'approving needs a fresh step-up');
+    assert.equal((await t.api('/api/foundry/agents/nope/status', { method: 'POST', headers: t.me, body: { status: 'active' } })).status, 403); assert.equal((await t.api('/api/foundry/agents/nope/status', { method: 'POST', headers: t.me, body: { status: 'paused' } })).status, 200, 'pausing needs none');
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; for (const p of ['/api/my-goals', '/api/learn', '/api/delegations', '/api/foundry']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
+  } finally { t.close(); }
+});

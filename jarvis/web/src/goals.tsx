@@ -16,7 +16,7 @@ export function BreakdownBox({ title, detail, projectId, onDone, onClose }: { ti
 }
 
 export function GoalsPage() {
-  const { data, reload } = useLive<any>(() => api('/api/goals'), ['goals', 'tasks']);
+  const { data, reload } = useLive<any>(() => api('/api/my-goals'), ['goals', 'tasks']);
   const { data: projects } = useLive<any[]>(() => api('/api/projects'), ['projects']);
   const [f, setF] = useState({ title: '', why: '', horizon: 'long', targetDate: '', ownerAgent: 'jarvis', projectId: '' }), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [bd, setBd] = useState<any>(null);
   if (!data) return <section className="page"><h1>Goals</h1><p className="muted">Loading…</p></section>;
@@ -29,11 +29,11 @@ export function GoalsPage() {
       <div className="small">{g.progress.linked ? (g.progress.total ? <>Milestones: <b>{g.progress.done} of {g.progress.total}</b> done{g.progress.next ? ` · next: ${g.progress.next}` : ''}</> : 'Linked to a project with no milestones yet.') : 'Not linked to a project yet.'}{g.projectTitle ? ` (${g.projectTitle})` : ''}{g.targetDate ? ` · target ${g.targetDate}` : ''} · owned by {data.agents.find((a: any) => a.id === g.ownerAgent)?.name ?? g.ownerAgent}</div>
       {g.obstacles.length > 0 && <ul className="small warn">{g.obstacles.map((o: string) => <li key={o}>{o}</li>)}</ul>}
       <div className="row wrap">
-        {g.status === 'active' && <><select aria-label="Project" value={g.projectId ?? ''} onChange={(e) => void run(() => api(`/api/goals/${g.id}`, 'PATCH', { projectId: e.target.value || null }), 'Linked.')} style={{ width: 'auto' }}><option value="">No project</option>{(projects ?? []).map((p: any) => <option key={p.id} value={p.id}>{p.title}</option>)}</select>
-          <select aria-label="Owner" value={g.ownerAgent} onChange={(e) => void run(() => api(`/api/goals/${g.id}`, 'PATCH', { ownerAgent: e.target.value }), 'Owner changed.')} style={{ width: 'auto' }}>{data.agents.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}<option value="prometheus">Prometheus</option></select>
-          <button onClick={() => setBd(g)}>Break into steps</button><button onClick={() => void run(() => api(`/api/goals/${g.id}`, 'PATCH', { status: 'done' }), 'Marked done. Well done.')}>Done</button><button onClick={() => void run(() => api(`/api/goals/${g.id}`, 'PATCH', { status: 'dropped' }), 'Dropped.')}>Drop</button></>}
-        {g.status !== 'active' && <button onClick={() => void run(() => api(`/api/goals/${g.id}`, 'PATCH', { status: 'active' }), 'Back on.')}>Reopen</button>}
-        <button onClick={() => { if (confirm('Delete this goal?')) void run(() => api(`/api/goals/${g.id}`, 'DELETE'), 'Deleted.'); }}>Delete</button></div>
+        {g.status === 'active' && <><select aria-label="Project" value={g.projectId ?? ''} onChange={(e) => void run(() => api(`/api/my-goals/${g.id}`, 'PATCH', { projectId: e.target.value || null }), 'Linked.')} style={{ width: 'auto' }}><option value="">No project</option>{(projects ?? []).map((p: any) => <option key={p.id} value={p.id}>{p.title}</option>)}</select>
+          <select aria-label="Owner" value={g.ownerAgent} onChange={(e) => void run(() => api(`/api/my-goals/${g.id}`, 'PATCH', { ownerAgent: e.target.value }), 'Owner changed.')} style={{ width: 'auto' }}>{data.agents.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}<option value="prometheus">Prometheus</option></select>
+          <button onClick={() => setBd(g)}>Break into steps</button><button onClick={() => void run(() => api(`/api/my-goals/${g.id}`, 'PATCH', { status: 'done' }), 'Marked done. Well done.')}>Done</button><button onClick={() => void run(() => api(`/api/my-goals/${g.id}`, 'PATCH', { status: 'dropped' }), 'Dropped.')}>Drop</button></>}
+        {g.status !== 'active' && <button onClick={() => void run(() => api(`/api/my-goals/${g.id}`, 'PATCH', { status: 'active' }), 'Back on.')}>Reopen</button>}
+        <button onClick={() => { if (confirm('Delete this goal?')) void run(() => api(`/api/my-goals/${g.id}`, 'DELETE'), 'Deleted.'); }}>Delete</button></div>
     </div>);
   return (
     <section className="page"><h1>Goals</h1>
@@ -48,7 +48,7 @@ export function GoalsPage() {
           <label className="small">Target date <input type="date" value={f.targetDate} onChange={(e) => setF({ ...f, targetDate: e.target.value })} style={{ width: 'auto' }} /></label>
           <select aria-label="Project" value={f.projectId} onChange={(e) => setF({ ...f, projectId: e.target.value })} style={{ width: 'auto' }}><option value="">No project yet</option>{(projects ?? []).map((p: any) => <option key={p.id} value={p.id}>{p.title}</option>)}</select>
           <select aria-label="Owner" value={f.ownerAgent} onChange={(e) => setF({ ...f, ownerAgent: e.target.value })} style={{ width: 'auto' }}>{data.agents.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}<option value="prometheus">Prometheus</option></select>
-          <button className="primary" disabled={f.title.trim().length < 3} onClick={() => void run(async () => { await api('/api/goals', 'POST', { title: f.title, why: f.why, horizon: f.horizon, targetDate: f.targetDate || null, ownerAgent: f.ownerAgent, projectId: f.projectId || null }); setF({ ...f, title: '', why: '' }); }, 'Goal added.')}>Add goal</button></div></div>
+          <button className="primary" disabled={f.title.trim().length < 3} onClick={() => void run(async () => { await api('/api/my-goals', 'POST', { title: f.title, why: f.why, horizon: f.horizon, targetDate: f.targetDate || null, ownerAgent: f.ownerAgent, projectId: f.projectId || null }); setF({ ...f, title: '', why: '' }); }, 'Goal added.')}>Add goal</button></div></div>
       {past.length > 0 && <details className="section"><summary><b>Done and dropped ({past.length})</b></summary><div className="section">{past.map(card)}</div></details>}
     </section>);
 }

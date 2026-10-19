@@ -438,10 +438,10 @@ route('POST', '/api/triggers/:id/enabled', ({ db, session, params, body }) => { 
 route('DELETE', '/api/triggers/:id', ({ db, params }) => ({ ok: trig.remove(db, params.id) }));
 route('POST', '/api/skills/route', async ({ db, body }) => { const b = parse(z.object({ text: z.string().min(3).max(300) }), body); const r = await routeSkill(db, b.text, { run: false }); return r.handled ? { skill: r.skill, say: r.text } : { skill: null, say: 'No skill fits that. It would be an ordinary chat.', candidates: routeCandidates(db).length }; });
 route('GET', '/api/search', ({ db, url }) => usearch.search(db, (url.searchParams.get('q') ?? '').slice(0, 120), { includeImports: url.searchParams.get('imports') === '1', perKind: 10 }));
-route('GET', '/api/goals', ({ db }) => ({ items: goalsMod.list(db), agents: rows(db, "SELECT id,name FROM agents WHERE parent_id='jarvis' OR id='jarvis' ORDER BY sort") }));
-route('POST', '/api/goals', ({ db, body }) => ({ id: guard(() => goalsMod.create(db, body)) }));
-route('PATCH', '/api/goals/:id', ({ db, params, body }) => ({ ok: guard(() => goalsMod.update(db, params.id, body)) }));
-route('DELETE', '/api/goals/:id', ({ db, params }) => ({ ok: goalsMod.remove(db, params.id) }));
+route('GET', '/api/my-goals', ({ db }) => ({ items: goalsMod.list(db), agents: rows(db, "SELECT id,name FROM agents WHERE parent_id='jarvis' OR id='jarvis' ORDER BY sort") }));
+route('POST', '/api/my-goals', ({ db, body }) => ({ id: guard(() => goalsMod.create(db, body)) }));
+route('PATCH', '/api/my-goals/:id', ({ db, params, body }) => ({ ok: guard(() => goalsMod.update(db, params.id, body)) }));
+route('DELETE', '/api/my-goals/:id', ({ db, params }) => ({ ok: goalsMod.remove(db, params.id) }));
 route('POST', '/api/breakdown', async ({ db, body }) => { const b = parse(z.object({ title: z.string().min(3).max(200), detail: z.string().max(600).optional() }), body); return { steps: await aguard(() => brk.suggest(db, b)) }; });
 route('POST', '/api/breakdown/apply', ({ db, body }) => ({ ids: guard(() => brk.apply(db, body)) }));
 route('GET', '/api/learn', ({ db }) => ({ stats: learn.stats(db), due: learn.due(db), plans: learn.plans(db), modelReady: gw.ready(db, 'analysis') }));
