@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { openDb } from './db.ts';
 import { backfill as backfillCategories } from './categorize.ts';
 import { sweepStale as sweepEvals } from './evals/run.ts';
@@ -28,7 +29,8 @@ seedStructure(db);
 backfillCategories(db);
 if (!isConfigured(db)) { console.error('Not set up yet. Run: npm run setup'); process.exit(1); }
 if (config.host !== '127.0.0.1' && config.host !== 'localhost') console.warn('WARNING: binding to a non-loopback address. Put TLS and a reverse proxy in front; never expose this port directly.');
-createServer(db).listen(config.port, config.host, () => console.log(`Jarvis API on http://${config.host}:${config.port}`));
+const version = (() => { try { return execFileSync('git', ['log', '-1', '--format=%h %s'], { cwd: new URL('..', import.meta.url), encoding: 'utf8', timeout: 3000 }).trim().slice(0, 90); } catch { return 'unknown'; } })();
+createServer(db).listen(config.port, config.host, () => console.log(`Jarvis API on http://${config.host}:${config.port}\nVersion: ${version}`));
 if (process.env.JARVIS_EMBEDDED_WORKER !== '0') { startWorker(db); console.log('Embedded worker started (set JARVIS_EMBEDDED_WORKER=0 and run `npm run worker` separately to split).'); }
 
 // Local, cheap: a 30-second tick decides what is due. No model calls, no polling of external services.
