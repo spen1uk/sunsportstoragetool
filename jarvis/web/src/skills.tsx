@@ -56,6 +56,7 @@ export function SkillsPage() {
               </div>)}</td></tr>}
           </Fragment>))}
         </tbody></table>
+        {rows.length === 0 && <p className="muted small" role="status">No skill matches{q ? ` “${q}”` : ' this filter'}. Skills only exist for things Jarvis can already do. If you want one that is missing, add it as a wish on the Improvements page and Jarvis will draft it.</p>}
       </div>
       <div className="glass pad section"><h2>Workflows</h2>
         <p className="muted small">A saved chain of skills. Combining skills never loosens anything: it needs the union of their permissions, takes the highest tier, can only be run by an agent that may use every step, and data from the web can only flow into steps with no side effects. New chains start <b>staged</b>; you activate them. Only chains of plain read/compute registry skills can run.</p>

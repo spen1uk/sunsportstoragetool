@@ -25,7 +25,7 @@ function createScheduled(db: DB, now: number) {
   const defs: [keyof typeof t, string, () => { title: string; body: string; link: string } | null][] = [
     ['briefing', 'briefing', () => { const b = buildBriefing(db, now); const u = b.sections[0].items.length; return { title: 'Morning briefing is ready', body: `${u} urgent item(s) · ${b.schedule.blocks.length} block(s) proposed · ~${Math.max(1, Math.round(b.estimatedSeconds / 60))} min`, link: '#/briefings' }; }],
     ['noon', 'reminder', () => remind(open, 'Midday')], ['afternoon', 'reminder', () => remind(open, 'Afternoon')], ['evening', 'reminder', () => remind(open, 'Evening')],
-    ['recap', 'recap', () => { const r = buildRecap(db, now); return { title: 'Evening recap', body: `${r.completedToday.length} done today · ${r.unfinished.length} unfinished · ${r.overnightCount} overnight item(s)`, link: '#/briefings' }; }],
+    ['recap', 'recap', () => { const r = buildRecap(db, now); return { title: 'Evening recap', body: `${r.completedToday.length} done today · ${r.unfinished.length} unfinished · ${r.overnightCount} overnight item(s)${r.decisionsNeeded.length ? ` · needs you: ${r.decisionsNeeded.join(', ')}` : ''}`, link: '#/briefings' }; }],
   ];
   for (const [k, kind, content] of defs) {
     if (now < t[k]) continue;

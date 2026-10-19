@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { type DB, id, getMeta, setMeta, tx } from './db.ts';
 import { audit } from './audit.ts';
 import { createTask, setState, logEvent, completeTask, type TaskRow } from './tasks.ts';
+import { saveFindings } from './knowledge.ts';
 import { createArtifact, type Source } from './artifacts.ts';
 import * as gw from './llm/gateway.ts';
 import { gate, searchTurn, clean, stripActions } from './websearch.ts';
@@ -165,6 +166,7 @@ export async function runDeep(db: DB, task: TaskRow, now = Date.now()): Promise<
     contradictions: contradictions.map((c) => ({ note: clean(c.note, 300), claims: c.claims })), gaps, notes, legalNote: legalFooterOn(db) && LEGAL.test(input.question), stats: { searches, spentMicro: spent, capMicro: cap, crossChecked, partial: !!st.stoppedEarly, stoppedEarly: st.stoppedEarly ?? null, evidenceCount: claims.length, model }, artifactId: aid, finishedAt: now };
   db.prepare('INSERT INTO research_results(task_id,json,created_at) VALUES(?,?,?) ON CONFLICT(task_id) DO UPDATE SET json=excluded.json').run(tid, JSON.stringify(resDoc), now);
   const added = src.suggestFromResearch(db, [...new Set(claims.map((c) => c.host.replace(/^www\./, '')))]); if (added) logEvent(db, tid, 'sources_suggested', `${added} new site(s) added to the catalog as suggestions`);
+  saveFindings(db, tid, input.question, resDoc.summary, now);   // keep what it found as a topic in the knowledge graph
   mb.close(db, tid); db.prepare('DELETE FROM research_runs WHERE task_id=?').run(tid);
   completeTask(db, tid, 'prometheus', `results ready (report ${aid})`);   // done: reading the report in Ready for Review is optional
 }

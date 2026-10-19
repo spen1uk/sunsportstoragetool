@@ -87,7 +87,8 @@ export function BriefingsPage() {
       <div className="glass pad section"><h2>Evening recap (preview)</h2>
         <p>Completed today: {r.completedToday.length ? r.completedToday.join('; ') : 'none'}</p>
         <p>Unfinished priorities: {r.unfinished.length ? r.unfinished.join('; ') : 'none'}</p>
-        <p>Tomorrow: {r.tomorrow} block(s) proposed · Overnight: {r.overnightCount} item(s)</p></div>
+        <p>Tomorrow: {r.tomorrow} block(s) proposed · Overnight: {r.overnightCount} item(s)</p>
+        <p>Needs your decision: {r.decisionsNeeded?.length ? r.decisionsNeeded.join('; ') : 'nothing'}</p></div>
     </section>
   );
 }

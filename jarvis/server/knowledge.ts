@@ -321,3 +321,15 @@ export function maybeApplyRetention(db: DB, nowMs = Date.now()) {
   if (Number(getMeta(db, 'knowledge:retention_last') ?? 0) > nowMs - 86_400_000) return null;
   setMeta(db, 'knowledge:retention_last', String(nowMs)); return applyRetention(db, nowMs);
 }
+
+/** After a research job finishes, keep what it found as a topic in the knowledge graph (with a link back to the full results). Never throws; excluded topics are simply not kept. */
+export function saveFindings(db: DB, taskId: string, question: string, summary: string, now = Date.now()) {
+  try {
+    const ref = `research:${taskId}`, day = new Date(now).toISOString().slice(0, 10);
+    const notes = `${clean(summary, 850)} (researched ${day})`.slice(0, 1000), base = clean(question.replace(/[?.!]+$/, ''), 70) || 'Research';
+    const cur = db.prepare('SELECT id FROM entities WHERE source_ref=?').get(ref) as { id: string } | undefined;
+    if (cur) { db.prepare('UPDATE entities SET notes=?, updated_at=? WHERE id=?').run(notes, now, cur.id); return cur.id; }
+    for (const name of [base, `${base} (${day})`]) { if (db.prepare('SELECT 1 FROM entities WHERE kind=? AND lower(name)=lower(?)').get('topic', name)) continue; const e = createEntity(db, { kind: 'topic', name, notes, scope: 'public' }, 'prometheus', ref, 0.7); linkRecord(db, e.id, 'research', taskId, 'prometheus'); return e.id; }
+  } catch { /* excluded or invalid: nothing is kept */ }
+  return null;
+}

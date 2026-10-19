@@ -97,7 +97,14 @@ export function buildRecap(db: DB, now = Date.now()) {
   const done = rows(db, "SELECT title FROM tasks WHERE state='completed' AND completed_at >= ? AND is_demo=0", startOfDay).map((r) => r.title);
   const open = openManual(db).slice(0, 8).map((t) => t.title);
   const overnight = overnightPlan(db);
-  return { completedToday: done, unfinished: open, tomorrow: proposedPlan(db, now, false).plan.placements.length, overnightCount: overnight.length };
+  // What needs a decision from Luke tonight
+  const decisions: string[] = [];
+  const ap = Number((db.prepare("SELECT COUNT(*) c FROM approvals WHERE status='pending'").get() as any).c); if (ap) decisions.push(`${ap} approval${ap === 1 ? '' : 's'} waiting`);
+  const rv = Number((db.prepare("SELECT COUNT(*) c FROM artifacts WHERE status='in_review' AND is_demo=0").get() as any).c); if (rv) decisions.push(`${rv} draft${rv === 1 ? '' : 's'} ready to review`);
+  for (const d of decisionsDue(db, now)) decisions.push(`look back on “${d.title}”`);
+  const pm = Number((db.prepare("SELECT COUNT(*) c FROM missions WHERE status='proposed'").get() as any).c); if (pm) decisions.push(`${pm} research idea${pm === 1 ? '' : 's'} to accept or dismiss`);
+  const im = Number((db.prepare("SELECT COUNT(*) c FROM improvements WHERE status='passed'").get() as any).c); if (im) decisions.push(`${im} tested improvement${im === 1 ? '' : 's'} to decide on`);
+  return { completedToday: done, unfinished: open, tomorrow: proposedPlan(db, now, false).plan.placements.length, overnightCount: overnight.length, decisionsNeeded: decisions };
 }
 
 /** Overnight Plan: Jarvis-owned queued work with owner, desired result, priority, dependency/approval holds, and budget estimate. */
