@@ -60,7 +60,7 @@ test('safety: three failures in a row switch it off; the daily limit holds; a ch
 test('event triggers: fire when something happened since the last look, then wait out a cooldown; only your own completed tasks, finished missions, new memories count', async () => {
   const db = makeDb(); const w = live(db); const t0 = Date.now() - 60 * 60_000;
   const tid = T.create(db, { workflowId: w, spec: { kind: 'event', event: 'task_completed' } }, t0); assert.equal(await T.tick(db, t0 + 1000), 0, 'nothing happened yet');
-  const task = createTask(db, { title: 'Do thing', owner: 'luke' }); completeTask(db, task, 'test', 'done'); assert.equal(await T.tick(db, Date.now() + 1000), 1); assert.equal(await T.tick(db, Date.now() + 2000), 0, 'the same event does not fire twice');
+  const task = createTask(db, { title: 'Do thing', owner: 'luke' }); completeTask(db, task, 'test', 'done'); assert.equal(await T.tick(db, Date.now()), 1); assert.equal(await T.tick(db, Date.now() + 2000), 0, 'the same event does not fire twice'); await new Promise((r) => setTimeout(r, 15));
   const t2 = createTask(db, { title: 'Another', owner: 'luke' }); completeTask(db, t2, 'test', 'done'); assert.equal(await T.tick(db, Date.now() + 60_000), 0, 'cooldown of five minutes'); assert.equal(await T.tick(db, Date.now() + 6 * 60_000), 1, 'after the cooldown the second completion fires');
   const mem = T.create(db, { workflowId: w, spec: { kind: 'event', event: 'memory_added' } }, Date.now() - 1000); memory.remember(db, 'A new fact', { source: 't' }); assert.ok((await T.tick(db, Date.now() + 10 * 60_000)) >= 1); void tid; void mem;
 });
