@@ -156,7 +156,7 @@ type Rec = { kind: string; id: string; text: string };
 function resolveLink(db: DB, kind: string, rid: string): Rec | null {
   const q = (sql: string) => db.prepare(sql).get(rid) as any;
   const r = kind === 'memory' ? q('SELECT content AS t FROM memories WHERE id=?')
-    : kind === 'task' ? q('SELECT title AS t FROM tasks WHERE id=?')
+    : kind === 'task' || kind === 'research' ? q('SELECT title AS t FROM tasks WHERE id=?')
     : kind === 'project' ? q('SELECT title AS t FROM projects WHERE id=?')
     : kind === 'person' ? q('SELECT name AS t FROM people WHERE id=?')
     : kind === 'mission' ? q('SELECT title AS t FROM missions WHERE id=?')

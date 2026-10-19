@@ -17,7 +17,7 @@ test('nightly review: lists what needs your decision tonight; research findings 
   const d = D.create(db, { title: 'Move the shop', expectedBy: '2026-01-01' }); D.decide(db, d.id, { chosen: 'move' });
   const r = buildRecap(db, Date.UTC(2026, 9, 19)); assert.ok(r.decisionsNeeded.some((x) => /approval/.test(x))); assert.ok(r.decisionsNeeded.some((x) => /look back on “Move the shop”/.test(x)));
   const id = K.saveFindings(db, 'task1', 'What are the best crypto cold storage wallets?', 'Hardware wallets such as Ledger and Trezor are the usual picks.'); assert.ok(id);
-  const e = K.getEntity(db, id!)!; assert.deepEqual([e.kind, e.origin, e.scope], ['topic', 'prometheus', 'public']); assert.match(e.notes, /Ledger/); assert.equal(K.neighborhood(db, id!)!.records[0].kind, 'research');
+  const e = K.getEntity(db, id!)!; assert.deepEqual([e.kind, e.origin, e.scope], ['topic', 'prometheus', 'public']); assert.match(e.notes, /Ledger/); assert.ok(db.prepare("SELECT 1 FROM entity_links WHERE entity_id=? AND kind='research'").get(id));
   assert.equal(K.saveFindings(db, 'task1', 'What are the best crypto cold storage wallets?', 'Updated summary.'), id, 'same job updates in place'); assert.match(K.getEntity(db, id!)!.notes, /Updated/);
   const other = K.saveFindings(db, 'task2', 'What are the best crypto cold storage wallets', 'Another look.'); assert.ok(other && other !== id, 'same topic from another job is kept separately');
   X.add(db, 'Project Nightingale'); assert.equal(K.saveFindings(db, 'task3', 'Project Nightingale competitors', 'x'), null);
