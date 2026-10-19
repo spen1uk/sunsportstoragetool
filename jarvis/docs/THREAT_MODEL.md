@@ -43,3 +43,5 @@
 
 ## Explicitly out of scope today
 Screen observation, Mac companion, telephony, third-party OAuth connections — none exist, so none of their threats are mitigated yet; each needs its own model before building.
+
+| Direct mode (calendar) | A bad actor makes Jarvis change the calendar without Luke | Only Luke's own typed chat message or an authenticated page call can trigger it; web, imported-chat and agent text cannot; devices (car/watch) cannot; pause and emergency stop block it; audited; switch-off needs a step-up | Prompt-injection into a typed message is not possible; a stolen unlocked session could edit events (accepted by Luke) |
