@@ -74,3 +74,11 @@ test('calendar by model: delete in any sentence shape ("on my calender delete al
     reply = { op: 'none' }; const q = await converse(db, 'what is on my calendar tomorrow'); assert.doesNotMatch(q.text, /^Done/);
   } finally { setRunner(null); }
 });
+
+test('typos do not matter: "delte" still reaches the model and deletes; questions about the calendar do not call the model', async () => {
+  const db = makeDb(); const W = await import('../calendarwrite.ts'); const cal = await import('../calendar.ts'); cal.rememberSources(db, 'calendar', ['Home']); cal.setEnabled(db, 'calendar', ['Home']); W.setTarget(db, 'Home');
+  const now = Date.now(); cal.storeCalendar(db, [{ calendar: 'Home', uid: 'a', title: 'How to Win Friends & Influence People', start: now + 86_400_000, end: now + 90_000_000, allDay: false, location: '' }], {}, now);
+  let n = 0; gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req: any) { if (req.system.includes('Operations')) n++; return { text: '{"op":"delete","title":"how to win frineds and influence people","all":true}', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10, cacheReadTokens: 0 } } as any; } } as any };
+  const { setRunner } = await import('../mac.ts'); setRunner(async () => '{"ok":true}');
+  try { assert.match((await converse(db, 'on my calender delte all "how to win frineds and influence people tasks')).text, /^Done\. I've deleted “How to Win Friends & Influence People”/); const before = n; await converse(db, 'my calendar tomorrow'); await converse(db, 'what is on my calender today'); assert.equal(n, before, 'questions are not sent to the model'); } finally { setRunner(null); }
+});
