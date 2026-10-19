@@ -93,3 +93,10 @@ test('deleting: single, timed events only; it needs an approval; chat finds the 
   storeCalendar(db, [{ calendar: 'Home', uid: 't1', title: 'Test from Jarvis', start: ev.start, end: ev.end, allDay: false, location: '' }], {}, NOW);
   assert.match(W.chatDelete(db, 'delete that event', req(db), NOW)!, /approval to delete “Test from Jarvis”/);
 });
+
+test('direct mode: on by default; deletes and adds Luke asks for in chat are queued at once (no approval) and applied; turning it off brings approvals back', async () => {
+  const db = setup(); W.setTarget(db, 'Work'); assert.equal(W.directOn(db), true); const seen: string[] = []; setRunner(async (s2) => { seen.push(s2); return '{"ok":true}'; });
+  const say = W.chatDelete(db, 'delete the team call meeting', W.applyNow(db), NOW, true)!; assert.match(say, /^Done\. I've deleted “Team call”/); assert.equal((db.prepare('SELECT COUNT(*) c FROM approvals').get() as any).c, 0, 'no approval raised'); await new Promise((r) => setTimeout(r, 20)); assert.ok(seen.some((x) => x.includes('C.delete(')), 'applied on the Mac'); assert.equal(W.outbox(db)[0].status, 'done');
+  W.setDirect(db, false); assert.equal(W.directOn(db), false); assert.match(W.chatDelete(db, 'delete the holiday event', req(db), NOW, false)!, /couldn't find/);
+  setPaused(db, true); W.setDirect(db, true); setRunner(async () => '{"ok":true}'); const w2 = setup(); void w2; W.chatDelete(db, 'delete the team call meeting', W.applyNow(db), NOW, true); await new Promise((r) => setTimeout(r, 20)); assert.equal(W.outbox(db).filter((o) => o.status === 'queued').length, 1, 'while paused nothing is applied'); setPaused(db, false);
+});

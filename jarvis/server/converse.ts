@@ -16,7 +16,7 @@ import { describe as knowDescribe } from './knowledge.ts';
 import { describeForChat as searchReply } from './search.ts';
 import { route as routeSkill } from './skills/router.ts';
 import * as deleg from './delegation.ts';
-import { chatDelete as calendarDelete } from './calendarwrite.ts';
+import { chatDelete as calendarDelete, chatCreate as calendarCreate, directOn as calDirect, applyNow as calApplyNow } from './calendarwrite.ts';
 import { requestApproval } from './approvals.ts';
 import { mentions as chatMentions } from './chatimport.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
@@ -74,8 +74,9 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
-  const calDel = !priv && (o.channel ?? 'dashboard') !== 'sms' ? calendarDelete(db, text, (type, payload) => requestApproval(db, { actionType: type, payload, requestedBy: 'luke' })) : null;
-  if (calDel) {   // "delete the dentist appointment": finds the event and asks for approval; nothing is deleted until he approves with his passkey
+  const calReq = (type: string, payload: unknown) => (calDirect(db) ? calApplyNow(db)(type, payload) : requestApproval(db, { actionType: type, payload, requestedBy: 'luke' }));
+  const calDel = !priv && (o.channel ?? 'dashboard') !== 'sms' ? (calendarDelete(db, text, calReq, Date.now(), calDirect(db)) ?? await calendarCreate(db, text, calReq, Date.now(), calDirect(db))) : null;
+  if (calDel) {   // "delete the dentist appointment" / "add dentist to my calendar Friday at 3pm": done straight away (direct mode) or sent for approval; only ever from his own typed message
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', calDel, now(), o.channel ?? 'dashboard');
     return { text: calDel, persisted: true, source: 'command', proposals: [] };
   }

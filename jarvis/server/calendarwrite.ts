@@ -9,6 +9,7 @@ import { chicagoParts, chicagoInstant, addDays, MIN } from './tz.ts';
 import { workWindows } from './schedule.ts';
 import { looksSecret } from './memory.ts';
 import { isExcluded } from './exclusions.ts';
+import { complete, ready } from './llm/gateway.ts';
 
 /**
  * Writing to Apple Calendar. Nothing is written without an approval you confirm (the exact title, time and calendar are bound to it).
@@ -23,6 +24,11 @@ export function setTarget(db: DB, name: string) {
   setMeta(db, 'calendar:write_target', name); audit(db, 'luke', 'calendar.write_target', '', { calendar: name }); publish({ type: 'calendar' });
 }
 export const getTarget = target;
+/** Direct mode (on by default, Luke's choice): calendar changes he asks for himself are applied straight away, with no approval step. They are still logged, and the emergency stop still halts them. */
+export const directOn = (db: DB) => getMeta(db, 'hub:direct') !== '0';
+export function setDirect(db: DB, on: boolean) { setMeta(db, 'hub:direct', on ? '1' : '0'); audit(db, 'luke', 'hub.direct', '', { on }); publish({ type: 'calendar' }); }
+/** The "request" function used in direct mode: queues the change at once instead of raising an approval. */
+export const applyNow = (db: DB) => (type: string, payload: unknown): string => { queue(db, type.replace('calendar_', '') as 'create' | 'move' | 'delete', payload); audit(db, 'luke', 'calendar.direct', '', { type }); void drain(db).catch(() => { /* recorded in the outbox */ }); return 'direct'; };
 
 // ---- protected times ----
 const hm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -96,7 +102,7 @@ export function requestDelete(db: DB, o: { uid: string; calendar: string }, requ
  * Plain-words delete from chat ("delete the dentist appointment", "remove that event"). Returns null when the message is not about a calendar event.
  * It only finds the event and raises the approval; the delete itself happens after Luke approves with his passkey.
  */
-export function chatDelete(db: DB, text: string, request: (type: string, payload: unknown) => string, now = Date.now()): string | null {
+export function chatDelete(db: DB, text: string, request: (type: string, payload: unknown) => string, now = Date.now(), direct = false): string | null {
   const m = text.trim().match(/^(?:please\s+|can you\s+|could you\s+)?(?:delete|remove|cancel)\s+(?:(?:that|the|my|this|our)\s+)?(.{2,100}?)\s*(?:event|meeting|appointment|test event)?\s*(?:from (?:my |the )?calendar)?\s*[?.!]*$/i); if (!m) return null;
   const mentionsCal = /\b(event|meeting|appointment|calendar)\b/i.test(text); const what = m[1].trim().toLowerCase().replace(/\b(event|meeting|appointment|calendar)\b/g, '').replace(/\s+/g, ' ').trim(); const vague = /^(it|that|this|one|last|the last|the one|that one|test)?$/.test(what);
   if (!mentionsCal && !vague) return null;
@@ -105,7 +111,23 @@ export function chatDelete(db: DB, text: string, request: (type: string, payload
   else { const words = what.split(/\s+/).filter((w) => w.length > 1); hit = words.length ? evs.filter((e) => words.every((w) => e.title.toLowerCase().includes(w))) : []; }
   if (!hit.length) return `I couldn't find an upcoming event matching “${m[1].trim()}” in your calendar copy. If it was just added, wait a minute for the sync and ask again.`;
   hit = hit.sort((a, b) => Math.abs(a.start - now) - Math.abs(b.start - now)); if (hit.length > 1 && !vague) { const same = hit.filter((e) => e.title === hit[0].title); if (hit.length > 3 || same.length < hit.length) return `I found ${hit.length} events that match: ${hit.slice(0, 4).map((e) => `“${e.title}” (${fmt(e.start)})`).join('; ')}. Tell me which one, with its full name.`; }
-  try { const r = requestDelete(db, { uid: hit[0].uid, calendar: hit[0].calendar }, request); return `I've asked for your approval to delete “${r.title}” on ${fmt(r.start)}. Nothing is deleted until you approve it on the Approvals page with your passkey.`; } catch (e) { return (e as Error).message; }
+  try { const r = requestDelete(db, { uid: hit[0].uid, calendar: hit[0].calendar }, request); return direct ? `Done. I've deleted “${r.title}” (${fmt(r.start)}). It will disappear from Apple Calendar within a minute.` : `I've asked for your approval to delete “${r.title}” on ${fmt(r.start)}. Nothing is deleted until you approve it on the Approvals page with your passkey.`; } catch (e) { return (e as Error).message; }
+}
+
+const SPEC = 'Turn a request to add a calendar event into JSON only: {"title": string, "start": "YYYY-MM-DD HH:MM", "end": "YYYY-MM-DD HH:MM" or null, "location": string}. Times are Chicago local time, 24-hour. If no length is given use one hour. If the date or time is missing or unclear, answer exactly {"error":"..."} with a short question. Output nothing but the JSON.';
+/** Plain-words create from chat ("add dentist to my calendar Friday at 3pm"). Returns null when the message is not about adding a calendar event. */
+export async function chatCreate(db: DB, text: string, request: (type: string, payload: unknown) => string, now = Date.now(), direct = false): Promise<string | null> {
+  const t = text.trim(); if (!/^(?:please\s+|can you\s+|could you\s+)?(?:add|put|schedule|book|create|set up)\b/i.test(t) || !/\b(calendar|event|appointment|meeting)\b/i.test(t) || t.length > 300) return null;
+  if (!ready(db, 'ping')) return 'I need a model connected to read that. Add it on the Calendar page instead.';
+  const cp = chicagoParts(now); const r = await complete(db, { task: 'ping', ref: 'calendar-add', system: SPEC + ` Right now it is ${new Date(now).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })} (${cp.y}-${String(cp.m).padStart(2, '0')}-${String(cp.d).padStart(2, '0')}).`, messages: [{ role: 'user', content: t }], channel: 'dashboard' }, now);
+  if (!r.ok) return 'I could not read that just now. Try the Calendar page, or ask again in a moment.';
+  let j: any; try { j = JSON.parse(r.text.slice(r.text.indexOf('{'), r.text.lastIndexOf('}') + 1)); } catch { return 'I could not work out the date and time. Tell me the day and time, like “add dentist to my calendar Friday at 3pm”.'; }
+  if (j.error) return String(j.error).slice(0, 200);
+  const at = (v: unknown) => { const m = String(v ?? '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/); return m ? chicagoInstant(+m[1], +m[2], +m[3], +m[4], +m[5]) : NaN; };
+  const start = at(j.start); const end = j.end ? at(j.end) : start + H; if (!Number.isFinite(start) || !Number.isFinite(end)) return 'I could not work out the date and time. Tell me the day and time, like “add dentist to my calendar Friday at 3pm”.';
+  try { const out = await requestCreate(db, { title: String(j.title ?? '').slice(0, 120), start, end, location: String(j.location ?? '').slice(0, 160) }, request, now); const heads = headsUp(out.check);
+    return (direct ? `Done. I've added “${out.check.event.title}” to your ${target(db)} calendar, ${fmt(start)} to ${fmt(end)}. It will appear in Apple Calendar within a minute.` : `I've asked for your approval to add “${out.check.event.title}”, ${fmt(start)} to ${fmt(end)}. Nothing is added until you approve it on the Approvals page.`) + (heads.length ? ` Heads up: ${heads.join(' ')}` : '');
+  } catch (e) { return (e as Error).message; }
 }
 
 // ---- applying approved changes ----

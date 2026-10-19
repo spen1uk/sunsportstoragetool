@@ -478,6 +478,8 @@ test('over HTTP: calendar writing — choosing the target needs a step-up; a req
     assert.equal((await t.api('/api/calendar/request', { method: 'POST', headers: t.me, body: ev })).status, 400, 'no calendar chosen yet');
     assert.equal((await t.api('/api/calendar/write-target', { method: 'PUT', headers: t.me, body: { name: 'Work' } })).status, 403);
     await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } }); assert.equal((await t.api('/api/calendar/write-target', { method: 'PUT', headers: t.me, body: { name: 'Work' } })).status, 200);
+    assert.equal((await t.api('/api/calendar/direct', { method: 'PUT', headers: t.me, body: { on: false } })).status, 403, 'switching direct mode needs a step-up');
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } }); assert.equal((await t.api('/api/calendar/direct', { method: 'PUT', headers: t.me, body: { on: false } })).status, 200); assert.equal(((await (await t.api('/api/calendar/write', { headers: t.me })).json()) as any).direct, false);
     const r = await (await t.api('/api/calendar/request', { method: 'POST', headers: t.me, body: ev })).json() as any; assert.ok(r.approvalId); assert.equal((t.db.prepare('SELECT COUNT(*) c FROM calendar_outbox').get() as any).c, 0);
     const ap = t.db.prepare('SELECT digest FROM approvals WHERE id=?').get(r.approvalId) as any;
     assert.equal((await t.api(`/api/approvals/${r.approvalId}/decide`, { method: 'POST', headers: t.me, body: { decision: 'approve', digest: ap.digest } })).status, 409, 'approving a calendar change needs a fresh step-up');
