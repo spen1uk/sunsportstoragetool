@@ -442,3 +442,12 @@ test('over HTTP: search needs a session and a device cannot use it', async () =>
     const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; assert.ok([401, 404].includes((await t.api('/api/search?q=marina', { headers: { authorization: `Bearer ${token}` } })).status));
   } finally { t.close(); }
 });
+
+test('over HTTP: the skill-routing preview needs a session and never runs anything', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/skills/route', { method: 'POST', body: { text: 'search my memory' } })).status, 401);
+    const r = await (await t.api('/api/skills/route', { method: 'POST', headers: t.me, body: { text: 'search my memory for boats' } })).json() as any; assert.equal(r.skill, null);
+    assert.equal((await t.api('/api/skills/route', { method: 'POST', headers: t.me, body: { text: 'x' } })).status, 400);
+  } finally { t.close(); }
+});

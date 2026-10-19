@@ -10,6 +10,7 @@ const EXAMPLE = JSON.stringify([{ skill: 'docs.extract_text', input: { html: '<p
 export function SkillsPage() {
   const { data, reload } = useLive<any>(() => api('/api/skills'), ['approvals', 'system']);
   const [open, setOpen] = useState<string | null>(null), [det, setDet] = useState<any>(null), [pw, setPw] = useState(''), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [filter, setFilter] = useState('all'), [q, setQ] = useState('');
+  const [routeIn, setRouteIn] = useState(''), [routeOut, setRouteOut] = useState('');
   const [testIn, setTestIn] = useState('{}'), [testOut, setTestOut] = useState(''), [wname, setWname] = useState(''), [wsteps, setWsteps] = useState(EXAMPLE), [wcheck, setWcheck] = useState<any>(null);
   if (!data) return <section className="page"><h1>Skills</h1><p className="muted">Loading…</p></section>;
   const confirmFirst = async () => { if (pw) { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } else await stepUpWithPasskey(); };
@@ -19,6 +20,11 @@ export function SkillsPage() {
   return (
     <section className="page"><h1>Skills</h1>
       <p className="muted">Every capability Jarvis and Prometheus have, in one registry. A skill's definition lives in the code (reviewed and tested); here you decide who may use it, switch it off, or roll it back. Agents can never grant themselves anything. Skills that send, spend, delete or widen access (tier 3+) are only ever approval requests and can never be given to an agent.</p>
+      <div className="glass pad section"><h2>Which skill would Jarvis use?</h2>
+        <p className="muted small">Type a request in your own words. Jarvis picks the skill it would use and tells you whether it is allowed, without running anything. In chat, the same pick is made and, if the skill is switched on for Jarvis and only reads, it runs.</p>
+        <div className="row wrap"><input className="grow" value={routeIn} onChange={(e) => setRouteIn(e.target.value)} placeholder="e.g. what decisions are due for review?" aria-label="A request in plain words" maxLength={300} />
+          <button disabled={routeIn.trim().length < 3} onClick={() => void api('/api/skills/route', 'POST', { text: routeIn }).then((r) => setRouteOut(r.say)).catch((e) => setRouteOut(e instanceof Error ? e.message : String(e)))}>Check</button></div>
+        {routeOut && <p className="small" role="status">{routeOut}</p>}</div>
       <div className="glass pad section">
         <div className="row wrap">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search skills" aria-label="Search skills" style={{ width: 200 }} />

@@ -43,6 +43,7 @@ import * as excl from './exclusions.ts';
 import { PRICES } from './llm/prices.ts';
 import * as briefs from './briefs.ts';
 import * as usearch from './search.ts';
+import { route as routeSkill, candidates as routeCandidates } from './skills/router.ts';
 import { overview as agentsOverview } from './agentsview.ts';
 import * as gaps from './improve/gaps.ts';
 import * as cand from './improve/candidates.ts';
@@ -421,6 +422,7 @@ route('POST', '/api/imports/:id/suggest-memories', async ({ db, params }) => { c
 route('DELETE', '/api/imports/:id', ({ db, params }) => ({ ok: cimp.remove(db, params.id) }));
 route('DELETE', '/api/imports', ({ db, session, body }) => stepped(db, session, () => ({ deleted: cimp.removeAll(db) })));
 // ---- autonomous skill improvement: gaps → candidates → sandbox → staged → promoted (only by you) ----
+route('POST', '/api/skills/route', async ({ db, body }) => { const b = parse(z.object({ text: z.string().min(3).max(300) }), body); const r = await routeSkill(db, b.text, { run: false }); return r.handled ? { skill: r.skill, say: r.text } : { skill: null, say: 'No skill fits that. It would be an ordinary chat.', candidates: routeCandidates(db).length }; });
 route('GET', '/api/search', ({ db, url }) => usearch.search(db, (url.searchParams.get('q') ?? '').slice(0, 120), { includeImports: url.searchParams.get('imports') === '1', perKind: 10 }));
 route('GET', '/api/agents/overview', ({ db }) => agentsOverview(db));
 route('GET', '/api/improve', ({ db }) => ({ gaps: gaps.list(db), improvements: cand.list(db), auto: roll.autoDraft(db), modelReady: gw.ready(db, 'analysis'), capDefaultMicroUsd: cand.DEFAULT_CAP_MICRO, capMaxMicroUsd: cand.MAX_CAP_MICRO }));

@@ -14,6 +14,7 @@ import { parseWebRequest, looksLikeWebQuestion, needsWebModel, isQuestionLike, p
 import { startDeep } from './deepresearch.ts';
 import { describe as knowDescribe } from './knowledge.ts';
 import { describeForChat as searchReply } from './search.ts';
+import { route as routeSkill } from './skills/router.ts';
 import { mentions as chatMentions } from './chatimport.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
@@ -104,6 +105,14 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   if (!cmd.fallback) return { ...cmd, source: 'command' };
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !webGate(db, { channel: o.channel ?? 'dashboard' }) && (looksLikeWebQuestion(text) || (justSearched(db) && isQuestionLike(text)) || await needsWebModel(db, text)))   // everyday questions that need the internet just go there; if search is off or at its limit, fall through to a normal chat
     return await webTurn(db, text, text, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
+
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // plain-words skill routing: one cheap pick, then the registry decides and runs it
+    const sk = await routeSkill(db, text);
+    if (sk.handled) {
+      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', sk.text, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+      return { text: sk.text, persisted: true, source: 'command', proposals: [] };
+    }
+  }
 
   const strong = /^deep:\s*/i.test(text); const prompt = text.replace(/^deep:\s*/i, '');
   const messages: ChatMessage[] = [...(priv ? [] : history(db)), { role: 'user', content: prompt }];
