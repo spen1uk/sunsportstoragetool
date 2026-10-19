@@ -18,6 +18,7 @@ import { route as routeSkill } from './skills/router.ts';
 import * as deleg from './delegation.ts';
 import { chatDelete as calendarDelete, chatCreate as calendarCreate, directOn as calDirect, applyNow as calApplyNow } from './calendarwrite.ts';
 import { requestApproval } from './approvals.ts';
+import { intentTurn } from './intent.ts';
 import { mentions as chatMentions } from './chatimport.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
@@ -118,6 +119,13 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   const modelOk = ready(db, 'chat') && (!priv || cfg.allowInPrivate);
   const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk, channel: o.channel });
   if (!cmd.fallback) return { ...cmd, source: 'command' };
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // plain requests ("build me a …", "start a goal to …", "have someone look into …"): one cheap pick from a fixed menu, then ordinary code does it
+    const done = await intentTurn(db, text, { channel: o.channel ?? 'dashboard' });
+    if (done) {
+      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', done, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+      return { text: done, persisted: true, source: 'command', proposals: [] };
+    }
+  }
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !webGate(db, { channel: o.channel ?? 'dashboard' }) && (looksLikeWebQuestion(text) || (justSearched(db) && isQuestionLike(text)) || await needsWebModel(db, text)))   // everyday questions that need the internet just go there; if search is off or at its limit, fall through to a normal chat
     return await webTurn(db, text, text, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
 
