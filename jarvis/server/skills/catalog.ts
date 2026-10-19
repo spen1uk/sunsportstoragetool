@@ -39,6 +39,7 @@ export const BUILTIN: Entry[] = [
   A('budget.raise_cap', 'Raise the monthly cap', 'Raise the monthly spending cap.', ['budget.raise'], 'budget_increase'),
   A('budget.raise_daily', 'Raise the daily ceiling', 'Raise the daily model-spend ceiling.', ['budget.raise'], 'raise_daily_ceiling'),
   A('calendar.create_event', 'Add a calendar event', 'Add one event to the calendar you chose in Apple Calendar. Needs your approval each time.', ['calendar.write'], 'calendar_create', 'external_write'),
+  A('calendar.delete_event', 'Delete a calendar event', 'Delete one non-repeating event from Apple Calendar. Needs your approval and passkey each time.', ['calendar.write'], 'calendar_delete', 'external_write'),
   A('calendar.move_event', 'Move a calendar event', 'Move one non-repeating event to a new time. Needs your approval each time.', ['calendar.write'], 'calendar_move', 'external_write'),
   A('messages.send', 'Send a message', 'Send a text or email. Not connected: nothing can be sent.', ['messages.send'], 'send_message', 'external_write', { docs: 'Permanently unavailable until a messaging policy is designed and approved (open questions F8–F16).' }),
   A('finance.trade_or_transfer', 'Trade or transfer money', 'Trade or transfer funds. Not connected; permanently unavailable in this build.', ['money.move'], 'trade_or_transfer', 'money', { docs: 'Requires its own approved trading policy, a human security review and a separate control system.' }),

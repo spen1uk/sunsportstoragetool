@@ -83,13 +83,39 @@ export function requestMove(db: DB, o: { uid: string; calendar: string; newStart
   const payload = movePayload.parse({ uid: o.uid, calendar: o.calendar, title: ev.title, oldStart: ev.start_ms, newStart: o.newStart, newEnd, heads_up: headsUp(c) }); return { check: c, approvalId: request('calendar_move', payload) };
 }
 
+export const deletePayload = z.object({ uid: z.string().min(1).max(200), calendar: z.string().min(1).max(80), title: z.string().max(120), start: z.number().int() }).strict();
+export const describeDelete = (p: any) => `Delete “${p.title}” (${p.calendar}) on ${fmt(p.start)}. This removes it from Apple Calendar.`;
+/** Asks to delete one single, timed event. Repeating events are never deleted (that would remove the whole series). Never deletes by itself. */
+export function requestDelete(db: DB, o: { uid: string; calendar: string }, request: (type: string, payload: unknown) => string) {
+  const rows = db.prepare('SELECT * FROM calendar_events WHERE uid=? AND calendar=?').all(o.uid, o.calendar) as any[]; if (!rows.length) throw new Error('That event is not in the calendar copy Jarvis has. Sync the calendar first.');
+  if (rows.length > 1) throw new Error('That is a repeating event. Jarvis will not delete one, because it could remove the whole series. Delete it in Calendar yourself.');
+  const ev = rows[0]; if (ev.all_day) throw new Error('All-day events are not deleted by Jarvis.');
+  return { approvalId: request('calendar_delete', deletePayload.parse({ uid: o.uid, calendar: o.calendar, title: ev.title, start: ev.start_ms })), title: ev.title as string, start: ev.start_ms as number };
+}
+/**
+ * Plain-words delete from chat ("delete the dentist appointment", "remove that event"). Returns null when the message is not about a calendar event.
+ * It only finds the event and raises the approval; the delete itself happens after Luke approves with his passkey.
+ */
+export function chatDelete(db: DB, text: string, request: (type: string, payload: unknown) => string, now = Date.now()): string | null {
+  const m = text.trim().match(/^(?:please\s+|can you\s+|could you\s+)?(?:delete|remove|cancel)\s+(?:(?:that|the|my|this|our)\s+)?(.{2,100}?)\s*(?:event|meeting|appointment|test event)?\s*(?:from (?:my |the )?calendar)?\s*[?.!]*$/i); if (!m) return null;
+  const mentionsCal = /\b(event|meeting|appointment|calendar)\b/i.test(text); const what = m[1].trim().toLowerCase().replace(/\b(event|meeting|appointment|calendar)\b/g, '').replace(/\s+/g, ' ').trim(); const vague = /^(it|that|this|one|last|the last|the one|that one|test)?$/.test(what);
+  if (!mentionsCal && !vague) return null;
+  const evs = upcoming(db, now - 7 * 24 * H, now + 120 * 24 * H).filter((e) => !e.allDay); let hit: typeof evs = [];
+  if (vague) { const last = (db.prepare("SELECT payload FROM calendar_outbox WHERE kind='create' AND status='done' ORDER BY created_at DESC LIMIT 1").get() as { payload: string } | undefined); const t = last ? String(JSON.parse(last.payload).title).toLowerCase() : ''; hit = t ? evs.filter((e) => e.title.toLowerCase() === t) : []; if (!hit.length) return 'Which event? Tell me its name, like “delete the dentist appointment”.'; }
+  else { const words = what.split(/\s+/).filter((w) => w.length > 1); hit = words.length ? evs.filter((e) => words.every((w) => e.title.toLowerCase().includes(w))) : []; }
+  if (!hit.length) return `I couldn't find an upcoming event matching “${m[1].trim()}” in your calendar copy. If it was just added, wait a minute for the sync and ask again.`;
+  hit = hit.sort((a, b) => Math.abs(a.start - now) - Math.abs(b.start - now)); if (hit.length > 1 && !vague) { const same = hit.filter((e) => e.title === hit[0].title); if (hit.length > 3 || same.length < hit.length) return `I found ${hit.length} events that match: ${hit.slice(0, 4).map((e) => `“${e.title}” (${fmt(e.start)})`).join('; ')}. Tell me which one, with its full name.`; }
+  try { const r = requestDelete(db, { uid: hit[0].uid, calendar: hit[0].calendar }, request); return `I've asked for your approval to delete “${r.title}” on ${fmt(r.start)}. Nothing is deleted until you approve it on the Approvals page with your passkey.`; } catch (e) { return (e as Error).message; }
+}
+
 // ---- applying approved changes ----
-export function queue(db: DB, kind: 'create' | 'move', payload: unknown, approvalId?: string, now = Date.now()) {
-  const p = kind === 'create' ? approvalPayload.parse(payload) : movePayload.parse(payload); const oid = id();
+export function queue(db: DB, kind: 'create' | 'move' | 'delete', payload: unknown, approvalId?: string, now = Date.now()) {
+  const p = kind === 'create' ? approvalPayload.parse(payload) : kind === 'move' ? movePayload.parse(payload) : deletePayload.parse(payload); const oid = id();
   db.prepare('INSERT INTO calendar_outbox(id,kind,payload,approval_id,created_at) VALUES(?,?,?,?,?)').run(oid, kind, JSON.stringify(p), approvalId ?? null, now); audit(db, 'system', 'calendar.queued', oid, { kind }); publish({ type: 'calendar' }); return oid;
 }
 const CREATE_JS = `function run(argv){ const a = JSON.parse(argv[0]); const C = Application('Calendar'); const cal = C.calendars.byName(a.calendar); const ev = C.Event({ summary: a.title, startDate: new Date(a.start), endDate: new Date(a.end), location: a.location || '', description: a.notes || '' }); cal.events.push(ev); return JSON.stringify({ ok: true }); }`;
 const MOVE_JS = `function run(argv){ const a = JSON.parse(argv[0]); const C = Application('Calendar'); const found = C.calendars.byName(a.calendar).events.whose({ uid: a.uid })(); if (found.length !== 1) throw new Error('expected exactly one matching event, found ' + found.length); found[0].startDate = new Date(a.newStart); found[0].endDate = new Date(a.newEnd); return JSON.stringify({ ok: true }); }`;
+const DELETE_JS = `function run(argv){ const a = JSON.parse(argv[0]); const C = Application('Calendar'); const found = C.calendars.byName(a.calendar).events.whose({ uid: a.uid })(); if (found.length !== 1) throw new Error('expected exactly one matching event, found ' + found.length); C.delete(found[0]); return JSON.stringify({ ok: true }); }`;
 let draining = false;
 /** Applies queued changes on the Mac. Safe to call often; does nothing when the queue is empty. Never throws. */
 export async function drain(db: DB, now = Date.now()): Promise<number> {
@@ -98,7 +124,7 @@ export async function drain(db: DB, now = Date.now()): Promise<number> {
     for (const o of db.prepare("SELECT * FROM calendar_outbox WHERE status='queued' AND attempts<3 ORDER BY created_at").all() as any[]) {
       db.prepare('UPDATE calendar_outbox SET attempts=attempts+1 WHERE id=?').run(o.id); const p = JSON.parse(o.payload);
       try {
-        await getRunner()(o.kind === 'create' ? CREATE_JS : MOVE_JS, [JSON.stringify(o.kind === 'create' ? { calendar: p.calendar, title: p.title, start: p.start, end: p.end, location: p.location, notes: p.notes } : p)], 60_000);
+        await getRunner()(o.kind === 'create' ? CREATE_JS : o.kind === 'delete' ? DELETE_JS : MOVE_JS, [JSON.stringify(o.kind === 'create' ? { calendar: p.calendar, title: p.title, start: p.start, end: p.end, location: p.location, notes: p.notes } : p)], 60_000);
         db.prepare("UPDATE calendar_outbox SET status='done', done_at=?, error=NULL WHERE id=?").run(now, o.id); audit(db, 'system', 'calendar.applied', o.id, { kind: o.kind }); done++;
       } catch (e) {
         const msg = e instanceof MacError ? e.message : classify(String((e as Error).message), false).message; const final = o.attempts + 1 >= 3 || (e instanceof MacError && e.kind !== 'timeout');

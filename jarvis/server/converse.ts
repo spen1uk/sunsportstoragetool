@@ -16,6 +16,8 @@ import { describe as knowDescribe } from './knowledge.ts';
 import { describeForChat as searchReply } from './search.ts';
 import { route as routeSkill } from './skills/router.ts';
 import * as deleg from './delegation.ts';
+import { chatDelete as calendarDelete } from './calendarwrite.ts';
+import { requestApproval } from './approvals.ts';
 import { mentions as chatMentions } from './chatimport.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
@@ -71,6 +73,11 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     const reply = searchReply(db, findQ[1]);
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
     return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
+  const calDel = !priv && (o.channel ?? 'dashboard') !== 'sms' ? calendarDelete(db, text, (type, payload) => requestApproval(db, { actionType: type, payload, requestedBy: 'luke' })) : null;
+  if (calDel) {   // "delete the dentist appointment": finds the event and asks for approval; nothing is deleted until he approves with his passkey
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', calDel, now(), o.channel ?? 'dashboard');
+    return { text: calDel, persisted: true, source: 'command', proposals: [] };
   }
   const delQ = text.match(/^delegate\s*:\s*(.{8,500})$/is);
   if (delQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // hand a job to the best agent; says who and why

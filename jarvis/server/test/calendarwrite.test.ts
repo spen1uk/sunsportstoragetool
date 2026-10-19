@@ -79,3 +79,17 @@ test('calendar change alerts: new, moved and removed events in the next 48 hours
   const db = setup(); const before = (db.prepare("SELECT COUNT(*) c FROM notifications WHERE kind='calendar'").get() as any).c; storeCalendar(db, [{ calendar: 'Work', uid: 'u1', title: 'Team call', start: ci(2026, 10, 20, 15, 0), end: ci(2026, 10, 20, 16, 0), allDay: false, location: '' }], {}, NOW + 1000);
   const after = (db.prepare("SELECT COUNT(*) c FROM notifications WHERE kind='calendar'").get() as any).c; assert.equal(after, before + 1); assert.match((db.prepare("SELECT body FROM notifications WHERE kind='calendar'").get() as any).body, /Moved: Team call/); void recordSync;
 });
+
+test('deleting: single, timed events only; it needs an approval; chat finds the event by name, asks which when unsure, and the delete goes through the outbox', async () => {
+  const db = setup(); W.setTarget(db, 'Work');
+  assert.throws(() => W.requestDelete(db, { uid: 'r1', calendar: 'Home' }, req(db)), /repeating/); assert.throws(() => W.requestDelete(db, { uid: 'ad', calendar: 'Home' }, req(db)), /All-day/); assert.throws(() => W.requestDelete(db, { uid: 'zzz', calendar: 'Home' }, req(db)), /not in the calendar copy/);
+  assert.equal(W.chatDelete(db, 'what is the weather', req(db), NOW), null); assert.equal(W.chatDelete(db, 'cancel my subscription', req(db), NOW), null, 'not about the calendar');
+  assert.match(W.chatDelete(db, 'delete the nonexistent meeting', req(db), NOW)!, /couldn't find/); assert.equal((db.prepare("SELECT COUNT(*) c FROM approvals WHERE action_type='calendar_delete'").get() as any).c, 0, 'nothing asked yet');
+  const said = W.chatDelete(db, 'Delete the team call event', req(db), NOW)!; assert.match(said, /asked for your approval to delete “Team call”/);
+  const a = db.prepare("SELECT * FROM approvals WHERE action_type='calendar_delete'").get() as any; assert.equal(a.risk, 'high'); assert.match(a.summary, /Delete “Team call”/); assert.equal(W.outbox(db).length, 0, 'not queued before approval');
+  approveAndRun(db, a.id); const seen: string[] = []; setRunner(async (s2) => { seen.push(s2); return '{"ok":true}'; }); assert.equal(await W.drain(db, NOW), 1); assert.ok(seen[0].includes('C.delete(')); assert.equal(W.outbox(db)[0].kind, 'delete'); assert.equal(W.outbox(db)[0].status, 'done');
+  // "that event" refers to the one Jarvis just added
+  W.setTarget(db, 'Home'); const ev = { title: 'Test from Jarvis', start: ci(2026, 10, 22, 15, 0), end: ci(2026, 10, 22, 16, 0) }; const r = await W.requestCreate(db, ev, req(db), NOW); approveAndRun(db, r.approvalId); await W.drain(db, NOW);
+  storeCalendar(db, [{ calendar: 'Home', uid: 't1', title: 'Test from Jarvis', start: ev.start, end: ev.end, allDay: false, location: '' }], {}, NOW);
+  assert.match(W.chatDelete(db, 'delete that event', req(db), NOW)!, /approval to delete “Test from Jarvis”/);
+});
