@@ -28,7 +28,7 @@ export function PermissionsPage() {
       <div className="glass pad section"><h2>Switches</h2>
         <ul className="plain small">
           <li>Jarvis: <b className={sw.paused ? 'warn' : ''}>{sw.paused ? 'PAUSED (no new automated work)' : 'running'}</b></li>
-          <li>Web search: <b>{sw.webSearch.enabled ? `on (${sw.webSearch.usedToday}/${sw.webSearch.perDay} today)` : 'off'}</b> · Weather: <b>{sw.weather.enabled ? 'on' : 'off'}</b> · Passkeys set up: <b>{sw.passkeys}</b> <a href="#/settings">Settings ›</a></li>
+          <li>Web search: <b>{sw.webSearch.enabled ? `on (${sw.webSearch.usedToday}/${sw.webSearch.perDay} today)` : 'off'}</b> · Passkeys set up: <b>{sw.passkeys}</b> <a href="#/settings">Settings ›</a></li>
         </ul>
       </div>
       <div className="glass pad section"><h2>Devices <a className="small" href="#/settings">manage ›</a></h2>

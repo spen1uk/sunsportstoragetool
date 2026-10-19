@@ -32,7 +32,6 @@ import * as ws from './workspace.ts';
 import * as links from './links.ts';
 import * as props from './proposals.ts';
 import * as standing from './standing.ts';
-import * as weather from './weather.ts';
 import * as websearch from './websearch.ts';
 import * as registry from './skills/registry.ts';
 import * as workflow from './skills/workflow.ts';
@@ -296,10 +295,6 @@ route('DELETE', '/api/sources/:host', ({ db, params }) => ({ ok: sources.remove(
 route('POST', '/api/sources/:host/allow-fetch', ({ db, params }) => { const host = sources.validHost(decodeURIComponent(params.host)); if (!host) throw new HttpError(400, 'bad host'); return { approvalId: appr.requestApproval(db, { actionType: 'allow_domain', payload: { host }, requestedBy: 'luke' }) }; });
 route('GET', '/api/websearch', ({ db }) => ({ ...websearch.getConfig(db), usedToday: websearch.usedToday(db) }));
 route('PUT', '/api/websearch', ({ db, session, body }) => { const c = guard(() => websearch.configInput.parse(body)); if (c.enabled && !websearch.getConfig(db).enabled) { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required to turn web search on'); websearch.setConfig(db, c); auth.consumeStepUp(db, session!); } else websearch.setConfig(db, c); return { ok: true }; });
-route('GET', '/api/weather', async ({ db }) => { const c = weather.getConfig(db); if (!c) return { enabled: false }; const r = await weather.refresh(db); const x = weather.cached(db); return { enabled: true, place: c, ok: r.ok, error: r.error ?? null, summary: x ? weather.summarize(x) : null, ageMin: x ? Math.round((Date.now() - x.fetchedAt) / 60_000) : null }; });
-route('GET', '/api/weather/search', async ({ db: _db, url }) => { try { return { items: await weather.searchPlaces(url.searchParams.get('q') ?? '') }; } catch (e) { throw new HttpError(502, `Couldn't reach the place lookup: ${(e as Error).message.slice(0, 100)}`); } });
-route('PUT', '/api/weather', async ({ db, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); guard(() => weather.setConfig(db, body)); auth.consumeStepUp(db, session!); const r = await weather.refresh(db, undefined, Date.now(), true); return { ok: true, fetched: r.ok, error: r.error ?? null }; });
-route('DELETE', '/api/weather', ({ db }) => { weather.clearConfig(db); return { ok: true }; });
 route('GET', '/api/standing', ({ db }) => ({ items: standing.list(db), eligible: standing.ELIGIBLE, channels: standing.CHANNELS }));
 route('POST', '/api/standing', ({ db, session, body }) => { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required'); const r = guard(() => standing.grant(db, body)); auth.consumeStepUp(db, session!); return r; });
 route('POST', '/api/standing/:id/revoke', ({ db, params }) => { db.prepare('UPDATE standing_permissions SET revoked_at=? WHERE id=? AND revoked_at IS NULL').run(now(), params.id); audit(db, 'luke', 'standing.revoked', params.id); return { ok: true }; });

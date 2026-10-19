@@ -22,11 +22,11 @@ const ready = (db: any) => { reg.grant(db, 'jarvis', 'tasks.list_open', 'luke');
 const failRuns = (db: any, skill: string, n: number, why = 'invalid input: bad', at = Date.now()) => { for (let i = 0; i < n; i++) db.prepare('INSERT INTO skill_runs(skill_id,version,principal,at,ok,ms,input_sha256,refused) VALUES(?,?,?,?,0,0,?,?)').run(skill, '1.0.0', 'jarvis', at, 'x', why); };
 
 test('gaps: found by counting real failures (3+), deduplicated, dismissed stays dismissed; manual requests are checked for secrets and exclusions; the list is capped', () => {
-  const db = makeDb(); reg.sync(db); failRuns(db, 'weather.current', 2); assert.equal(G.scan(db), 0, 'two failures is not a pattern');
-  failRuns(db, 'weather.current', 2); failRuns(db, 'docs.extract_text', 3, 'Jarvis is paused'); assert.equal(G.scan(db), 1); assert.equal(G.scan(db), 0, 'same gap is not found twice');
-  const g = G.list(db)[0]; assert.equal(g.kind, 'failing_skill'); assert.equal(g.count, 4); assert.ok(G.setStatus(db, g.id, 'dismissed')); failRuns(db, 'weather.current', 5); G.scan(db); assert.equal(G.get(db, g.id)!.status, 'dismissed');
-  failRuns(db, 'weather.current', 3, 'invalid input: other reason'); assert.equal(G.scan(db), 1, 'a different reason is a different gap');
-  failRuns(db, 'weather.current', 3, 'x', Date.now() - 30 * 86_400_000); // old failures are ignored
+  const db = makeDb(); reg.sync(db); failRuns(db, 'tasks.list_open', 2); assert.equal(G.scan(db), 0, 'two failures is not a pattern');
+  failRuns(db, 'tasks.list_open', 2); failRuns(db, 'docs.extract_text', 3, 'Jarvis is paused'); assert.equal(G.scan(db), 1); assert.equal(G.scan(db), 0, 'same gap is not found twice');
+  const g = G.list(db)[0]; assert.equal(g.kind, 'failing_skill'); assert.equal(g.count, 4); assert.ok(G.setStatus(db, g.id, 'dismissed')); failRuns(db, 'tasks.list_open', 5); G.scan(db); assert.equal(G.get(db, g.id)!.status, 'dismissed');
+  failRuns(db, 'tasks.list_open', 3, 'invalid input: other reason'); assert.equal(G.scan(db), 1, 'a different reason is a different gap');
+  failRuns(db, 'tasks.list_open', 3, 'x', Date.now() - 30 * 86_400_000); // old failures are ignored
   const w = wf.save(db, 'Flaky', [{ skill: 'docs.extract_text', input: { html: 'x' } }], 'luke'); for (let i = 0; i < 3; i++) db.prepare('INSERT INTO workflow_runs(workflow_id,principal,at,ok,error) VALUES(?,?,?,0,?)').run(w, 'jarvis', Date.now(), 'step 1 failed'); assert.equal(G.scan(db), 1); assert.equal(G.list(db).find((x) => x.kind === 'failing_workflow')!.evidence.workflowId, w);
   assert.ok(G.file(db, { title: 'Summarise my week automatically' })); assert.throws(() => G.file(db, { title: 'Summarise my week automatically' }), /already/); assert.throws(() => G.file(db, { title: 'Use key sk-ant-abcdefghijklmnopqrstuv' }), /secret/);
   X.add(db, 'Project Nightingale'); assert.throws(() => G.file(db, { title: 'Improve Project Nightingale reports' }), /never store|asked me/); assert.throws(() => G.file(db, { title: 'x' })); assert.throws(() => G.file(db, { title: 'A fine title', extra: 1 }));
@@ -109,7 +109,7 @@ test('skill requests become Claude Code briefs, never code; unknown or high-tier
 });
 
 test('autonomy is opt-in: the daily scan runs on its own, but drafting by itself is off by default, limited to one a week and to one at a time, and only drafts (never stages or promotes)', async () => {
-  const db = makeDb(); ready(db); failRuns(db, 'weather.current', 4); const T = Date.now(); const seen = model(JSON.stringify(GOOD));
+  const db = makeDb(); ready(db); failRuns(db, 'tasks.list_open', 4); const T = Date.now(); const seen = model(JSON.stringify(GOOD));
   const d1 = await R.daily(db, T); assert.deepEqual([d1!.found, d1!.drafted], [1, null]); assert.equal(seen.length, 0, 'no model call without the switch'); assert.equal(await R.daily(db, T + 1000), null, 'once a day');
   R.setAutoDraft(db, true); const d2 = await R.daily(db, T + 2 * 86_400_000); assert.ok(d2!.drafted, 'drafted'); const imp = C.get(db, d2!.drafted!); assert.equal(imp.created_by, 'prometheus'); assert.ok(['passed', 'failed'].includes(imp.status)); assert.ok(imp.cost_micro <= C.DEFAULT_CAP_MICRO);
   assert.equal((db.prepare("SELECT COUNT(*) n FROM skill_workflows").get() as any).n, 0, 'nothing staged or active by itself');

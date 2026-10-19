@@ -6,7 +6,6 @@ import * as memory from '../memory.ts';
 import * as knowledge from '../knowledge.ts';
 import * as decisions from '../decisions.ts';
 import * as src from '../sources.ts';
-import * as weather from '../weather.ts';
 
 export type Ctx = { db: DB; principal: string; now: number };
 export type Entry = { manifest: Manifest; input?: z.ZodType; run?: (input: any, ctx: Ctx) => unknown | Promise<unknown> };
@@ -48,7 +47,6 @@ export const BUILTIN: Entry[] = [
 const none = z.object({}).strict();
 /** New skills that run through the registry's own invoke (read-only or pure). */
 export const DIRECT: Entry[] = [
-  define({ id: 'weather.current', title: 'Current weather', purpose: 'The latest saved weather reading and short forecast, if weather is switched on.', owner: 'jarvis', permissions: ['weather.read'], dataSensitivity: 'public', sideEffects: 'none', externalServices: [], runPath: 'direct', autoShare: true, outputDescription: 'A one-paragraph summary or null.', tests: ['phase3.test.ts', 'weather.test.ts'] }, none, (_i, c) => { const r = weather.cached(c.db); return weather.getConfig(c.db) && r ? { summary: weather.summarize(r, c.now), ageMinutes: Math.round((c.now - r.fetchedAt) / 60_000) } : null; }),
   define({ id: 'research.catalog_lookup', title: 'Look up sources', purpose: 'Find catalog sources by status or topic (names and your own notes only).', owner: 'prometheus', permissions: ['catalog.read'], dataSensitivity: 'public', sideEffects: 'none', runPath: 'direct', autoShare: true, outputDescription: 'Up to 30 catalog rows.', tests: ['phase3.test.ts', 'research2.test.ts'] },
     z.object({ status: z.enum(['suggested', 'trusted', 'watch', 'blocked']).optional(), topic: z.string().max(40).optional() }).strict(),
     (i, c) => src.list(c.db).filter((s) => (!i.status || s.status === i.status) && (!i.topic || s.topics.includes(String(i.topic).toLowerCase()))).slice(0, 30).map((s) => ({ host: s.host, class: s.class, status: s.status, reliability: s.reliability, topics: s.topics, note: s.terms_note }))),

@@ -10,7 +10,6 @@ import type { ChatMessage } from './llm/types.ts';
 import { extractProposals, createProposals } from './proposals.ts';
 import { autoRun } from './standing.ts';
 import { getDefaults } from './missionbudget.ts';
-import { refresh as refreshWeather } from './weather.ts';
 import { parseWebRequest, looksLikeWebQuestion, needsWebModel, isQuestionLike, pendingOffer, clearOffer, saysYes, asksForSources, lastSources, ask as askWeb, gate as webGate } from './websearch.ts';
 import { startDeep } from './deepresearch.ts';
 import { describe as knowDescribe } from './knowledge.ts';
@@ -103,7 +102,6 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   const messages: ChatMessage[] = [...(priv ? [] : history(db)), { role: 'user', content: prompt }];
   publish({ type: 'thinking', on: true });
   try {
-    if (!priv) await refreshWeather(db);   // no-op unless weather is on and the saved reading is over 15 minutes old; never throws
     const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt), context: priv ? undefined : buildContext(db, Date.now(), o.channel ?? 'dashboard'), proposals: !priv, brief: o.brief }), messages, strong, channel: o.channel ?? 'dashboard', deviceId: o.deviceId });
     const raw = r.ok ? r.text.trim() || '…' : `I couldn't reach a language model just now, sir (${r.error}). Command mode is still available: type "help".`;
     // The model may PROPOSE actions; they become Confirm cards and do nothing until Luke clicks. In private mode nothing is stored, so proposals are dropped.

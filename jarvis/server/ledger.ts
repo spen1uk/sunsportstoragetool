@@ -5,7 +5,6 @@ import { listDevices } from './devices.ts';
 import { list as listStanding, ELIGIBLE } from './standing.ts';
 import { status as bridgeStatus } from './bridge.ts';
 import { getConfig as web, usedToday } from './websearch.ts';
-import { getConfig as weather } from './weather.ts';
 import { ACTION_TYPES } from './proposals.ts';
 import { list as missionBudgets, getDefaults } from './missionbudget.ts';
 import { listPasskeys } from './passkey.ts';
@@ -16,7 +15,7 @@ import { exploreCommitted } from './missions.ts';
 export function permissionLedger(db: DB, now = Date.now()) {
   const wc = web(db);
   return {
-    switches: { paused: isPaused(db), webSearch: { enabled: wc.enabled, perDay: wc.perDay, usedToday: usedToday(db, now) }, weather: { enabled: !!weather(db) }, passkeys: listPasskeys(db).length },
+    switches: { paused: isPaused(db), webSearch: { enabled: wc.enabled, perDay: wc.perDay, usedToday: usedToday(db, now) }, passkeys: listPasskeys(db).length },
     devices: listDevices(db, now).map((d) => ({ id: d.id, name: d.name, kind: d.kind, scopes: d.scopes, status: d.status, lastSeen: d.lastSeen, spentMicroUsd: d.spentMicroUsd, limitMicroUsd: d.monthlyLimitMicroUsd, expiresAt: d.expiresAt })),
     helper: bridgeStatus(db),
     standing: listStanding(db, now),

@@ -40,7 +40,7 @@ test('manifests: the vocabulary is closed; ids, versions and permissions are val
 
 test('sharing: free public read-only skills reach every agent that can hold them; private ones never reach Prometheus; everything else needs your grant', () => {
   const db = makeDb(); reg.sync(db);
-  for (const id of ['research.catalog_lookup', 'docs.extract_text', 'weather.current']) for (const p of ['jarvis', 'prometheus']) { const a = reg.access(db, p, id); assert.equal(a.allowed, true, `${p} ${id}`); assert.equal(a.via, 'auto'); }
+  for (const id of ['research.catalog_lookup', 'docs.extract_text']) for (const p of ['jarvis', 'prometheus']) { const a = reg.access(db, p, id); assert.equal(a.allowed, true, `${p} ${id}`); assert.equal(a.via, 'auto'); }
   assert.equal(reg.access(db, 'jarvis', 'memory.search').allowed, false); assert.match(reg.access(db, 'jarvis', 'memory.search').reasons[0], /not granted/);
   assert.equal(reg.access(db, 'prometheus', 'memory.search').allowed, false); assert.match(reg.access(db, 'prometheus', 'memory.search').reasons.join(';'), /cannot hold: memory\.read|private data/);
   assert.throws(() => reg.grant(db, 'prometheus', 'memory.search', 'luke'), /cannot ever hold|can never hold|may not use/); assert.throws(() => reg.grant(db, 'prometheus', 'tasks.list_open', 'luke'));
