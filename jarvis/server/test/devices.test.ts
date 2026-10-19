@@ -91,7 +91,7 @@ test('device chat: shares the one conversation, records the channel, speaks brie
     const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; const dv = { authorization: `Bearer ${token}` };
     const calls = model('Of course. **Added** it to your list — see https://x.example.\nACTIONS: [{"type":"add_task","title":"Call the marina","minutes":15}]');
     const r = await (await t.api('/api/device/chat', { method: 'POST', headers: dv, body: { text: 'remind me to call the marina', mode: 'driving' } })).json() as any;
-    assert.match(calls[0].system, /SPOKEN ALOUD while Luke is driving/); assert.equal(r.queuedForConfirmation, 1); assert.doesNotMatch(r.speak, /https|\*\*|ACTIONS/); assert.match(r.speak, /left a suggestion on your dashboard for you to confirm/);
+    assert.match(calls.filter((c) => !c.system.includes("front desk"))[0].system, /SPOKEN ALOUD while Luke is driving/); assert.equal(r.queuedForConfirmation, 1); assert.doesNotMatch(r.speak, /https|\*\*|ACTIONS/); assert.match(r.speak, /left a suggestion on your dashboard for you to confirm/);
     assert.equal((t.db.prepare("SELECT COUNT(*) c FROM tasks WHERE kind='manual'").get() as any).c, 0, 'nothing happened: a device cannot confirm');
     const rows = t.db.prepare('SELECT channel FROM messages ORDER BY id').all() as any[]; assert.deepEqual(rows.map((x) => x.channel), ['car', 'car']);
     await t.api('/api/chat', { method: 'POST', headers: t.me, body: { text: 'status' } }); assert.equal((t.db.prepare('SELECT COUNT(*) c FROM messages').get() as any).c, 4, 'one shared history across devices');

@@ -35,7 +35,7 @@ test('the model proposes, nothing happens until Confirm; the card text is built 
   const r = await converse(db, 'remind me to call David about storage by Friday');
   assert.equal(r.proposals?.length, 1); assert.match(r.proposals![0].summary, /^Add task: "Call David about storage" · 20 min · priority 2 · due Fri, Oct 16$/);
   assert.doesNotMatch(r.text, /ACTIONS/); assert.equal(tasks(db).length, 0, 'nothing created yet');
-  assert.match(calls[0].system, /PROPOSING ACTIONS/); assert.ok(calls[0].system.indexOf('RULES (fixed') < calls[0].system.indexOf('PROPOSING ACTIONS'));
+  assert.match(calls.filter((c) => !c.system.includes("front desk"))[0].system, /PROPOSING ACTIONS/); assert.ok(calls.filter((c) => !c.system.includes("front desk"))[0].system.indexOf('RULES (fixed') < calls.filter((c) => !c.system.includes("front desk"))[0].system.indexOf('PROPOSING ACTIONS'));
   assert.equal((db.prepare("SELECT content FROM messages WHERE role='jarvis'").get() as any).content.includes('ACTIONS'), false, 'chat history never contains the action line');
   const c = confirm(db, r.proposals![0].id); assert.equal(c.ok, true); const t = tasks(db); assert.equal(t.length, 1); assert.equal(t[0].title, 'Call David about storage'); assert.equal(t[0].minutes, 20); assert.equal(t[0].priority, 2);
   assert.equal(confirm(db, r.proposals![0].id).ok, false, 'a second click does nothing'); assert.equal(tasks(db).length, 1);
@@ -74,7 +74,7 @@ test('private mode: the model is not told about proposals, and any it returns ar
   const db = makeDb(); gw.setConfig(db, { allowInPrivate: true });
   const calls = model('Done.\nACTIONS: [{"type":"add_task","title":"Secret thing"}]');
   const r = await converse(db, 'add something sneaky', { private: true });
-  assert.doesNotMatch(calls[0].system, /PROPOSING ACTIONS/); assert.deepEqual(r.proposals, []); assert.equal((db.prepare('SELECT COUNT(*) c FROM proposals').get() as any).c, 0); assert.doesNotMatch(r.text, /ACTIONS/);
+  assert.doesNotMatch(calls.filter((c) => !c.system.includes("front desk"))[0].system, /PROPOSING ACTIONS/); assert.deepEqual(r.proposals, []); assert.equal((db.prepare('SELECT COUNT(*) c FROM proposals').get() as any).c, 0); assert.doesNotMatch(r.text, /ACTIONS/);
   assert.equal(buildSystemPrompt(db, { proposals: false }).includes('PROPOSING ACTIONS'), false); assert.ok(PROPOSAL_PROMPT.includes('Never propose sending, spending, deleting'));
 });
 
