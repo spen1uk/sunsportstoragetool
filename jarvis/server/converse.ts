@@ -61,36 +61,36 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && saysYes(text) && justSearched(db) && pendingOffer(db)) {   // "yes" to Jarvis's own offer of deeper research
     const q = pendingOffer(db)!; const why = webGate(db, { channel: o.channel ?? 'dashboard' }); clearOffer(db); if (!why) startDeep(db, q, 'deep');
     const reply = why ? why : `On it. I've started a proper look into that. It takes a few minutes and stays within a $${(getDefaults(db).deepMicro / 1e6).toFixed(2)} limit; I'll put the write-up in Ready for Review.`;
-    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
   if (!priv && asksForSources(text)) {   // sources are shown only when he asks
     const reply = lastSources(db);
-    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
   const findQ = text.match(/^(?:please\s+)?(?:search|find|look)\s+(?:through\s+|in\s+)?(?:my|our)\s+(?:\w+\s+)?(?:for|about)\s+(.{2,100}?)\s*[?.!]*$/i) ?? text.match(/^(?:please\s+)?(?:search|find)\s+(?:everything|all)\s+(?:for|about)\s+(.{2,100}?)\s*[?.!]*$/i);
   if (findQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // deterministic search of his own records; no model, and imported chats are never quoted here
     const reply = searchReply(db, findQ[1]);
-    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
   const calReq = (type: string, payload: unknown) => (calDirect(db) ? calApplyNow(db)(type, payload) : requestApproval(db, { actionType: type, payload, requestedBy: 'luke' }));
   const calDel = !priv && (o.channel ?? 'dashboard') !== 'sms' ? (calendarDelete(db, text, calReq, Date.now(), calDirect(db)) ?? await calendarCreate(db, text, calReq, Date.now(), calDirect(db))) : null;
   if (calDel) {   // "delete the dentist appointment" / "add dentist to my calendar Friday at 3pm": done straight away (direct mode) or sent for approval; only ever from his own typed message
-    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', calDel, now(), o.channel ?? 'dashboard');
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', calDel, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: calDel, persisted: true, source: 'command', proposals: [] };
   }
   const delQ = text.match(/^delegate\s*:\s*(.{8,500})$/is);
   if (delQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // hand a job to the best agent; says who and why
     let reply: string; try { const r = deleg.delegate(db, { request: delQ[1] }); reply = r.agent.agentId === 'prometheus' ? `Understood. I've given that to Prometheus (${r.agent.why}) within a $${(deleg.DEFAULT_CAP / 1e6).toFixed(2)} limit. I'll check what it brings back and send it back if it's thin, before you see it.` : `${r.agent.why} I've put it on your task list.`; } catch (e) { reply = (e as Error).message; }
-    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
   const knowQ = text.match(/^what (?:do|did|does) (?:you|we|jarvis) know about\s+(.{2,80}?)\s*[?.!]*$/i);
   if (knowQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // deterministic: reads the knowledge graph, no model, nothing sent anywhere
     const said = chatMentions(db, knowQ[1]); const reply = knowDescribe(db, knowQ[1]) + (said.length ? `\nAlso in chats you imported and made searchable: ${said.join('; ')}.` : '');
-    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
   const deepQ = text.match(/^(?:deep research|research deeply|prometheus)\s*:\s*(.{5,})$/is);
@@ -151,7 +151,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     if (auto.done.length) reply += '\n\n' + auto.done.map((d) => `✓ Done under your standing permission: ${d.summary}`).join('\n');
     if (!priv) {
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard');
-      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
+      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
       publish({ type: 'chat' });
     }
     return { text: reply, persisted: !priv, source: r.ok ? 'model' : 'command', model: r.ok ? r.model : undefined, costMicroUsd: r.ok ? r.costMicroUsd : 0, proposals };
@@ -168,7 +168,7 @@ async function webTurn(db: DB, text: string, query: string, o: { private: boolea
     const r = await askWeb(db, query, { channel, deviceId: o.deviceId, brief: o.brief, private: o.private, history: o.private ? [] : webHistory(db) });
     if (!o.private) {
       db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,0)').run('luke', text, now(), channel);
-      db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,?)').run('jarvis', r.text, now(), channel, r.ok ? 1 : 0);
+      db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,?)').run('jarvis', r.text, now(), channel, r.ok ? 1 : 0); publish({ type: 'chat' });
       publish({ type: 'chat' });
     }
     return { text: r.text, persisted: !o.private, source: r.ok ? 'model' : 'command', model: r.ok ? r.model : undefined, costMicroUsd: r.ok ? r.costMicroUsd : 0, proposals: [] };

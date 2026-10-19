@@ -40,3 +40,9 @@ test('calendar by plain words: misspelling ("calender") still works, several eve
   const r = await converse(db, ask); assert.equal(r.source, 'command'); assert.match(r.text, /^Done\. I've added 2 events to your Home calendar/); assert.match(r.text, /Aug 1/); assert.match(r.text, /Sep 10/);
   assert.equal(W.outbox(db).filter((o) => o.kind === 'create').length, 2); assert.deepEqual(W.outbox(db).map((o) => o.payload.title), ['Put out Sun Sport Marine storage cards', 'Put out Sun Sport Marine storage cards']);
 });
+
+test('every plain-words reply tells the chat window to refresh (otherwise the message looks like it was never sent)', async () => {
+  const { subscribe } = await import('../events.ts') as any; void subscribe;
+  const src = (await import('node:fs')).readFileSync(new URL('../converse.ts', import.meta.url), 'utf8').split('\n').filter((l) => l.includes('INSERT INTO messages') && l.includes("'jarvis'"));
+  assert.ok(src.length > 5); for (const l of src) assert.ok(l.includes("publish({ type: 'chat' })"), `missing refresh: ${l.slice(0, 90)}`);
+});
