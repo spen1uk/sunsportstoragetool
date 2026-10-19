@@ -233,11 +233,11 @@ route('POST', '/api/artifacts/:id/restore', ({ db, params, body }) => ({ version
 route('POST', '/api/artifacts/:id/request-publish', ({ db, params }) => {
   const a = row(db, "SELECT * FROM artifacts WHERE id=? AND status='approved'", params.id) as any;
   if (!a) throw new HttpError(409, 'Accept the draft first; publishing is a separate approval.');
-  return { approvalId: appr.requestApproval(db, { actionType: 'publish_artifact', payload: { artifactId: a.id, title: a.title, version: a.current_version }, requestedBy: 'luke' }) };
+  return appr.requestOrDo(db, { actionType: 'publish_artifact', payload: { artifactId: a.id, title: a.title, version: a.current_version }, requestedBy: 'luke' });
 });
 route('POST', '/api/artifacts/:id/request-delete', ({ db, params }) => {
   const a = row(db, 'SELECT * FROM artifacts WHERE id=?', params.id) as any; if (!a) throw new HttpError(404, 'not found');
-  return { approvalId: appr.requestApproval(db, { actionType: 'delete_artifact_permanent', payload: { artifactId: a.id, title: a.title }, requestedBy: 'luke' }) };
+  return appr.requestOrDo(db, { actionType: 'delete_artifact_permanent', payload: { artifactId: a.id, title: a.title }, requestedBy: 'luke' });
 });
 
 // ---- approvals ----
@@ -303,7 +303,7 @@ route('PUT', '/api/research/settings', ({ db, body }) => { const b = parse(z.obj
 route('GET', '/api/sources', ({ db }) => ({ items: sources.list(db), classes: sources.CLASSES, statuses: sources.STATUSES, fetchable: (db.prepare('SELECT host FROM allowed_domains').all() as { host: string }[]).map((r) => r.host) }));
 route('POST', '/api/sources', ({ db, body }) => { const b = parse(z.object({ host: z.string().max(200), label: z.string().max(80).optional(), class: z.string().optional(), reliability: z.number().int().min(0).max(100).nullable().optional(), status: z.string().optional(), terms_note: z.string().max(300).optional(), topics: z.array(z.string().max(30)).max(12).optional(), cadence_days: z.number().int().min(1).max(365).nullable().optional() }).strict(), body); return { host: guard(() => sources.upsert(db, b)) }; });
 route('DELETE', '/api/sources/:host', ({ db, params }) => ({ ok: sources.remove(db, decodeURIComponent(params.host)) }));
-route('POST', '/api/sources/:host/allow-fetch', ({ db, params }) => { const host = sources.validHost(decodeURIComponent(params.host)); if (!host) throw new HttpError(400, 'bad host'); return { approvalId: appr.requestApproval(db, { actionType: 'allow_domain', payload: { host }, requestedBy: 'luke' }) }; });
+route('POST', '/api/sources/:host/allow-fetch', ({ db, params }) => { const host = sources.validHost(decodeURIComponent(params.host)); if (!host) throw new HttpError(400, 'bad host'); return appr.requestOrDo(db, { actionType: 'allow_domain', payload: { host }, requestedBy: 'luke' }); });
 route('GET', '/api/websearch', ({ db }) => ({ ...websearch.getConfig(db), usedToday: websearch.usedToday(db) }));
 route('PUT', '/api/websearch', ({ db, session, body }) => { const c = guard(() => websearch.configInput.parse(body)); if (c.enabled && !websearch.getConfig(db).enabled) { if (!auth.hasStepUp(session!)) throw new HttpError(403, 'step-up confirmation required to turn web search on'); websearch.setConfig(db, c); auth.consumeStepUp(db, session!); } else websearch.setConfig(db, c); return { ok: true }; });
 route('GET', '/api/standing', ({ db }) => ({ items: standing.list(db), eligible: standing.ELIGIBLE, channels: standing.CHANNELS }));

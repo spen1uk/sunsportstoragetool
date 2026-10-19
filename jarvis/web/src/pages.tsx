@@ -152,8 +152,8 @@ export function ReviewPage() {
             <div className="row wrap actions">
               {cur.version === art.current_version && art.status === 'in_review' && <button className="primary" onClick={() => a.run(async () => { await api(`/api/artifacts/${art.id}/accept`, 'POST', { version: cur.version }); reload(); reloadD(); })}>Accept draft v{cur.version}</button>}
               {cur.version !== art.current_version && <button onClick={() => a.run(async () => { await api(`/api/artifacts/${art.id}/restore`, 'POST', { version: cur.version }); setVer(null); reloadD(); })}>Restore v{cur.version} as new version</button>}
-              {art.status === 'approved' && <button onClick={() => a.run(async () => { await api(`/api/artifacts/${art.id}/request-publish`, 'POST', {}); location.hash = '#/approvals'; })}>Request publish approval…</button>}
-              <button className="danger" onClick={() => a.run(async () => { await api(`/api/artifacts/${art.id}/request-delete`, 'POST', {}); location.hash = '#/approvals'; })}>Request permanent delete…</button>
+              {art.status === 'approved' && <button onClick={() => a.run(async () => { const r = await api(`/api/artifacts/${art.id}/request-publish`, 'POST', {}); if (!r.direct) location.hash = '#/approvals'; })}>Request publish approval…</button>}
+              <button className="danger" onClick={() => a.run(async () => { if (!confirm(`Permanently delete “${art.title}” and all its versions? This cannot be undone.`)) return; const r = await api(`/api/artifacts/${art.id}/request-delete`, 'POST', {}); if (!r.direct) location.hash = '#/approvals'; })}>Delete permanently…</button>
             </div>
             <p className="muted small">Accepting a draft is not publishing. Publishing and deleting each require their own approval.</p>
             {d.requests.length > 0 && <details><summary>Revision requests ({d.requests.length})</summary><ul className="plain">{d.requests.map((r: any) => <li key={r.id}>v{r.base_version}: {r.instruction} <span className="muted small">({r.status})</span></li>)}</ul></details>}

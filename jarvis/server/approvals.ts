@@ -5,6 +5,7 @@ import { hasStepUp, type Session } from './auth.ts';
 import { isPaused } from './pause.ts';
 import { setCap } from './budget.ts';
 import { setConfig } from './llm/gateway.ts';
+import { directOn } from './calendarwrite.ts';
 import { approvalPayload, movePayload, deletePayload, describeCreate, describeMove, describeDelete, queue as queueCalendar } from './calendarwrite.ts';
 
 /** Protected action registry. `handler: null` means no adapter is connected — it can be requested but never executes. */
@@ -82,6 +83,21 @@ export function requestApproval(db: DB, a: { actionType: string; payload: unknow
   publish({ type: 'approvals' });
   if (a.taskId) pulse('attention', a.taskId); // an agent is asking Luke for something
   return aid;
+}
+
+/** Anything that spends real money or contacts other people always waits for Luke, whatever the mode. */
+const ALWAYS_ASK = new Set(['budget_increase', 'raise_daily_ceiling', 'send_message', 'trade_or_transfer']);
+/**
+ * Luke's own request. In direct mode (his choice) an action inside Jarvis that he asked for himself is done at once: the approval record is still written and marked
+ * as decided by him directly, so the audit trail is complete. Money, texts, emails and calls, and anything an agent asks for on its own, still wait for him.
+ */
+export function requestOrDo(db: DB, a: { actionType: string; payload: unknown; requestedBy: 'luke' }): { approvalId: string; direct: boolean; outcome?: string } {
+  const approvalId = requestApproval(db, a); const def = ACTIONS[a.actionType];
+  if (!directOn(db) || ALWAYS_ASK.has(a.actionType) || !def?.handler) return { approvalId, direct: false };
+  const row = db.prepare('SELECT digest FROM approvals WHERE id=?').get(approvalId) as { digest: string };
+  db.prepare("UPDATE approvals SET status='approved', decided_at=?, decided_by='luke (direct)', source_channel='direct', decided_digest=? WHERE id=?").run(now(), row.digest, approvalId);
+  audit(db, 'luke', 'approval.direct', approvalId, { actionType: a.actionType }); const r = execute(db, approvalId); publish({ type: 'approvals' });
+  return { approvalId, direct: true, outcome: r.outcome };
 }
 
 export type Decision = { ok: true } | { ok: false; error: string };

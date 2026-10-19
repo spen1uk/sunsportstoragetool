@@ -254,7 +254,7 @@ test('research endpoints: sign-in only, need web search on, validate the catalog
     assert.equal((await t.api('/api/sources', { method: 'POST', headers: t.me, body: { host: '127.0.0.1' } })).status, 400); assert.equal((await t.api('/api/sources', { method: 'POST', headers: t.me, body: { host: 'noaa.gov', status: 'trusted', reliability: 120 } })).status, 400);
     assert.equal((await t.api('/api/sources', { method: 'POST', headers: t.me, body: { host: 'noaa.gov', status: 'trusted', class: 'official', topics: ['weather'] } })).status, 200);
     const list = await (await t.api('/api/sources', { headers: t.me })).json() as any; assert.equal(list.items[0].host, 'noaa.gov');
-    const a = await (await t.api('/api/sources/noaa.gov/allow-fetch', { method: 'POST', headers: t.me, body: {} })).json() as any; assert.ok(a.approvalId); assert.equal((t.db.prepare('SELECT status FROM approvals WHERE id=?').get(a.approvalId) as any).status, 'pending', 'fetching still needs your approval');
+    const a = await (await t.api('/api/sources/noaa.gov/allow-fetch', { method: 'POST', headers: t.me, body: {} })).json() as any; assert.ok(a.approvalId); assert.equal(a.direct, true); assert.equal((t.db.prepare('SELECT status FROM approvals WHERE id=?').get(a.approvalId) as any).status, 'executed', 'your own request inside Jarvis is done at once (direct mode)');
     assert.equal((await t.api('/api/sources/not%20a%20host/allow-fetch', { method: 'POST', headers: t.me, body: {} })).status, 400);
     assert.equal((await t.api('/api/sources/noaa.gov', { method: 'DELETE', headers: t.me })).status, 200);
     const plan = await (await t.api('/api/research/plan?q=weather&tier=deep', { headers: t.me })).json() as any; assert.ok(Array.isArray(plan.routes));
