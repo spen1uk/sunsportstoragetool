@@ -46,3 +46,9 @@ test('every plain-words reply tells the chat window to refresh (otherwise the me
   const src = (await import('node:fs')).readFileSync(new URL('../converse.ts', import.meta.url), 'utf8').split('\n').filter((l) => l.includes('INSERT INTO messages') && l.includes("'jarvis'"));
   assert.ok(src.length > 5); for (const l of src) assert.ok(l.includes("publish({ type: 'chat' })"), `missing refresh: ${l.slice(0, 90)}`);
 });
+
+test('the model calls for calendar and plain requests use a slot with room for a full JSON answer (the quick-check slot allows only 16 tokens)', async () => {
+  const db = makeDb(); const seen: { max: number; ref: string }[] = []; const W = await import('../calendarwrite.ts'); const cal = await import('../calendar.ts'); cal.rememberSources(db, 'calendar', ['Home']); cal.setEnabled(db, 'calendar', ['Home']); W.setTarget(db, 'Home');
+  gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req: any) { seen.push({ max: req.maxTokens, ref: req.system.slice(0, 30) }); return { text: req.system.includes('front desk') ? '{"action":null}' : '{"events":[{"title":"Luke Spencer\'s birthday","start":"2026-11-08 09:00","end":null,"location":""}]}', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10, cacheReadTokens: 0 } } as any; } } as any };
+  assert.match((await converse(db, 'add to calender on november 8th its luke spencers birthday')).text, /^Done\. I've added “Luke Spencer's birthday”/); await converse(db, 'build me a page for the dock list please'); assert.ok(seen.length >= 2 && seen.every((s) => s.max >= 300), JSON.stringify(seen));
+});
