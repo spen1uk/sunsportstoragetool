@@ -2,6 +2,7 @@ import { openDb } from './db.ts';
 import { backfill as backfillCategories } from './categorize.ts';
 import { sweepStale as sweepEvals } from './evals/run.ts';
 import { tick as triggerTick } from './triggers.ts';
+import { sync as syncDelegations } from './delegation.ts';
 import { daily as improveDaily, monitor as improveMonitor } from './improve/rollout.ts';
 import { config, dbPath } from './config.ts';
 import { createServer } from './http.ts';
@@ -32,7 +33,7 @@ const tick = () => { try { db.prepare('DELETE FROM sessions WHERE expires_at<?')
 setInterval(tick, 30_000); tick();
 setInterval(() => void triggerTick(db).catch((e) => console.error('[triggers]', (e as Error).message)), 30_000);
 // Missions: plan, start, watch and finish research missions (cheap, no model call unless a step needs planning or a review).
-let missionBusy = false; const missionTick = () => { if (missionBusy) return; missionBusy = true; void missions.tick(db).catch((e) => console.error('[missions]', (e as Error).message)).finally(() => { missionBusy = false; }); };
+let missionBusy = false; const missionTick = () => { if (missionBusy) return; missionBusy = true; void missions.tick(db).then(() => syncDelegations(db)).catch((e) => console.error('[missions]', (e as Error).message)).finally(() => { missionBusy = false; }); };
 setInterval(missionTick, 30_000); setTimeout(missionTick, 3_000);
 // Read-only copy of the chosen Apple Calendar / Notes, refreshed every 15 minutes while Jarvis runs on the Mac (no network, no model calls).
 const macSync = async () => { for (const [k, f] of [['calendar', syncCalendar], ['notes', syncNotes]] as const) { if (sources(db, k).some((x) => x.enabled)) await f(db).catch((e) => console.error(`[${k}]`, (e as Error).message)); } };

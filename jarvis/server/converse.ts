@@ -15,6 +15,7 @@ import { startDeep } from './deepresearch.ts';
 import { describe as knowDescribe } from './knowledge.ts';
 import { describeForChat as searchReply } from './search.ts';
 import { route as routeSkill } from './skills/router.ts';
+import * as deleg from './delegation.ts';
 import { mentions as chatMentions } from './chatimport.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
@@ -68,6 +69,12 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   const findQ = text.match(/^(?:please\s+)?(?:search|find|look)\s+(?:through\s+|in\s+)?(?:my|our)\s+(?:\w+\s+)?(?:for|about)\s+(.{2,100}?)\s*[?.!]*$/i) ?? text.match(/^(?:please\s+)?(?:search|find)\s+(?:everything|all)\s+(?:for|about)\s+(.{2,100}?)\s*[?.!]*$/i);
   if (findQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // deterministic search of his own records; no model, and imported chats are never quoted here
     const reply = searchReply(db, findQ[1]);
+    db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
+    return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
+  const delQ = text.match(/^delegate\s*:\s*(.{8,500})$/is);
+  if (delQ && !priv && (o.channel ?? 'dashboard') !== 'sms') {   // hand a job to the best agent; says who and why
+    let reply: string; try { const r = deleg.delegate(db, { request: delQ[1] }); reply = r.agent.agentId === 'prometheus' ? `Understood. I've given that to Prometheus (${r.agent.why}) within a $${(deleg.DEFAULT_CAP / 1e6).toFixed(2)} limit. I'll check what it brings back and send it back if it's thin, before you see it.` : `${r.agent.why} I've put it on your task list.`; } catch (e) { reply = (e as Error).message; }
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard');
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
