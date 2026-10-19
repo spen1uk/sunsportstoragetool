@@ -5,6 +5,7 @@ import { audit } from './audit.ts';
 import { getRunner, MacError, isMac } from './mac.ts';
 import { publish } from './events.ts';
 import { expand } from './recurrence.ts';
+import { enqueue } from './notify.ts';
 
 const DAY = 86_400_000, PAST_DAYS = 35, AHEAD_DAYS = 62, STALE_MS = 45 * 60_000;
 
@@ -122,13 +123,25 @@ export async function readCalendar(want: string[], from: number, to: number) {
   return { events, detail: { scanned, calendars: scan.stats, repeatingSeries: occ.repeating, unsupportedRules: occ.unsupported } };
 }
 /** Replace the stored copy with a freshly read one and record the sync. */
+/** What changed in the next 48 hours between the old copy and the fresh one (added, removed, moved). Empty on the very first sync. */
+export function diffSoon(prev: { uid: string; title: string; start_ms: number }[], next: CalEvent[], now: number): string[] {
+  const soon = now + 48 * 3_600_000, inWin = (t: number) => t >= now && t <= soon, out: string[] = [];
+  const key = (u: string, t: number) => `${u}@${t}`; const was = new Map(prev.map((e) => [key(e.uid, e.start_ms), e])), isNow = new Map(next.map((e) => [key(e.uid, e.start), e]));
+  const fmt = (t: number) => new Date(t).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  for (const e of next) if (inWin(e.start) && !was.has(key(e.uid, e.start))) { const old = prev.find((p) => p.uid === e.uid && p.start_ms !== e.start && p.title === e.title); out.push(old ? `Moved: ${e.title} is now ${fmt(e.start)} (was ${fmt(old.start_ms)})` : `New: ${e.title}, ${fmt(e.start)}`); }
+  for (const p of prev) if (inWin(p.start_ms) && !isNow.has(key(p.uid, p.start_ms)) && !next.some((e) => e.uid === p.uid && e.title === p.title && inWin(e.start))) out.push(`Removed: ${p.title}, was ${fmt(p.start_ms)}`);
+  return out.slice(0, 6);
+}
 export function storeCalendar(db: DB, events: CalEvent[], detail: unknown, now: number, actor = 'jarvis') {
+  const prev = db.prepare('SELECT uid,title,start_ms FROM calendar_events').all() as { uid: string; title: string; start_ms: number }[];
+  const first = (db.prepare("SELECT last_ok_ms FROM mac_sync WHERE kind='calendar'").get() as { last_ok_ms: number | null } | undefined)?.last_ok_ms == null;
   tx(db, () => {
     db.prepare('DELETE FROM calendar_events').run();
     const ins = db.prepare('INSERT OR REPLACE INTO calendar_events(calendar,uid,title,start_ms,end_ms,all_day,location) VALUES(?,?,?,?,?,?,?)');
     for (const e of events) ins.run(e.calendar, e.uid, e.title, e.start, e.end, e.allDay ? 1 : 0, e.location);
   });
   recordSync(db, 'calendar', true, events.length, null, now, detail);
+  if (!first && prev.length) { const ch = diffSoon(prev, events, now); if (ch.length) enqueue(db, { key: `calchange:${now}`, kind: 'calendar', title: 'Your calendar changed', body: ch.join(' · '), link: '#/calendar', urgency: 'routine', dueAt: now }, now); }
   audit(db, actor, 'calendar.sync', '', { count: events.length, scanned: (detail as any)?.scanned });
 }
 

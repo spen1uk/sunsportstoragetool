@@ -1,0 +1,52 @@
+import { useEffect, useState } from 'react';
+import { api, useLive } from './api.ts';
+import { stepUpWithPasskey } from './passkey.ts';
+
+const DAY = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const fmt = (t: number) => new Date(t).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const toLocalInput = (t: number) => { const d = new Date(t - new Date(t).getTimezoneOffset() * 60_000); return d.toISOString().slice(0, 16); };
+
+/** Add or move events, with a check first. Nothing is written until you approve it on the Approvals page. */
+export function CalendarWritePanel() {
+  const { data, reload } = useLive<any>(() => api('/api/calendar/write'), ['calendar', 'approvals']);
+  const ev = useLive<any>(() => api(`/api/calendar?from=${Date.now()}&to=${Date.now() + 30 * 86_400_000}`), ['calendar']);
+  const [f, setF] = useState({ title: '', when: toLocalInput(Date.now() + 86_400_000), mins: '60', location: '', tb: '0', ta: '0', prep: '0' }), [chk, setChk] = useState<any>(null), [slots, setSlots] = useState<any[] | null>(null), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [pw, setPw] = useState('');
+  const [pf, setPf] = useState({ label: '', days: [1, 3, 5] as number[], start: '06:00', end: '07:00' }), [mv, setMv] = useState({ key: '', when: toLocalInput(Date.now() + 86_400_000) });
+  useEffect(() => { setChk(null); }, [f.title, f.when, f.mins, f.tb, f.ta, f.prep]);
+  if (!data) return null;
+  const run = async (fn: () => Promise<unknown>, ok: string) => { setMsg(null); try { await fn(); if (ok) setMsg({ ok: true, t: ok }); await reload(); } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) }); } };
+  const confirm1 = async () => { if (pw) { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } else await stepUpWithPasskey(); };
+  const start = new Date(f.when).getTime(), body = () => ({ title: f.title, start, end: start + Number(f.mins) * 60_000, location: f.location, travelBeforeMin: Number(f.tb) || 0, travelAfterMin: Number(f.ta) || 0, prepMin: Number(f.prep) || 0 });
+  const events = (ev.data?.events ?? ev.data ?? []).filter?.((e: any) => !e.allDay && e.start > Date.now()) ?? [];
+  return (
+    <section className="page"><h2>Add or move an event</h2>
+      <p className="muted small">Jarvis checks for overlaps with your calendar and your protected times, allows for travel and preparation, and suggests times that fit. Nothing is written to Apple Calendar until you approve it on the <a href="#/approvals">Approvals</a> page (it asks for your passphrase or passkey).</p>
+      {msg && <p className={msg.ok ? 'ok small' : 'err small'} role="status">{msg.t}</p>}
+      <div className="glass pad section"><b>Which calendar may Jarvis add to?</b>
+        <div className="row wrap"><select aria-label="Calendar" value={data.target} onChange={(e) => void run(async () => { await confirm1(); await api('/api/calendar/write-target', 'PUT', { name: e.target.value }); }, 'Saved.')} style={{ width: 'auto' }}><option value="">Not chosen yet</option>{data.calendars.map((c: string) => <option key={c} value={c}>{c}</option>)}</select>
+          <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Passphrase (blank to use your passkey)" aria-label="Passphrase" autoComplete="current-password" /></div></div>
+      <div className="glass pad section"><b>New event</b>
+        <div className="row wrap"><input className="grow" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="What is it?" aria-label="Event title" maxLength={120} /><input type="datetime-local" value={f.when} onChange={(e) => setF({ ...f, when: e.target.value })} aria-label="Starts" style={{ width: 'auto' }} />
+          <label className="small">minutes <input value={f.mins} onChange={(e) => setF({ ...f, mins: e.target.value })} style={{ width: 50 }} inputMode="numeric" /></label></div>
+        <div className="row wrap"><input className="grow" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} placeholder="Where (optional)" aria-label="Location" maxLength={160} />
+          <label className="small">travel there <input value={f.tb} onChange={(e) => setF({ ...f, tb: e.target.value })} style={{ width: 45 }} inputMode="numeric" /></label><label className="small">travel back <input value={f.ta} onChange={(e) => setF({ ...f, ta: e.target.value })} style={{ width: 45 }} inputMode="numeric" /></label><label className="small">prepare <input value={f.prep} onChange={(e) => setF({ ...f, prep: e.target.value })} style={{ width: 45 }} inputMode="numeric" /></label></div>
+        <div className="row wrap"><button disabled={f.title.trim().length < 2} onClick={() => void run(async () => setChk(await api('/api/calendar/check', 'POST', body())), '')}>Check it</button>
+          <button onClick={() => void run(async () => setSlots((await api('/api/calendar/suggest', 'POST', { durationMin: Number(f.mins) || 60, travelBeforeMin: Number(f.tb) || 0, travelAfterMin: Number(f.ta) || 0, prepMin: Number(f.prep) || 0 })).slots), '')}>Suggest times</button>
+          <button className="primary" disabled={f.title.trim().length < 2 || !data.target} onClick={() => void run(async () => { const r = await api('/api/calendar/request', 'POST', body()); setChk(r.check); }, 'Sent to Approvals. Nothing has been added yet.')}>Ask for approval</button></div>
+        {!data.target && <p className="small warn">Choose a calendar above first.</p>}
+        {chk && <div className="small" role="status">{chk.ok ? <p className="ok">No overlaps and no protected time.</p> : <>{chk.conflicts?.length > 0 && <p className="warn">Overlaps: {chk.conflicts.map((c: any) => `${c.title} (${fmt(c.start)})`).join(', ')}</p>}{chk.protectedHits?.length > 0 && <p className="warn">Cuts into your protected time: {chk.protectedHits.join(', ')}</p>}</>}{(chk.warnings ?? []).map((w: string) => <p key={w} className="muted">{w}</p>)}
+          {chk.alternatives?.length > 0 && <div>Times that fit: {chk.alternatives.map((s: any) => <button key={s.start} onClick={() => setF({ ...f, when: toLocalInput(s.start) })}>{fmt(s.start)}</button>)}</div>}</div>}
+        {slots && <div className="small">Times that fit: {slots.length ? slots.map((s) => <button key={s.start} onClick={() => setF({ ...f, when: toLocalInput(s.start) })}>{fmt(s.start)}</button>) : 'none in the next week'}</div>}</div>
+      <div className="glass pad section"><b>Move an event</b>
+        <p className="muted small">Single, timed events only. Repeating and all-day events are never moved by Jarvis.</p>
+        <div className="row wrap"><select aria-label="Event to move" value={mv.key} onChange={(e) => setMv({ ...mv, key: e.target.value })} style={{ width: 'auto' }}><option value="">Choose an event…</option>{events.slice(0, 60).map((e: any) => <option key={e.calendar + e.uid + e.start} value={`${e.calendar}|${e.uid}`}>{e.title} · {fmt(e.start)}</option>)}</select>
+          <input type="datetime-local" value={mv.when} onChange={(e) => setMv({ ...mv, when: e.target.value })} aria-label="New start" style={{ width: 'auto' }} />
+          <button disabled={!mv.key} onClick={() => void run(async () => { const [calendar, uid] = mv.key.split('|'); await api('/api/calendar/move-request', 'POST', { calendar, uid, newStart: new Date(mv.when).getTime() }); }, 'Sent to Approvals. Nothing has moved yet.')}>Ask for approval</button></div></div>
+      <div className="glass pad section"><b>Protected times</b> <span className="muted small">(Jarvis warns before anything overlaps these and never suggests them)</span>
+        {data.protected.length > 0 && <ul className="plain small">{data.protected.map((b: any) => <li key={b.id} className="row wrap"><span className="grow">{b.label}: {b.days.map((d: number) => DAY[d]).join(' ')} {b.start} to {b.end}</span><button onClick={() => void run(() => api(`/api/calendar/protected/${b.id}`, 'DELETE'), 'Removed.')}>Remove</button></li>)}</ul>}
+        <div className="row wrap"><input value={pf.label} onChange={(e) => setPf({ ...pf, label: e.target.value })} placeholder="e.g. Gym" aria-label="Label" style={{ width: 140 }} maxLength={60} />{DAY.map((d, i) => <label key={i} className="small"><input type="checkbox" checked={pf.days.includes(i)} onChange={() => setPf({ ...pf, days: pf.days.includes(i) ? pf.days.filter((x) => x !== i) : [...pf.days, i].sort() })} />{d}</label>)}
+          <input type="time" value={pf.start} onChange={(e) => setPf({ ...pf, start: e.target.value })} aria-label="From" style={{ width: 'auto' }} /><input type="time" value={pf.end} onChange={(e) => setPf({ ...pf, end: e.target.value })} aria-label="To" style={{ width: 'auto' }} /><span className="small muted">Central</span>
+          <button className="primary" disabled={pf.label.trim().length < 2 || pf.days.length === 0} onClick={() => void run(async () => { await api('/api/calendar/protected', 'POST', pf); setPf({ ...pf, label: '' }); }, 'Added.')}>Add</button></div></div>
+      {data.outbox.length > 0 && <div className="glass pad section"><b>Recent changes to Apple Calendar</b><ul className="plain small">{data.outbox.map((o: any) => <li key={o.id}>{o.kind === 'create' ? 'Add' : 'Move'} “{o.payload.title}” · <b>{o.status === 'done' ? 'applied' : o.status === 'failed' ? 'failed' : 'waiting'}</b>{o.error ? ` — ${o.error}` : ''}{o.status === 'failed' && <button onClick={() => void run(() => api(`/api/calendar/outbox/${o.id}/retry`, 'POST'), 'Trying again.')}>Try again</button>}</li>)}</ul></div>}
+    </section>);
+}

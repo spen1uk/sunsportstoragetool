@@ -468,3 +468,21 @@ test('over HTTP: schedules need a session; creating or switching one on needs a 
     const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; assert.ok([401, 404].includes((await t.api('/api/triggers', { headers: { authorization: `Bearer ${token}` } })).status));
   } finally { t.close(); }
 });
+
+test('over HTTP: calendar writing — choosing the target needs a step-up; a request only creates an approval (no write); approving needs a step-up; a device cannot reach any of it', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/calendar/write')).status, 401);
+    const { rememberSources, setEnabled } = await import('../calendar.ts'); rememberSources(t.db, 'calendar', ['Work']); setEnabled(t.db, 'calendar', ['Work']);
+    const start = Date.now() + 3 * 86_400_000, ev = { title: 'Dock walkthrough', start, end: start + 3_600_000 };
+    assert.equal((await t.api('/api/calendar/request', { method: 'POST', headers: t.me, body: ev })).status, 400, 'no calendar chosen yet');
+    assert.equal((await t.api('/api/calendar/write-target', { method: 'PUT', headers: t.me, body: { name: 'Work' } })).status, 403);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } }); assert.equal((await t.api('/api/calendar/write-target', { method: 'PUT', headers: t.me, body: { name: 'Work' } })).status, 200);
+    const r = await (await t.api('/api/calendar/request', { method: 'POST', headers: t.me, body: ev })).json() as any; assert.ok(r.approvalId); assert.equal((t.db.prepare('SELECT COUNT(*) c FROM calendar_outbox').get() as any).c, 0);
+    const ap = t.db.prepare('SELECT digest FROM approvals WHERE id=?').get(r.approvalId) as any;
+    assert.equal((await t.api(`/api/approvals/${r.approvalId}/decide`, { method: 'POST', headers: t.me, body: { decision: 'approve', digest: ap.digest } })).status, 409, 'approving a calendar change needs a fresh step-up');
+    assert.equal((await t.api('/api/calendar/check', { method: 'POST', headers: t.me, body: { title: 'x', start, end: start - 1 } })).status, 400);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; for (const p of ['/api/calendar/write', '/api/calendar/protected']) assert.ok([401, 404].includes((await t.api(p, { headers: { authorization: `Bearer ${token}` } })).status), p);
+  } finally { t.close(); }
+});

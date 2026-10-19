@@ -5,6 +5,7 @@ import { hasStepUp, type Session } from './auth.ts';
 import { isPaused } from './pause.ts';
 import { setCap } from './budget.ts';
 import { setConfig } from './llm/gateway.ts';
+import { approvalPayload, movePayload, describeCreate, describeMove, queue as queueCalendar } from './calendarwrite.ts';
 
 /** Protected action registry. `handler: null` means no adapter is connected — it can be requested but never executes. */
 export type ActionDef = {
@@ -43,6 +44,14 @@ export const ACTIONS: Record<string, ActionDef> = {
   raise_daily_ceiling: {
     risk: 'high', describe: (p) => `Raise the daily model-spend ceiling to $${(p.newCeilingMicroUsd / 1e6).toFixed(2)}`,
     handler: (db, p) => { setConfig(db, { dailyCeilingMicroUsd: p.newCeilingMicroUsd }); return `daily ceiling now ${p.newCeilingMicroUsd}`; },
+  },
+  calendar_create: {
+    risk: 'high', describe: (p) => describeCreate(p),
+    handler: (db, p) => { queueCalendar(db, 'create', approvalPayload.parse(p)); return 'queued for Calendar (applied on this Mac within a minute)'; },
+  },
+  calendar_move: {
+    risk: 'high', describe: (p) => describeMove(p),
+    handler: (db, p) => { queueCalendar(db, 'move', movePayload.parse(p)); return 'queued for Calendar (applied on this Mac within a minute)'; },
   },
   send_message: {
     risk: 'high', describe: (p) => `Send ${p.channel} to ${p.recipient}: "${String(p.text).slice(0, 80)}"`,

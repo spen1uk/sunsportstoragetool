@@ -1,0 +1,3 @@
+-- Calendar writing (approval-gated), protected times, and the outbox that applies approved changes
+CREATE TABLE protected_blocks (id TEXT PRIMARY KEY, label TEXT NOT NULL, days TEXT NOT NULL, start_min INTEGER NOT NULL, end_min INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
+CREATE TABLE calendar_outbox (id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('create','move')), payload TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','done','failed')), error TEXT, attempts INTEGER NOT NULL DEFAULT 0, approval_id TEXT, created_at INTEGER NOT NULL, done_at INTEGER);

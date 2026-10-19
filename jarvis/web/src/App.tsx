@@ -20,6 +20,7 @@ import { AgentsPage } from './agents.tsx';
 import { SearchPage } from './search.tsx';
 import { GoalsPage } from './goals.tsx';
 import { LearnPage } from './learn.tsx';
+import { CalendarWritePanel } from './calwrite.tsx';
 import { WorkspacePage } from './workspace.tsx';
 import { BriefingsPage, OvernightPage, ModeControl, Notifications } from './today.tsx';
 import { TasksPage, ReviewPage, ApprovalsPage, MemoryPage, ConnectionsPage, ActivityPage, SettingsPage, PlannedPage } from './pages.tsx';
@@ -208,7 +209,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         {!isUniverse && pageNav?.planned && <PlannedPage title={pageNav.label} text={pageNav.planned} />}
         {hash === '#/life' && <LifePage />}
         {hash === '#/workspace' && st && <WorkspacePage st={st} convo={convo} />}
-        {hash === '#/calendar' && <CalendarPage />}
+        {hash === '#/calendar' && <><CalendarPage /><CalendarWritePanel /></>}
         {hash === '#/notes' && <NotesPage />}
         {hash === '#/briefings' && <BriefingsPage />}
         {hash === '#/overnight' && <OvernightPage />}

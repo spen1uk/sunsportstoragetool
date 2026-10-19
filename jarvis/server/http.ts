@@ -48,6 +48,7 @@ import * as goalsMod from './goals.ts';
 import * as brk from './breakdown.ts';
 import * as learn from './learn.ts';
 import * as deleg from './delegation.ts';
+import * as calw from './calendarwrite.ts';
 import * as trig from './triggers.ts';
 import { route as routeSkill, candidates as routeCandidates } from './skills/router.ts';
 import { overview as agentsOverview } from './agentsview.ts';
@@ -247,6 +248,7 @@ route('POST', '/api/approvals/:id/decide', ({ db, params, body, session }) => {
   if (b.decision === 'approve') auth.consumeStepUp(db, session!);   // one confirmation, one decision
   if (b.decision === 'deny') { tasks.resumeForApproval(db, params.id, false); return { ok: true }; }
   const ex = appr.execute(db, params.id);
+  if (ex.ok) void calw.drain(db).catch(() => { /* recorded in the outbox */ });   // calendar changes are applied on the Mac right away
   if (ex.ok) tasks.resumeForApproval(db, params.id, true);
   return { ok: true, executed: ex.ok, outcome: ex.outcome };
 });
@@ -456,6 +458,15 @@ route('POST', '/api/delegations', ({ db, body }) => guard(() => deleg.delegate(d
 route('POST', '/api/delegations/:id/accept', ({ db, params }) => { guard(() => deleg.accept(db, params.id)); return { ok: true }; });
 route('POST', '/api/delegations/:id/return', ({ db, params, body }) => { const b = parse(z.object({ feedback: z.string().min(8).max(300) }), body); guard(() => deleg.sendBack(db, params.id, b.feedback)); return { ok: true }; });
 route('POST', '/api/delegations/:id/cancel', ({ db, params }) => { guard(() => deleg.cancel(db, params.id)); return { ok: true }; });
+route('GET', '/api/calendar/write', ({ db }) => ({ target: calw.getTarget(db), calendars: cal.sources(db, 'calendar').filter((s) => s.enabled).map((s) => s.name), protected: calw.listProtected(db), outbox: calw.outbox(db) }));
+route('PUT', '/api/calendar/write-target', ({ db, session, body }) => { const b = parse(z.object({ name: z.string().min(1).max(80) }), body); return stepped(db, session, () => { calw.setTarget(db, b.name); return { ok: true }; }); });
+route('POST', '/api/calendar/check', ({ db, body }) => guard(() => { const c = calw.check(db, body); return { ...c, alternatives: c.ok ? [] : calw.suggestSlots(db, { durationMin: Math.round((c.event.end - c.event.start) / 60_000), travelBeforeMin: c.event.travelBeforeMin, travelAfterMin: c.event.travelAfterMin, prepMin: c.event.prepMin, fromMs: c.event.start - 12 * 3_600_000 }) }; }));
+route('POST', '/api/calendar/suggest', ({ db, body }) => { const b = parse(z.object({ durationMin: z.number().int().min(15).max(480), travelBeforeMin: z.number().int().min(0).max(240).default(0), travelAfterMin: z.number().int().min(0).max(240).default(0), prepMin: z.number().int().min(0).max(240).default(0), days: z.number().int().min(1).max(21).default(7) }), body); return { slots: calw.suggestSlots(db, b) }; });
+route('POST', '/api/calendar/request', async ({ db, body }) => await aguard(() => calw.requestCreate(db, body, (type, payload) => appr.requestApproval(db, { actionType: type, payload, requestedBy: 'luke' }))));
+route('POST', '/api/calendar/move-request', ({ db, body }) => { const b = parse(z.object({ uid: z.string().min(1).max(200), calendar: z.string().min(1).max(80), newStart: z.number().int(), newEnd: z.number().int().optional() }), body); return guard(() => calw.requestMove(db, b, (type, payload) => appr.requestApproval(db, { actionType: type, payload, requestedBy: 'luke' }))); });
+route('POST', '/api/calendar/protected', ({ db, body }) => ({ id: guard(() => calw.addProtected(db, body)) }));
+route('DELETE', '/api/calendar/protected/:id', ({ db, params }) => ({ ok: calw.removeProtected(db, params.id) }));
+route('POST', '/api/calendar/outbox/:id/retry', async ({ db, params }) => { const ok = calw.retry(db, params.id); if (ok) void calw.drain(db); return { ok }; });
 route('GET', '/api/agents/overview', ({ db }) => agentsOverview(db));
 route('GET', '/api/improve', ({ db }) => ({ gaps: gaps.list(db), improvements: cand.list(db), auto: roll.autoDraft(db), modelReady: gw.ready(db, 'analysis'), capDefaultMicroUsd: cand.DEFAULT_CAP_MICRO, capMaxMicroUsd: cand.MAX_CAP_MICRO }));
 route('GET', '/api/improve/:id', ({ db, params }) => { const i = cand.get(db, params.id); if (!i) throw new HttpError(404, 'not found'); return { improvement: i, events: cand.events(db, params.id) }; });
