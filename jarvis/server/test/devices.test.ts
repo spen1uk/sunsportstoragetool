@@ -451,3 +451,20 @@ test('over HTTP: the skill-routing preview needs a session and never runs anythi
     assert.equal((await t.api('/api/skills/route', { method: 'POST', headers: t.me, body: { text: 'x' } })).status, 400);
   } finally { t.close(); }
 });
+
+test('over HTTP: schedules need a session; creating or switching one on needs a fresh step-up that is spent; switching off and deleting never do; devices cannot reach them', async () => {
+  const t = await boot();
+  try {
+    assert.equal((await t.api('/api/triggers')).status, 401);
+    const body = { workflowId: 'x', spec: { kind: 'daily', time: '08:00' } };
+    assert.equal((await t.api('/api/triggers', { method: 'POST', headers: t.me, body })).status, 403);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    assert.equal((await t.api('/api/triggers', { method: 'POST', headers: t.me, body })).status, 400, 'no such workflow; a refused request does not spend the step-up');
+    assert.equal((await t.api('/api/triggers', { method: 'POST', headers: t.me, body: { workflowId: 'x', spec: { kind: 'interval', everyMinutes: 1 } } })).status, 400);
+    assert.equal((await t.api('/api/triggers/nope/enabled', { method: 'POST', headers: t.me, body: { enabled: false } })).status, 200, 'turning off needs no step-up');
+    assert.equal((await t.api('/api/triggers/nope', { method: 'DELETE', headers: t.me })).status, 200);
+    const l = await (await t.api('/api/triggers', { headers: t.me })).json() as any; assert.equal(l.limits.minEveryMinutes, 15);
+    await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });
+    const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; assert.ok([401, 404].includes((await t.api('/api/triggers', { headers: { authorization: `Bearer ${token}` } })).status));
+  } finally { t.close(); }
+});

@@ -11,6 +11,8 @@ export function SkillsPage() {
   const { data, reload } = useLive<any>(() => api('/api/skills'), ['approvals', 'system']);
   const [open, setOpen] = useState<string | null>(null), [det, setDet] = useState<any>(null), [pw, setPw] = useState(''), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [filter, setFilter] = useState('all'), [q, setQ] = useState('');
   const [routeIn, setRouteIn] = useState(''), [routeOut, setRouteOut] = useState('');
+  const trg = useLive<any>(() => api('/api/triggers'), ['triggers']);
+  const [tw, setTw] = useState(''), [tkind, setTkind] = useState('daily'), [ttime, setTtime] = useState('08:00'), [tdays, setTdays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]), [tevery, setTevery] = useState('60'), [tevent, setTevent] = useState('task_completed'), [tnotify, setTnotify] = useState(false);
   const [testIn, setTestIn] = useState('{}'), [testOut, setTestOut] = useState(''), [wname, setWname] = useState(''), [wsteps, setWsteps] = useState(EXAMPLE), [wcheck, setWcheck] = useState<any>(null);
   if (!data) return <section className="page"><h1>Skills</h1><p className="muted">Loading…</p></section>;
   const confirmFirst = async () => { if (pw) { await api('/api/stepup', 'POST', { passphrase: pw }); setPw(''); } else await stepUpWithPasskey(); };
@@ -66,6 +68,22 @@ export function SkillsPage() {
             <button className="primary" disabled={!wname.trim()} onClick={() => void run(async () => { await api('/api/skills/workflows', 'POST', { name: wname, steps: JSON.parse(wsteps) }); setWname(''); }, 'Saved as staged.')}>Save (staged)</button></div>
           {wcheck && <p className={wcheck.ok ? 'ok small' : 'err small'}>{wcheck.ok ? `Passes. Needs ${wcheck.effective.permissions.join(', ') || 'nothing'}; tier ${wcheck.effective.tier}; ${wcheck.effective.sideEffects}; ${wcheck.effective.dataSensitivity} data${wcheck.effective.untrusted ? '; includes web content' : ''}.` : wcheck.violations.join(' ')}</p>}
         </div>
+      </div>
+      <div className="glass pad section"><h2>Automatic runs</h2>
+        <p className="muted small">Run one of your switched-on workflows by itself: at a time, every so often, or when something happens. It runs as Jarvis through the same checks as a manual run, so a permission you take away stops it at once. Never more than 24 runs a day each; three failures in a row switch it off; Pause and “Stop everything” stop all of them. Setting one up or switching one on asks for your passphrase or passkey.</p>
+        {trg.data && trg.data.items.length > 0 && <ul className="plain small">{trg.data.items.map((t: any) => (
+          <li key={t.id} className="rcard"><div className="row wrap" style={{ alignItems: 'center' }}><span className="grow"><b>{t.workflowName ?? '(workflow removed)'}</b> · {t.when}{t.notify ? ' · tells you' : ''}<br /><span className="muted">{t.enabled ? (t.nextRunAt ? `next ${new Date(t.nextRunAt).toLocaleString()}` : 'waiting for it to happen') : 'off'}{t.lastRunAt ? ` · last ${t.lastOk ? 'worked' : 'failed'} ${new Date(t.lastRunAt).toLocaleString()}` : ''}</span>{t.disabledReason && <><br /><span className="warn">{t.disabledReason}</span></>}</span>
+            <button onClick={() => void run(() => api(`/api/triggers/${t.id}/enabled`, 'POST', { enabled: !t.enabled }).then(() => trg.reload()), t.enabled ? 'Switched off.' : 'Switched on.', !t.enabled)}>{t.enabled ? 'Switch off' : 'Switch on…'}</button>
+            <button onClick={() => { if (confirm('Delete this schedule?')) void run(() => api(`/api/triggers/${t.id}`, 'DELETE').then(() => trg.reload()), 'Deleted.'); }}>Delete</button></div></li>))}</ul>}
+        <div className="row wrap"><select value={tw} onChange={(e) => setTw(e.target.value)} aria-label="Workflow" style={{ width: 'auto' }}><option value="">Choose a workflow…</option>{data.workflows.filter((w: any) => w.status === 'active').map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
+          <select value={tkind} onChange={(e) => setTkind(e.target.value)} aria-label="When" style={{ width: 'auto' }}><option value="daily">At a time of day</option><option value="interval">Every so often</option><option value="event">When something happens</option></select>
+          {tkind === 'daily' && <><input type="time" value={ttime} onChange={(e) => setTtime(e.target.value)} aria-label="Time (Central)" style={{ width: 'auto' }} /><span className="small muted">Central time</span>
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <label key={i} className="small"><input type="checkbox" checked={tdays.includes(i)} onChange={() => setTdays(tdays.includes(i) ? tdays.filter((x) => x !== i) : [...tdays, i].sort())} />{d}</label>)}</>}
+          {tkind === 'interval' && <label className="small">every <select value={tevery} onChange={(e) => setTevery(e.target.value)} style={{ width: 'auto' }}>{[['15', '15 minutes'], ['30', '30 minutes'], ['60', 'hour'], ['180', '3 hours'], ['360', '6 hours'], ['720', '12 hours'], ['1440', 'day']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>}
+          {tkind === 'event' && <select value={tevent} onChange={(e) => setTevent(e.target.value)} aria-label="Event" style={{ width: 'auto' }}>{Object.entries(trg.data?.events ?? {}).map(([k, l]) => <option key={k} value={k}>when {String(l)}</option>)}</select>}
+          <label className="small"><input type="checkbox" checked={tnotify} onChange={(e) => setTnotify(e.target.checked)} /> Tell me when it runs</label>
+          <button className="primary" disabled={!tw || (tkind === 'daily' && tdays.length === 0)} onClick={() => void run(async () => { await api('/api/triggers', 'POST', { workflowId: tw, notify: tnotify, spec: tkind === 'daily' ? { kind: 'daily', time: ttime, days: tdays } : tkind === 'interval' ? { kind: 'interval', everyMinutes: Number(tevery) } : { kind: 'event', event: tevent } }); await trg.reload(); }, 'Scheduled.', true)}>Set up…</button></div>
+        {data.workflows.filter((w: any) => w.status === 'active').length === 0 && <p className="muted small">Switch a workflow on first (above); a schedule only runs workflows you have already activated.</p>}
       </div>
     </section>
   );

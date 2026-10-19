@@ -43,6 +43,7 @@ import * as excl from './exclusions.ts';
 import { PRICES } from './llm/prices.ts';
 import * as briefs from './briefs.ts';
 import * as usearch from './search.ts';
+import * as trig from './triggers.ts';
 import { route as routeSkill, candidates as routeCandidates } from './skills/router.ts';
 import { overview as agentsOverview } from './agentsview.ts';
 import * as gaps from './improve/gaps.ts';
@@ -422,6 +423,11 @@ route('POST', '/api/imports/:id/suggest-memories', async ({ db, params }) => { c
 route('DELETE', '/api/imports/:id', ({ db, params }) => ({ ok: cimp.remove(db, params.id) }));
 route('DELETE', '/api/imports', ({ db, session, body }) => stepped(db, session, () => ({ deleted: cimp.removeAll(db) })));
 // ---- autonomous skill improvement: gaps → candidates → sandbox → staged → promoted (only by you) ----
+route('GET', '/api/triggers', ({ db }) => ({ items: trig.list(db), events: trig.EVENTS, limits: { max: trig.MAX_TRIGGERS, minEveryMinutes: trig.MIN_EVERY, perDay: trig.PER_DAY, failuresBeforeOff: trig.MAX_FAILS } }));
+route('GET', '/api/triggers/:id/log', ({ db, params }) => ({ items: trig.log(db, params.id) }));
+route('POST', '/api/triggers', ({ db, session, body }) => stepped(db, session, () => ({ id: trig.create(db, body) })));
+route('POST', '/api/triggers/:id/enabled', ({ db, session, params, body }) => { const b = parse(z.object({ enabled: z.boolean() }), body); if (b.enabled) return stepped(db, session, () => ({ ok: trig.setEnabled(db, params.id, true) })); return { ok: trig.setEnabled(db, params.id, false) }; });
+route('DELETE', '/api/triggers/:id', ({ db, params }) => ({ ok: trig.remove(db, params.id) }));
 route('POST', '/api/skills/route', async ({ db, body }) => { const b = parse(z.object({ text: z.string().min(3).max(300) }), body); const r = await routeSkill(db, b.text, { run: false }); return r.handled ? { skill: r.skill, say: r.text } : { skill: null, say: 'No skill fits that. It would be an ordinary chat.', candidates: routeCandidates(db).length }; });
 route('GET', '/api/search', ({ db, url }) => usearch.search(db, (url.searchParams.get('q') ?? '').slice(0, 120), { includeImports: url.searchParams.get('imports') === '1', perKind: 10 }));
 route('GET', '/api/agents/overview', ({ db }) => agentsOverview(db));

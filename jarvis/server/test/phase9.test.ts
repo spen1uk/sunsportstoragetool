@@ -35,7 +35,7 @@ test('gaps: found by counting real failures (3+), deduplicated, dismissed stays 
 
 test('workflow runs are recorded (that is what the failure detector reads)', async () => {
   const db = makeDb(); ready(db); const w = wf.save(db, 'Mine', GOOD.steps, 'luke'); wf.setStatus(db, w, 'active', 'luke'); assert.ok((await wf.run(db, 'jarvis', w)).ok); assert.equal((await wf.run(db, 'prometheus', w)).ok, false);
-  assert.deepEqual((db.prepare('SELECT ok FROM workflow_runs ORDER BY id').all() as any[]).map((r) => r.ok), [1]);   // refused before running isn't a run; a failing run would be logged
+  assert.deepEqual((db.prepare('SELECT ok FROM workflow_runs ORDER BY id').all() as any[]).map((r) => r.ok), [1, 0]);   // a refusal is logged too, as a failed run: that is what the failure detector reads
 });
 
 test('candidate: the model proposes a workflow; it is fenced, validated, capped, never built; garbage and secrets are thrown away; skill requests are words only', async () => {

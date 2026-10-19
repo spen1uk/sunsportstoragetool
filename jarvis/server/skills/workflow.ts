@@ -56,10 +56,10 @@ export async function run(db: DB, principal: string, wid: string, now = Date.now
   const w = db.prepare('SELECT steps, status FROM skill_workflows WHERE id=?').get(wid) as { steps: string; status: string } | undefined;
   if (!w) return { ok: false, error: 'no such workflow', outputs: [] }; if (w.status !== 'active') return { ok: false, error: 'this workflow is not active', outputs: [] };
   const parsed = stepsSchema.safeParse(JSON.parse(w.steps)); if (!parsed.success) return { ok: false, error: `the saved steps are not valid: ${parsed.error.issues[0]?.message}`, outputs: [] };
-  const steps = parsed.data, v = validate(db, steps, principal);   // re-checked against the live skills, versions and grants every run
-  if (!v.ok) return { ok: false, error: v.violations.join(' '), outputs: [] }; if (!v.effective!.runnable) return { ok: false, error: 'this chain includes steps that are not plain registry skills (or need approval), so the runner will not execute it', outputs: [] };
-  const outputs: unknown[] = [];
   const logged = (r: { ok: true; outputs: unknown[] } | { ok: false; error: string; outputs: unknown[] }) => { db.prepare('INSERT INTO workflow_runs(workflow_id,principal,at,ok,error) VALUES(?,?,?,?,?)').run(wid, principal, now, r.ok ? 1 : 0, r.ok ? null : r.error.slice(0, 200)); return r; };
+  const steps = parsed.data, v = validate(db, steps, principal);   // re-checked against the live skills, versions and grants every run
+  if (!v.ok) return logged({ ok: false, error: v.violations.join(' '), outputs: [] }); if (!v.effective!.runnable) return logged({ ok: false, error: 'this chain includes steps that are not plain registry skills (or need approval), so the runner will not execute it', outputs: [] });
+  const outputs: unknown[] = [];
   for (const [i, s] of steps.entries()) {
     const input: Record<string, unknown> = {}; for (const [k, val] of Object.entries(s.input)) input[k] = typeof val === 'object' && val ? dig(outputs[val.$step], val.path) : val;
     const r = await invoke(db, principal, s.skill, input, now); if (!r.ok) return logged({ ok: false, error: `step ${i + 1} (${s.skill}): ${r.refused}`, outputs });
