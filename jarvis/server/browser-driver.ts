@@ -1,6 +1,7 @@
 import { chromium, type BrowserContext, type Page } from 'playwright-core';
 import path from 'node:path';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { config } from './config.ts';
 import type { Driver, BrowserPage, Snap } from './browser.ts';
 
@@ -9,7 +10,7 @@ import type { Driver, BrowserPage, Snap } from './browser.ts';
  * history and passwords are never touched). While Jarvis is acting, the browser itself refuses: anything that changes data (PUT, DELETE, PATCH), form posts to other
  * sites, moving to another site, downloads, pop-up windows and dialogs. While Luke is logging in, nothing is blocked, because he is the one driving.
  */
-const profileDir = () => path.join(config.dataDir, 'browser-profile');
+const profileDir = (id = 'custom') => path.join(config.dataDir, `browser-profile-${id}`);   // one folder per browser: a profile made by one browser can break in another
 const SCHEME = process.env.JARVIS_BROWSER_ALLOW_HTTP === '1' ? '^https?:' : '^https:';   // http only ever for the local test page
 const COLLECT = `() => {
   const vis = (el) => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return r.width > 2 && r.height > 2 && cs.visibility !== 'hidden' && cs.display !== 'none'; };
@@ -26,12 +27,26 @@ const COLLECT = `() => {
   return { url: location.href, title: document.title, text: document.body ? document.body.innerText : '', items, needsLogin: pw };
 }`;
 
+/** The Chromium-based browsers Jarvis can drive, in the order tried when none is chosen. */
+export const BROWSERS: { id: string; label: string; app: string; exe: string }[] = [
+  { id: 'brave', label: 'Brave', app: 'Brave Browser', exe: 'Brave Browser' },
+  { id: 'chrome', label: 'Google Chrome', app: 'Google Chrome', exe: 'Google Chrome' },
+  { id: 'edge', label: 'Microsoft Edge', app: 'Microsoft Edge', exe: 'Microsoft Edge' },
+  { id: 'chromium', label: 'Chromium', app: 'Chromium', exe: 'Chromium' },
+];
+const bases = () => ['/Applications', `${homedir()}/Applications`];
+export const exePath = (b: { app: string; exe: string }) => bases().map((d) => `${d}/${b.app}.app/Contents/MacOS/${b.exe}`).find((p) => existsSync(p)) ?? null;
+/** The browser to use: his choice if installed, else the first one found. */
+export function pickBrowser(prefer?: string): { id: string; label: string; path: string } | null {
+  const order = [...BROWSERS.filter((b) => b.id === prefer), ...BROWSERS.filter((b) => b.id !== prefer)];
+  for (const b of order) { const p = exePath(b); if (p) return { id: b.id, label: b.label, path: p }; } return null;
+}
 export function realDriver(): Driver {
   return {
-    async open(_startUrl, allow) {
-      mkdirSync(profileDir(), { recursive: true, mode: 0o700 });
-      const exe = process.env.JARVIS_BROWSER_PATH;
-      const ctx: BrowserContext = await chromium.launchPersistentContext(profileDir(), { ...(exe ? { executablePath: exe } : { channel: 'chrome' }), headless: process.env.JARVIS_BROWSER_HEADLESS === '1', viewport: { width: 1240, height: 860 }, acceptDownloads: false, args: ['--no-first-run', '--no-default-browser-check'] });
+    async open(_startUrl, allow, prefer) {
+      const picked = process.env.JARVIS_BROWSER_PATH ? { id: 'custom', path: process.env.JARVIS_BROWSER_PATH } : pickBrowser(prefer); if (!picked) throw new Error('no browser: install Brave, Google Chrome, Microsoft Edge or Chromium'); const exe = picked.path;
+      mkdirSync(profileDir(picked.id), { recursive: true, mode: 0o700 });
+      const ctx: BrowserContext = await chromium.launchPersistentContext(profileDir(picked.id), { executablePath: exe, headless: process.env.JARVIS_BROWSER_HEADLESS === '1', viewport: { width: 1240, height: 860 }, acceptDownloads: false, args: ['--no-first-run', '--no-default-browser-check'] });
       let acting = false, blocked = 0; const page: Page = ctx.pages()[0] ?? await ctx.newPage();
       await ctx.route('**/*', async (route) => {
         try {
@@ -68,6 +83,6 @@ export function realDriver(): Driver {
       };
       return bp;
     },
-    async clearLogins() { rmSync(profileDir(), { recursive: true, force: true }); },
+    async clearLogins() { try { for (const d of readdirSync(config.dataDir)) if (d.startsWith('browser-profile')) rmSync(path.join(config.dataDir, d), { recursive: true, force: true }); } catch { /* nothing to clear */ } },
   };
 }

@@ -99,3 +99,11 @@ test('"look around the real world" is routed by code (saved site, or a site he j
   // a duplicate budget no longer errors
   const mb = await import('../missionbudget.ts'); mb.create(db, 'r:1', 'a', 100_000); mb.create(db, 'r:1', 'a', 100_000); mb.close(db, 'r:1'); mb.create(db, 'r:1', 'again', 100_000); assert.ok(mb.get(db, 'r:1'));
 });
+
+test('browser choice: "use Brave for the Jarvis browser" is remembered and passed to the driver; the message names the supported browsers when none is installed', async () => {
+  const db = makeDb(); const seen: (string | undefined)[] = []; const s = site(PAGES, { loggedIn: true }); const inner = s.driver; B.setDriver({ ...inner, open: async (u, a, p) => { seen.push(p); return inner.open(u, a, p); } });
+  gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req: any) { return { text: '{"do":"finish","summary":"ok"}', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 } } as any; } } as any };
+  assert.match((await converse(db, 'use brave for the jarvis browser')).text, /will use Brave.*separate profile/); O.saveShortcut(db, 'The Example', 'https://app.example.com/'); await converse(db, 'look around the example'); await until(() => rowOf(db).status === 'done'); assert.deepEqual(seen, ['brave']);
+  const { pickBrowser, BROWSERS } = await import('../browser-driver.ts'); assert.deepEqual(BROWSERS.map((b) => b.id), ['brave', 'chrome', 'edge', 'chromium']); assert.ok(pickBrowser('chrome') === null || typeof pickBrowser('chrome')!.path === 'string');
+  B.setDriver({ async open() { throw new Error('no browser: install Brave'); }, async clearLogins() { /* none */ } }); const db2 = makeDb(); O.saveShortcut(db2, 'The Example', 'https://app.example.com/'); assert.match(await B.start(db2, { site: 'the example', goal: 'x', spokenText: 'look around the example' }), /needs Brave, Google Chrome, Microsoft Edge or Chromium installed/);
+});

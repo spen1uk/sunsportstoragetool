@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { type DB, id } from './db.ts';
+import { type DB, id, getMeta, setMeta } from './db.ts';
 import { audit } from './audit.ts';
 import { publish } from './events.ts';
 import * as gw from './llm/gateway.ts';
@@ -18,7 +18,7 @@ import { safeUrl, findShortcut } from './opener.ts';
 export type Item = { n: number; text: string; kind: 'link' | 'button'; href?: string };
 export type Snap = { url: string; title: string; text: string; needsLogin: boolean; items: Item[] };
 export interface BrowserPage { goto(url: string): Promise<void>; snapshot(): Promise<Snap>; click(n: number): Promise<void>; scroll(): Promise<void>; back(): Promise<void>; url(): string; close(): Promise<void>; blockedRequests(): number }
-export interface Driver { open(startUrl: string, allow: (url: string) => boolean): Promise<BrowserPage>; clearLogins(): Promise<void> }
+export interface Driver { open(startUrl: string, allow: (url: string) => boolean, prefer?: string): Promise<BrowserPage>; clearLogins(): Promise<void> }
 let driver: Driver | null = null;
 export const setDriver = (d: Driver | null) => { driver = d; };
 async function getDriver(): Promise<Driver> { if (driver) return driver; const m = await import('./browser-driver.ts'); driver = m.realDriver(); return driver; }
@@ -54,7 +54,7 @@ export async function start(db: DB, o: { site: string; goal: string; spokenText:
   const rid = id(); db.prepare("INSERT INTO browse_runs(id,site,goal,status,created_at,updated_at) VALUES(?,?,?,'starting',?,?)").run(rid, u.hostname, goal, now, now); audit(db, 'luke', 'browse.started', rid, { host: u.hostname }); publish({ type: 'browser' });
   const base = siteBase(u.hostname);
   try {
-    const page = await (await getDriver()).open(u.href, (url) => sameSite(url, base)); const st = { page, base, stop: false, notes: [] as string[], visited: [] as string[], log: [`Opened ${u.hostname}`] }; live.set(rid, st);
+    const page = await (await getDriver()).open(u.href, (url) => sameSite(url, base), getMeta(db, 'browser:pref') || undefined); const st = { page, base, stop: false, notes: [] as string[], visited: [] as string[], log: [`Opened ${u.hostname}`] }; live.set(rid, st);
     await page.goto(u.href); const snap = await page.snapshot();
     if (snap.needsLogin) { upd(db, rid, { status: 'waiting_login', log: JSON.stringify(st.log) }); idle(db, rid); return `I've opened a separate Jarvis browser window on ${u.hostname}. It needs you to log in. Do that in that window (I won't touch the login), then say “continue”.`; }
     upd(db, rid, { status: 'running' }); void explore(db, rid, goal, snap).catch((e) => fail(db, rid, (e as Error).message));
@@ -63,7 +63,7 @@ export async function start(db: DB, o: { site: string; goal: string; spokenText:
 }
 function idle(db: DB, rid: string) { const s = live.get(rid); if (!s) return; clearTimeout(s.idleTimer); s.idleTimer = setTimeout(() => void finish(db, rid, 'stopped', 'Waited too long for the login, so I closed the browser.'), LIMITS.loginMinutes * 60_000); s.idleTimer.unref?.(); }
 function fail(db: DB, rid: string, msg: string, returnText = false): string {
-  const text = /Executable doesn't exist|channel|chrome/i.test(msg) ? 'I could not start the browser. It needs Google Chrome installed on this Mac.' : `The browser stopped: ${msg.slice(0, 160)}`;
+  const text = /no browser|Executable doesn't exist|ENOENT/i.test(msg) ? 'I could not start the browser. It needs Brave, Google Chrome, Microsoft Edge or Chromium installed in your Applications folder.' : `The browser stopped: ${msg.replace(/\s+/g, ' ').slice(0, 200)}`;
   void finish(db, rid, 'failed', text); return returnText ? text : text;
 }
 async function finish(db: DB, rid: string, status: 'done' | 'stopped' | 'failed', summary: string) {
@@ -107,8 +107,11 @@ async function explore(db: DB, rid: string, goal: string, first: Snap) {
 }
 
 /** "continue" after logging in, and "stop browsing". Returns the reply, or null when the message is about neither. */
+export const BROWSER_NAMES: Record<string, string> = { brave: 'Brave', chrome: 'Google Chrome', edge: 'Microsoft Edge', chromium: 'Chromium' };
 export async function chatControl(db: DB, text: string): Promise<string | null> {
   const t = text.trim(); const run = active(db);
+  const pick = t.match(/^(?:please |hey jarvis[, ]*)?(?:use|switch to|change to|try)\s+(brave|chrome|google chrome|edge|microsoft edge|chromium)(?: browser)?\s+(?:for|as|in|with)\s+(?:the\s+)?(?:jarvis\s+)?(?:browser|browsing|looking around)\b/i);
+  if (pick) { const id = /brave/i.test(pick[1]) ? 'brave' : /edge/i.test(pick[1]) ? 'edge' : /chromium/i.test(pick[1]) ? 'chromium' : 'chrome'; setMeta(db, 'browser:pref', id); audit(db, 'luke', 'browse.browser_chosen', id); return `Done. The Jarvis browser will use ${BROWSER_NAMES[id]} (if it's installed). It keeps its own separate profile, so your everyday ${BROWSER_NAMES[id]} is untouched. Logins from another browser don't carry over.`; }
   if (/^(?:ok(?:ay)?[,. ]*|please |hey jarvis[, ]*)?(?:stop|cancel|abort|end|close)\b.*\b(?:brows(?:er|ing)|looking around|exploring|the site)\b/i.test(t) && run) { const s = live.get(run.id); if (s) s.stop = true; await finish(db, run.id, 'stopped', 'Stopped. I closed the Jarvis browser.'); return 'Stopped. I closed the Jarvis browser.'; }
   if (run?.status === 'waiting_login' && /^(?:ok(?:ay)?[,. ]*)?(?:i(?:'m| am| have|'ve)?\s*)?(?:logged in|signed in|log(?:ged)? in now|continue|go ahead|carry on|keep going|resume|done)(?: now)?[.! ]*$/i.test(t)) {
     const s = live.get(run.id); if (!s) { void finish(db, run.id, 'failed', 'The browser window was closed, so I stopped.'); return 'The browser window was closed, so I stopped. Ask me again and I will reopen it.'; }
