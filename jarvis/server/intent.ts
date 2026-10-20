@@ -25,7 +25,7 @@ import { getMeta } from './db.ts';
  */
 const fence = (s: string, n: number) => s.replace(/[<>]/g, ' ').replace(/[\u0000-\u0008\u000b-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
 /** Cheap gate: only messages phrased as a request pay for the model call. Plain questions and chit-chat never do. */
-export const looksLikeRequest = (t: string) => /^(?:(?:hey |ok |okay |jarvis[, ]+)?(?:please |can you |could you |would you |i need you to |i want you to |i'd like you to |go ahead and |let's |lets )?)(?:build|make|create|set up|setup|draft|plan|track|start|kick off|get|have|put|run|launch|figure out|look into|investigate|dig into|research|work on|write up|prepare|organi[sz]e|remind|keep track|note|save|add|open|show|pull|bring|take me|go to|go on|write|email|text|compose|find me|look up|load|visit)\b/i.test(t.trim()) && t.trim().length >= 8;
+export const looksLikeRequest = (t: string) => /^(?:(?:(?:hey|hi|ok|okay|so|jarvis)[, ]+)*(?:please |can you |could you |would you |i need you to |i want you to |i'd like you to |go ahead and |let's |lets )?)(?:build|make|create|set up|setup|draft|plan|track|start|kick off|get|have|put|run|launch|figure out|look into|investigate|dig into|research|work on|write up|prepare|organi[sz]e|remind|keep track|note|save|add|open|show|pull|bring|take me|go to|go on|write|email|text|compose|find me|look up|load|visit)\b/i.test(t.trim()) && t.trim().length >= 8;
 
 const MENU = [
   ['task', 'Add something to his to-do list. {"title": string}'],

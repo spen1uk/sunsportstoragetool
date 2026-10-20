@@ -3,6 +3,8 @@ import { audit } from './audit.ts';
 import { getRunner, MacError, classify } from './mac.ts';
 import { isPaused } from './pause.ts';
 import { looksSecret } from './memory.ts';
+import { readdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 
 /**
  * "Pull it up." Jarvis opens things for Luke on his Mac: a web page in his browser, an app, a Jarvis page, or an email / text DRAFT in Mail / Messages.
@@ -20,7 +22,25 @@ export const PAGES: { label: string; hash: string }[] = [
 ];
 const low = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 export function findPage(name: string): { label: string; hash: string } | null { const n = low(name).replace(/\b(page|tab|screen|my|the)\b/g, '').replace(/\s+/g, ' ').trim(); if (!n) return null; return PAGES.find((p) => low(p.label) === n) ?? PAGES.find((p) => low(p.label).includes(n) || (n.length >= 4 && n.includes(low(p.label)))) ?? null; }
-export function findApp(name: string): string | null { const n = low(name).replace(/\b(app|application|the|my)\b/g, '').replace(/\s+/g, ' ').trim(); return APPS.find((a) => low(a) === n) ?? (n === 'chrome' ? 'Google Chrome' : n === 'settings' ? 'System Settings' : n === 'messages app' || n === 'imessage' ? 'Messages' : n === 'email' ? 'Mail' : n === 'maps' ? 'Maps' : null); }
+/** Apps that give a shell or scripting power, or change the system: Jarvis does not open these for you. */
+const NEVER = new Set(['terminal', 'iterm', 'iterm2', 'script editor', 'automator', 'shortcuts', 'keychain access', 'disk utility', 'migration assistant', 'boot camp assistant', 'system information', 'console', 'activity monitor']);
+const DIRS = ['/Applications', '/Applications/Utilities', '/System/Applications', '/System/Applications/Utilities', `${homedir()}/Applications`];
+let installed: { at: number; names: string[] } | null = null, injected: string[] | null = null;
+/** Tests only. */
+export const _setInstalled = (n: string[] | null) => { injected = n; installed = null; };
+export function installedApps(now = Date.now()): string[] {
+  if (injected) return injected; if (installed && now - installed.at < 60_000) return installed.names;
+  const names = new Set<string>(); for (const d of DIRS) { try { for (const f of readdirSync(d)) if (f.endsWith('.app')) names.add(f.slice(0, -4)); } catch { /* folder not there */ } }
+  const list = names.size ? [...names].sort() : [...APPS]; installed = { at: now, names: list }; return list;
+}
+/** Matches what he said to an app that is really installed (exact name first, then names containing all his words). Never one of the blocked apps. */
+export function findApp(name: string): string | null {
+  const n = low(name).replace(/\b(app|application|the|my|program)\b/g, '').replace(/\s+/g, ' ').trim(); if (!n) return null;
+  const alias: Record<string, string> = { chrome: 'Google Chrome', settings: 'System Settings', 'system preferences': 'System Settings', imessage: 'Messages', email: 'Mail', texts: 'Messages' }; const want = alias[n] ?? n;
+  const apps = installedApps().filter((a) => !NEVER.has(low(a))); if (NEVER.has(low(want))) return null;
+  const words = low(want).split(' ').filter((w) => w.length > 1);
+  return apps.find((a) => low(a) === low(want)) ?? apps.find((a) => low(a).replace(/\bthe\b/g, '').replace(/\s+/g, ' ').trim() === low(want)) ?? (words.length ? apps.find((a) => words.every((w) => low(a).includes(w))) ?? null : null);
+}
 
 /** A public https page: no addresses, no local names, no sign-in details in the link. */
 export function safeUrl(raw: string): URL | null {
@@ -43,7 +63,7 @@ async function run(db: DB, what: { url?: string; app?: string }, kind: string, l
   catch (e) { const m = e instanceof MacError ? e : classify(String((e as Error).message), false); return { ok: false, error: m.kind === 'unavailable' ? 'I can only open things when Jarvis is running on your Mac.' : `macOS wouldn't open it (${m.message}).` }; }
 }
 export async function openUrl(db: DB, raw: string, now = Date.now()) { const u = safeUrl(raw); if (!u) return { ok: false as const, error: 'That is not a public https web address I can open.' }; const r = await run(db, { url: u.href }, 'url', u.hostname, now); return r.ok ? { ok: true as const, host: u.hostname.replace(/^www\./, ''), url: u.origin + u.pathname } : { ok: false as const, error: r.error! }; }
-export async function openApp(db: DB, name: string, now = Date.now()) { const app = findApp(name); if (!app) return { ok: false as const, error: `I only open these apps: ${APPS.slice(0, 12).join(', ')} and a few more. “${name.slice(0, 40)}” isn't one of them.` }; const r = await run(db, { app }, 'app', app, now); return r.ok ? { ok: true as const, app } : { ok: false as const, error: r.error! }; }
+export async function openApp(db: DB, name: string, now = Date.now()) { const app = findApp(name); if (!app) return { ok: false as const, error: `I don't see an app called “${name.slice(0, 40)}” installed on this Mac (or it's one I don't open). If it's a website, tell me the address and I'll open that.` }; const r = await run(db, { app }, 'app', app, now); return r.ok ? { ok: true as const, app } : { ok: false as const, error: r.error! }; }
 
 // ---- drafts: written by Jarvis, sent by Luke ----
 export type Draft = { kind: 'email' | 'text'; to: string; subject: string; body: string };

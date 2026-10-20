@@ -58,7 +58,7 @@ function history(db: DB): ChatMessage[] {
  * so nothing it says can create, change, approve, send or spend anything. Prefix a message with "deep:" for the stronger model.
  */
 export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string; brief?: boolean; deviceId?: string } = {}): Promise<ChatReply> {
-  const text = textIn.trim().slice(0, 2000), priv = !!o.private, cfg = getConfig(db);
+  const text = textIn.trim().slice(0, 2000).replace(/^(?:(?:hey|hi|hello|ok|okay|yo|so)[,\s]+)?jarvis[,:!]?\s+(?=\S)/i, ''), priv = !!o.private, cfg = getConfig(db);   // "hey Jarvis, …" is just the request
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && saysYes(text) && justSearched(db) && pendingOffer(db)) {   // "yes" to Jarvis's own offer of deeper research
     const q = pendingOffer(db)!; const why = webGate(db, { channel: o.channel ?? 'dashboard' }); clearOffer(db); if (!why) startDeep(db, q, 'deep');
     const reply = why ? why : `On it. I've started a proper look into that. It takes a few minutes and stays within a $${(getDefaults(db).deepMicro / 1e6).toFixed(2)} limit; I'll put the write-up in Ready for Review.`;

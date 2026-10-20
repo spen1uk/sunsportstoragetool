@@ -16,7 +16,7 @@ const scripted = (pick: (sys: string, user: string) => string, extra: any = {}) 
 test('opener: only public https pages; no addresses, local names, logins or other schemes', () => {
   assert.equal(O.safeUrl('https://www.zillow.com/homes')?.hostname, 'www.zillow.com'); assert.equal(O.safeUrl('nytimes.com')?.href, 'https://nytimes.com/');
   for (const bad of ['http://example.com', 'https://localhost/x', 'https://192.168.1.1/admin', 'https://127.0.0.1', 'https://user:pw@example.com', 'file:///etc/passwd', 'javascript:alert(1)', 'https://printer.local/', 'https://example', 'ftp://example.com', '', 'a']) assert.equal(O.safeUrl(bad), null, bad);
-  assert.equal(O.findApp('the calendar app'), 'Calendar'); assert.equal(O.findApp('chrome'), 'Google Chrome'); assert.equal(O.findApp('Terminal'), null); assert.equal(O.findApp('rm -rf'), null); assert.equal(O.findPage('goals page')?.hash, '#/goals'); assert.equal(O.findPage('nonsense'), null);
+  assert.equal(O.findApp('the calendar app'), 'Calendar'); assert.equal(O.findApp('chrome'), 'Google Chrome'); O._setInstalled([...O.APPS, 'The Real World', 'Terminal']); assert.equal(O.findApp('Terminal'), null); assert.equal(O.findApp('rm -rf'), null); assert.equal(O.findApp('the real world application'), 'The Real World'); assert.equal(O.findApp('real world'), 'The Real World'); assert.equal(O.findApp('Nonexistent Thing'), null); assert.equal(O.findPage('goals page')?.hash, '#/goals'); assert.equal(O.findPage('nonsense'), null);
 });
 
 test('opener: opens through the Mac helper, audits, refuses when paused or off the Mac, and limits how fast things open', async () => {
@@ -45,4 +45,13 @@ test('plain words: open a page of Jarvis, an app, a named site; an address he di
   const l = await converse(db, 'go on boatus and pull up the boat storage guide'); assert.match(l.text, /Here is the answer\./); assert.deepEqual(opened.map((o) => o.url), ['https://www.boatus.com/guide'], 'only a page that came from the search is opened, never the invented address');
   scripted(() => '{"action":"draft","args":{"kind":"email","to":"sam@example.com","subject":"Quote","body":"Hi Sam, could you send the dock quote? Thanks, Luke"}}'); const d = await converse(db, 'write an email to sam@example.com asking for the dock quote'); assert.match(d.text, /Email draft to sam@example\.com/); assert.match(d.text, /I can't send it myself/); assert.equal(opened.length, 1, 'nothing opened yet');
   const o = await converse(db, 'open it'); assert.match(o.text, /open in Mail/); assert.match(opened[1].url, /^mailto:sam@example\.com\?subject=Quote/); assert.equal((await converse(db, 'open it')).text.includes('open in Mail'), false, 'nothing left to open');
+});
+
+test('greetings and wording: "hey Jarvis, I need you to open the real world application" opens the installed app; a missing app is explained, never "I can\'t open applications"', async () => {
+  const db = makeDb(); mac(); O._setInstalled([...O.APPS, 'The Real World']);
+  try {
+    scripted(() => '{"action":"open","args":{"kind":"app","target":"The Real World"}}'); const r = await converse(db, 'hey Jarvis, I need you to open the real world application on my computer, please'); assert.match(r.text, /Opened The Real World on your Mac/); assert.deepEqual(opened.pop(), { app: 'The Real World' });
+    scripted(() => '{"action":"open","args":{"kind":"app","target":"Quantum Spreadsheet"}}'); const m = await converse(db, 'open the quantum spreadsheet app'); assert.match(m.text, /don't see an app called “Quantum Spreadsheet”.*tell me the address/);
+    scripted(() => '{"action":"open","args":{"kind":"app","target":"Terminal"}}'); assert.match((await converse(db, 'open terminal for me')).text, /don't see an app/); assert.equal(opened.length, 0);
+  } finally { O._setInstalled(null); }
 });
