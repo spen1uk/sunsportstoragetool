@@ -515,3 +515,13 @@ test('over HTTP: the exact calendar sentence typed in the chat box adds both eve
     assert.equal(res.status, 200, JSON.stringify(j)); assert.match(j.text, /^Done\. I've added 2 events/, j.text); assert.equal((t.db.prepare("SELECT COUNT(*) c FROM calendar_outbox WHERE kind='create'").get() as any).c, 2);
   } finally { t.close(); }
 });
+
+test('over HTTP: the Jarvis browser page needs a session, Stop works, forgetting logins needs a step-up, and a device key reaches none of it', async () => {
+  const t = await boot(); const B = await import('../browser.ts'); let cleared = 0; B.setDriver({ async open() { throw new Error('unused'); }, async clearLogins() { cleared++; } });
+  try {
+    assert.equal((await t.api('/api/browser')).status, 401); const j = await (await t.api('/api/browser', { headers: t.me })).json() as any; assert.deepEqual(j.runs, []); assert.equal(j.limits.steps, B.LIMITS.steps);
+    t.db.prepare("INSERT INTO browse_runs(id,site,goal,status,created_at,updated_at) VALUES('r1','x.com','g','running',1,1)").run(); assert.equal((await t.api('/api/browser/r1/stop', { method: 'POST', headers: t.me, body: {} })).status, 200); assert.equal((t.db.prepare("SELECT status FROM browse_runs WHERE id='r1'").get() as any).status, 'stopped');
+    assert.equal((await t.api('/api/browser/forget-logins', { method: 'POST', headers: t.me, body: {} })).status, 403, 'needs a step-up'); await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } }); assert.equal((await t.api('/api/browser/forget-logins', { method: 'POST', headers: t.me, body: {} })).status, 200); assert.equal(cleared, 1);
+    const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; assert.ok([401, 404].includes((await t.api('/api/browser', { headers: { authorization: `Bearer ${token}` } })).status));
+  } finally { B.setDriver(null); t.close(); }
+});
