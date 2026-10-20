@@ -85,3 +85,17 @@ test('browser: stop browsing and Stop everything close the window; paused, unkno
   await until(() => rowOf(db3).status === 'done'); setPaused(db3, true); assert.match(await B.start(db3, { site: 'https://invented.com', goal: 'x', spokenText: 'explore invented.com' }), /paused/); setPaused(db3, false);
   db3.prepare("INSERT INTO browse_runs(id,site,goal,status,created_at,updated_at) VALUES('z','x.com','g','running',1,1)").run(); assert.equal(B.sweepStale(db3, 5), 1); assert.equal((db3.prepare("SELECT status FROM browse_runs WHERE id='z'").get() as any).status, 'failed');
 });
+
+test('"look around the real world" is routed by code (saved site, or a site he just opened), never mistaken for research; and creating a research budget twice is harmless', async () => {
+  const db = makeDb(); const { state, driver } = site(PAGES, { loggedIn: true }); B.setDriver(driver);
+  // the model would wrongly pick research; the code does not ask it
+  let intentCalls = 0; gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req: any) { if (req.system.includes('front desk')) { intentCalls++; return { text: '{"action":"research","args":{"question":"get to know the real world platform"}}', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 } } as any; } return { text: '{"do":"finish","summary":"A members platform."}', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 } } as any; } } as any };
+  assert.match((await converse(db, 'look around the real world and get to know it')).text, /^(Which site|On it)/i, 'nothing known yet: asks, never starts research'); assert.equal(intentCalls, 0, 'the model was not even asked');
+  // he opened the site a moment ago
+  const { setRunner } = await import('../mac.ts'); setRunner(async () => '{"ok":true}'); try { await O.openUrl(db, 'https://app.example.com/checklist'); } finally { setRunner(null); }
+  const r = await converse(db, 'look around the example and get to know it'); assert.match(r.text, /looking around app\.example\.com now/); await until(() => rowOf(db).status === 'done'); assert.deepEqual(state.opened, ['https://app.example.com/']);
+  // saved name
+  const db2 = makeDb(); const s2 = site(PAGES, { loggedIn: true }); B.setDriver(s2.driver); O.saveShortcut(db2, 'The Real World', 'https://app.example.com/'); assert.match((await converse(db2, 'hey Jarvis, look around the real world and get to know it')).text, /looking around app\.example\.com now/);
+  // a duplicate budget no longer errors
+  const mb = await import('../missionbudget.ts'); mb.create(db, 'r:1', 'a', 100_000); mb.create(db, 'r:1', 'a', 100_000); mb.close(db, 'r:1'); mb.create(db, 'r:1', 'again', 100_000); assert.ok(mb.get(db, 'r:1'));
+});

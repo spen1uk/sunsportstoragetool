@@ -42,11 +42,11 @@ export const active = (db: DB) => db.prepare("SELECT * FROM browse_runs WHERE st
 const say = (db: DB, text: string) => { db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,1)').run('jarvis', text, new Date().toISOString(), 'dashboard'); publish({ type: 'chat' }); };
 
 /** Starts a look-around on a site Luke named. Returns at once; the findings arrive in the chat. */
-export async function start(db: DB, o: { site: string; goal: string; spokenText: string }, now = Date.now()): Promise<string> {
+export async function start(db: DB, o: { site: string; goal: string; spokenText: string; url?: string }, now = Date.now()): Promise<string> {
   if (isPaused(db)) return 'Jarvis is paused, so I have not opened the browser.';
   if (active(db)) return 'I am already looking around a site. Say “stop browsing” first, or wait for my report.';
   if (!gw.ready(db, 'chat')) return 'I need a model connected to look around a site.';
-  const sc = findShortcut(db, o.site); let u = sc ? safeUrl(sc.url) : null; const typed = safeUrl(o.site);
+  const sc = findShortcut(db, o.site); let u = o.url ? safeUrl(o.url) : sc ? safeUrl(sc.url) : null;; const typed = safeUrl(o.site);   // o.url is one this code resolved from his saved sites or a site he just opened
   if (!u && typed && o.spokenText.toLowerCase().includes((typed.hostname.replace(/^www\./, '').split('.').slice(0, -1).join('.')) || typed.hostname)) u = typed;
   if (!u) return `Which site? Give me the web address, or save it first, for example “save the real world as https://…”.`;
   if (SENSITIVE_HOST.test(u.hostname)) return `I don't go into ${u.hostname.replace(/^www\./, '')}. It's mail, banking, payments or passwords.`;

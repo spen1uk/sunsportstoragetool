@@ -10,7 +10,7 @@ export const spentOn = (db: DB, ref: string) => (db.prepare('SELECT COALESCE(SUM
 export function create(db: DB, ref: string, label: string, capMicro: number, now = Date.now()) {
   if (!/^[a-z0-9:_-]{1,60}$/i.test(ref)) throw new Error('bad mission reference');
   if (!Number.isInteger(capMicro) || capMicro < 1_000 || capMicro > 50_000_000) throw new Error('A mission budget must be between $0.001 and $50.');
-  db.prepare('INSERT INTO mission_budgets(ref,label,cap_micro_usd,created_at) VALUES(?,?,?,?)').run(ref, label.slice(0, 80), capMicro, now);
+  db.prepare('INSERT INTO mission_budgets(ref,label,cap_micro_usd,created_at) VALUES(?,?,?,?) ON CONFLICT(ref) DO UPDATE SET label=excluded.label, cap_micro_usd=excluded.cap_micro_usd, closed_at=NULL').run(ref, label.slice(0, 80), capMicro, now);   // safe to repeat: the background worker may create a job's budget a moment before the caller does
   audit(db, 'luke', 'mission.budget_set', ref, { capMicro });
 }
 export const get = (db: DB, ref: string) => db.prepare('SELECT * FROM mission_budgets WHERE ref=? AND closed_at IS NULL').get(ref) as { ref: string; label: string; cap_micro_usd: number } | undefined;

@@ -65,6 +65,18 @@ export function saveShortcut(db: DB, name: string, url: string): Shortcut {
 export const removeShortcut = (db: DB, name: string) => { const key = nameKey(name), all = listShortcuts(db), rest = all.filter((x) => nameKey(x.name) !== key); if (rest.length === all.length) return false; setMeta(db, 'shortcuts', JSON.stringify(rest)); audit(db, 'luke', 'shortcut.removed', name); return true; };
 export function findShortcut(db: DB, name: string): Shortcut | null { const key = nameKey(name); if (!key) return null; const all = listShortcuts(db); return all.find((x) => nameKey(x.name) === key) ?? all.find((x) => nameKey(x.name).includes(key) || (key.length >= 4 && key.includes(nameKey(x.name)))) ?? null; }
 
+/** A saved website whose name appears in what he said ("look around the real world" → The Real World). */
+export function findShortcutIn(db: DB, text: string): Shortcut | null { const t = ` ${low(text)} `; return listShortcuts(db).sort((a, b) => b.name.length - a.name.length).find((x) => { const k = nameKey(x.name); return k.length >= 3 && t.includes(` ${k} `); }) ?? null; }
+const GENERIC = new Set(['the', 'and', 'get', 'to', 'know', 'it', 'look', 'around', 'explore', 'browse', 'examine', 'site', 'website', 'platform', 'app', 'my', 'on', 'in', 'of', 'for', 'a', 'an', 'can', 'you', 'please', 'take', 'at', 'out', 'check', 'through', 'go']);
+/** A site he opened in the last day whose address matches words he just used ("real world" → app.jointherealworld.com). */
+export function recentHostFor(db: DB, text: string, now = Date.now()): string | null {
+  const words = low(text).split(' ').filter((w) => w.length > 1); const wins = new Set<string>();
+  for (let i = 0; i < words.length; i++) { if (!GENERIC.has(words[i]) && words[i].length >= 5) wins.add(words[i]); if (i + 1 < words.length && !(GENERIC.has(words[i]) && GENERIC.has(words[i + 1]))) { const w = words[i] + words[i + 1]; if (w.length >= 7) wins.add(w); } }
+  const rows = db.prepare("SELECT detail FROM audit WHERE action='mac.open' AND target='url' AND at>? ORDER BY id DESC LIMIT 30").all(new Date(now - 24 * 3_600_000).toISOString()) as { detail: string }[];
+  for (const r of rows) { let host = ''; try { host = String(JSON.parse(r.detail).target ?? ''); } catch { /* skip */ } const squeezed = host.replace(/[^a-z0-9]/g, ''); if (host.includes('.') && [...wins].some((w) => squeezed.includes(w))) return host; }
+  return null;
+}
+
 let recent: number[] = [];
 /** Tests only. */
 export const _resetLimit = () => { recent = []; };
