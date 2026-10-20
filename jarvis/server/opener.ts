@@ -51,6 +51,20 @@ export function safeUrl(raw: string): URL | null {
   return u;
 }
 
+// ---- named websites ("the real world" → its address), chosen by Luke ----
+export type Shortcut = { name: string; url: string };
+const MAX_SHORTCUTS = 30;
+export const listShortcuts = (db: DB): Shortcut[] => { try { const v = JSON.parse(getMeta(db, 'shortcuts') || '[]'); return Array.isArray(v) ? v.filter((x) => x && typeof x.name === 'string' && typeof x.url === 'string') : []; } catch { return []; } };
+const nameKey = (s: string) => low(s).replace(/\b(the|my|website|site|page|app|application|web)\b/g, '').replace(/\s+/g, ' ').trim();
+export function saveShortcut(db: DB, name: string, url: string): Shortcut {
+  const key = nameKey(name); if (key.length < 2 || key.length > 40) throw new Error('Give it a short name, like “the real world”.'); if (looksSecret(`${name} ${url}`)) throw new Error('That looks like it contains a password or key, so I have not saved it.');
+  const u = safeUrl(url); if (!u) throw new Error('That is not a public https web address I can save.'); if (u.search.length > 200) throw new Error('That address has a long tracking part. Give me the plain address of the site.');
+  const all = listShortcuts(db).filter((x) => nameKey(x.name) !== key); if (all.length >= MAX_SHORTCUTS) throw new Error('Up to 30 saved websites. Remove one first.');
+  const sc = { name: name.trim().slice(0, 40), url: u.origin + u.pathname + u.search }; setMeta(db, 'shortcuts', JSON.stringify([...all, sc])); audit(db, 'luke', 'shortcut.saved', sc.name, { host: u.hostname }); return sc;
+}
+export const removeShortcut = (db: DB, name: string) => { const key = nameKey(name), all = listShortcuts(db), rest = all.filter((x) => nameKey(x.name) !== key); if (rest.length === all.length) return false; setMeta(db, 'shortcuts', JSON.stringify(rest)); audit(db, 'luke', 'shortcut.removed', name); return true; };
+export function findShortcut(db: DB, name: string): Shortcut | null { const key = nameKey(name); if (!key) return null; const all = listShortcuts(db); return all.find((x) => nameKey(x.name) === key) ?? all.find((x) => nameKey(x.name).includes(key) || (key.length >= 4 && key.includes(nameKey(x.name)))) ?? null; }
+
 let recent: number[] = [];
 /** Tests only. */
 export const _resetLimit = () => { recent = []; };

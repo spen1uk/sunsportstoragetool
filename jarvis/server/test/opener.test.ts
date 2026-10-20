@@ -55,3 +55,15 @@ test('greetings and wording: "hey Jarvis, I need you to open the real world appl
     scripted(() => '{"action":"open","args":{"kind":"app","target":"Terminal"}}'); assert.match((await converse(db, 'open terminal for me')).text, /don't see an app/); assert.equal(opened.length, 0);
   } finally { O._setInstalled(null); }
 });
+
+test('saved websites: Luke gives the address once ("save the real world as …"), then "open the real world" opens it; invented, unsafe or secret addresses are refused', async () => {
+  const db = makeDb(); mac(); O._setInstalled([...O.APPS]);
+  try {
+    scripted(() => '{"action":"open","args":{"kind":"app","target":"the real world"}}'); assert.match((await converse(db, 'open the real world')).text, /don't see an app called/, 'not saved yet');
+    scripted(() => '{"action":"shortcut","args":{"name":"The Real World","url":"https://app.jointherealworld.com"}}'); assert.match((await converse(db, 'save the real world as https://app.jointherealworld.com')).text, /Saved\. Whenever you say “open The Real World”.*never log in for you/);
+    scripted(() => '{"action":"shortcut","args":{"name":"Bank","url":"https://made-up-bank.example.com"}}'); assert.match((await converse(db, 'save my bank as the website I use')).text, /Send me the web address itself/);
+    scripted(() => '{"action":"open","args":{"kind":"app","target":"the real world"}}'); const r = await converse(db, "hey Jarvis, I need you to open the real world application on my computer, please"); assert.match(r.text, /Opened The Real World \(app\.jointherealworld\.com\) in your browser/); assert.deepEqual(opened.pop(), { url: 'https://app.jointherealworld.com/' });
+    assert.throws(() => O.saveShortcut(db, 'Evil', 'http://example.com'), /public https/); assert.throws(() => O.saveShortcut(db, 'Local', 'https://192.168.0.1'), /public https/); assert.throws(() => O.saveShortcut(db, 'Key', 'https://example.com/?k=sk-ant-abcdefghijklmnopqrstuvwxyz0123456789'), /password or key/);
+    assert.equal(O.findShortcut(db, 'real world')?.name, 'The Real World'); assert.ok(O.removeShortcut(db, 'the real world')); assert.equal(O.findShortcut(db, 'real world'), null);
+  } finally { O._setInstalled(null); }
+});
