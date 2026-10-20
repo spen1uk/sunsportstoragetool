@@ -34,6 +34,9 @@ export const RISKY = /\b(buy|purchase|pay|payment|checkout|check out|cart|order|
 export const RISKY_HREF = /(log-?out|sign-?out|signout|delete|remove|cancel|checkout|cart|billing|payment|subscribe|unsubscribe|purchase|buy|settings|account|password|security|invite|download|export|logout|\.(zip|dmg|pkg|exe|pdf))/i;
 export const isSafeItem = (it: { text: string; href?: string }) => !RISKY.test(it.text) && !(it.href && RISKY_HREF.test(it.href));
 
+/** Sites where Luke has already said "continue" (so he is logged in there). The first visit to any other site always waits for him. */
+const readyList = (db: DB): string[] => { try { const v = JSON.parse(getMeta(db, 'browser:ready') || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; } catch { return []; } };
+export const markReady = (db: DB, base: string) => { const all = readyList(db); if (!all.includes(base)) setMeta(db, 'browser:ready', JSON.stringify([...all, base].slice(-30))); };
 const rows = (db: DB) => (db.prepare('SELECT id,site,goal,status,steps,cost_micro,summary,error,log,created_at,updated_at FROM browse_runs ORDER BY created_at DESC LIMIT 15').all() as any[]).map((r) => ({ ...r, log: JSON.parse(r.log) as string[] }));
 export const list = rows;
 const upd = (db: DB, rid: string, p: Record<string, unknown>) => { const keys = Object.keys(p); db.prepare(`UPDATE browse_runs SET ${keys.map((k) => `${k}=?`).join(',')}, updated_at=? WHERE id=?`).run(...keys.map((k) => p[k] as any), Date.now(), rid); publish({ type: 'browser' }); };
@@ -56,7 +59,7 @@ export async function start(db: DB, o: { site: string; goal: string; spokenText:
   try {
     const page = await (await getDriver()).open(u.href, (url) => sameSite(url, base), getMeta(db, 'browser:pref') || undefined); const st = { page, base, stop: false, notes: [] as string[], visited: [] as string[], log: [`Opened ${u.hostname}`] }; live.set(rid, st);
     await page.goto(u.href); const snap = await page.snapshot();
-    if (snap.needsLogin) { upd(db, rid, { status: 'waiting_login', log: JSON.stringify(st.log) }); idle(db, rid); return `I've opened a separate Jarvis browser window on ${u.hostname}. It needs you to log in. Do that in that window (I won't touch the login), then say “continue”.`; }
+    if (snap.needsLogin || !readyList(db).includes(base)) { upd(db, rid, { status: 'waiting_login', log: JSON.stringify(st.log) }); idle(db, rid); return snap.needsLogin ? `I've opened a separate Jarvis browser window on ${u.hostname}. It needs you to log in. Do that in that window (I won't touch the login), then say “continue”.` : `I've opened a separate Jarvis browser window on ${u.hostname}. It starts logged out, because it is separate from your everyday browser. Log in there with your account (I won't touch the login), make sure you can see your own pages, then say “continue”. You only need to do this once; it remembers the login.`; }
     upd(db, rid, { status: 'running' }); void explore(db, rid, goal, snap).catch((e) => fail(db, rid, (e as Error).message));
     return `On it. I've opened a separate Jarvis browser window and I'm looking around ${u.hostname} now. I'll tell you what I find. Say “stop browsing” any time.`;
   } catch (e) { return fail(db, rid, (e as Error).message, true); }
@@ -117,7 +120,7 @@ export async function chatControl(db: DB, text: string): Promise<string | null> 
     const s = live.get(run.id); if (!s) { void finish(db, run.id, 'failed', 'The browser window was closed, so I stopped.'); return 'The browser window was closed, so I stopped. Ask me again and I will reopen it.'; }
     clearTimeout(s.idleTimer); let snap: Snap; try { snap = await s.page.snapshot(); } catch { void finish(db, run.id, 'failed', 'I lost the browser window.'); return 'I lost the browser window. Ask me again and I will reopen it.'; }
     if (snap.needsLogin) { idle(db, run.id); return 'It still looks like the login page. Finish logging in in the Jarvis browser window, then say “continue”.'; }
-    upd(db, run.id, { status: 'running' }); void explore(db, run.id, run.goal, snap).catch((e) => fail(db, run.id, (e as Error).message)); return 'Thanks. I\'m looking around now. I\'ll tell you what I find.';
+    markReady(db, siteBase(run.site)); upd(db, run.id, { status: 'running' }); void explore(db, run.id, run.goal, snap).catch((e) => fail(db, run.id, (e as Error).message)); return 'Thanks. I\'m looking around now. I\'ll tell you what I find.';
   }
   return null;
 }
@@ -125,6 +128,6 @@ export async function stopRun(db: DB, rid: string) { const s = live.get(rid); if
 /** Used by "Stop everything": closes any open Jarvis browser. */
 export async function stopAll(db: DB) { for (const rid of [...live.keys()]) await stopRun(db, rid); db.prepare("UPDATE browse_runs SET status='stopped', summary=CASE WHEN summary='' THEN 'Stopped.' ELSE summary END, updated_at=? WHERE status IN ('starting','waiting_login','running')").run(Date.now()); }
 export const sweepStale = (db: DB, now = Date.now()) => db.prepare("UPDATE browse_runs SET status='failed', error='Interrupted by a restart', updated_at=? WHERE status IN ('starting','waiting_login','running')").run(now).changes;
-export async function forgetLogins(db: DB) { await stopAll(db); await (await getDriver()).clearLogins(); audit(db, 'luke', 'browse.logins_cleared'); }
+export async function forgetLogins(db: DB) { await stopAll(db); await (await getDriver()).clearLogins(); setMeta(db, 'browser:ready', '[]'); audit(db, 'luke', 'browse.logins_cleared'); }
 /** Looks like asking Jarvis to examine or move around inside a site, anywhere in the sentence. */
 export const wantsLookAround = (t: string) => /\b(look(?:ing)? around|explore|browse|get to know|examine|click(?:ing)? around|go(?:ing)? through|walk(?:ing)? through|take a look (?:around|at)|check(?:ing)? out|navigate|poke around|scout)\b/i.test(t);

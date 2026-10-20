@@ -60,26 +60,26 @@ test('browser: Luke names the site, logs in himself, says continue; Jarvis only 
 });
 
 test('browser: a safe button is clicked, a link that leaves the site is skipped, stop browsing and the step/cost caps end it, and a summary is still written', async () => {
-  const db = makeDb(); const { state, driver } = site(PAGES, { loggedIn: true }); B.setDriver(driver); O.saveShortcut(db, 'The Example', 'https://app.example.com/');
+  const db = makeDb(); const { state, driver } = site(PAGES, { loggedIn: true }); B.setDriver(driver); O.saveShortcut(db, 'The Example', 'https://app.example.com/'); B.markReady(db, 'example.com');
   model((i) => (i === 0 ? { do: 'click', n: 4 } : i === 1 ? { do: 'click', n: 5, note: 'More section exists.' } : { do: 'finish', summary: 'Done looking.' }));
   assert.match((await converse(db, 'get to know the example')).text, /looking around app\.example\.com now/); await until(() => rowOf(db).status === 'done'); assert.deepEqual(state.clicked, ['Show more']); assert.match(JSON.parse(rowOf(db).log).join('|'), /Chose something not on the list; ignored/, 'the link to another site was never an option');
   // never-ending model: stopped by the step cap, still gets a write-up
-  const db2 = makeDb(); const s2 = site(PAGES, { loggedIn: true }); B.setDriver(s2.driver); O.saveShortcut(db2, 'The Example', 'https://app.example.com/'); model((i, u) => (u.includes('write-up') || u.includes('<data kind="notes">') ? 'It is a platform with campuses.' : { do: 'scroll', note: `note ${i}` }));
+  const db2 = makeDb(); const s2 = site(PAGES, { loggedIn: true }); B.setDriver(s2.driver); O.saveShortcut(db2, 'The Example', 'https://app.example.com/'); B.markReady(db2, 'example.com'); model((i, u) => (u.includes('write-up') || u.includes('<data kind="notes">') ? 'It is a platform with campuses.' : { do: 'scroll', note: `note ${i}` }));
   await converse(db2, 'explore the example'); await until(() => rowOf(db2).status === 'done'); assert.equal(rowOf(db2).steps, B.LIMITS.steps); assert.match(rowOf(db2).summary, /platform with campuses/);
   // spend cap
-  const db3 = makeDb(); const s3 = site(PAGES, { loggedIn: true }); B.setDriver(s3.driver); O.saveShortcut(db3, 'The Example', 'https://app.example.com/'); const saved = B.LIMITS.capMicro; B.LIMITS.capMicro = 1; const c3 = model((i, u) => (u.includes('<data kind="notes">') ? 'Short write-up.' : { do: 'scroll' }), 5_000);
+  const db3 = makeDb(); const s3 = site(PAGES, { loggedIn: true }); B.setDriver(s3.driver); O.saveShortcut(db3, 'The Example', 'https://app.example.com/'); B.markReady(db3, 'example.com'); const saved = B.LIMITS.capMicro; B.LIMITS.capMicro = 1; const c3 = model((i, u) => (u.includes('<data kind="notes">') ? 'Short write-up.' : { do: 'scroll' }), 5_000);
   await converse(db3, 'explore the example'); await until(() => rowOf(db3).status === 'done'); B.LIMITS.capMicro = saved; assert.ok(c3.length <= 3, `spend cap stops it early (${c3.length} calls)`); assert.equal(rowOf(db3).status, 'done'); assert.match(rowOf(db3).summary, /Short write-up/);
 });
 
 test('browser: stop browsing and Stop everything close the window; paused, unknown, sensitive and invented addresses are refused; restart sweeps', async () => {
-  const db = makeDb(); const { state, driver } = site(PAGES, { loggedIn: true }); B.setDriver(driver); O.saveShortcut(db, 'The Example', 'https://app.example.com/');
+  const db = makeDb(); const { state, driver } = site(PAGES, { loggedIn: true }); B.setDriver(driver); O.saveShortcut(db, 'The Example', 'https://app.example.com/'); B.markReady(db, 'example.com');
   let release!: () => void; const gate = new Promise<void>((r) => { release = r; }); gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req: any) { if (req.system.includes('front desk')) return { text: '{"action":"browse","args":{"site":"the example","goal":"x"}}', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 } } as any; await gate; return { text: '{"do":"scroll"}', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 } } as any; } } as any };
   await converse(db, 'look around the example'); await until(() => rowOf(db)?.status === 'running');
   assert.match((await converse(db, 'stop browsing')).text, /Stopped\. I closed the Jarvis browser/); assert.equal(rowOf(db).status, 'stopped'); assert.equal(state.closed, true); release();
   // emergency stop
   const db2 = makeDb(); const s2 = site(PAGES, { loggedIn: false }); B.setDriver(s2.driver); O.saveShortcut(db2, 'The Example', 'https://app.example.com/'); model(() => ({ do: 'scroll' })); await converse(db2, 'explore the example'); assert.equal(rowOf(db2).status, 'waiting_login'); emergencyStop(db2); await until(() => s2.state.closed); assert.equal(s2.state.closed, true); assert.equal(rowOf(db2).status, 'stopped');
   // refusals
-  const db3 = makeDb(); const s3 = site(PAGES, { loggedIn: true }); B.setDriver(s3.driver); model(() => ({ do: 'finish', summary: 'x' }));
+  const db3 = makeDb(); const s3 = site(PAGES, { loggedIn: true }); B.setDriver(s3.driver); B.markReady(db3, 'invented.com'); model(() => ({ do: 'finish', summary: 'x' }));
   assert.match(await B.start(db3, { site: 'mybank.com', goal: 'x', spokenText: 'look around mybank.com' }), /don't go into/); assert.match(await B.start(db3, { site: 'the unknown place', goal: 'x', spokenText: 'look around the unknown place' }), /Which site\?/);
   assert.match(await B.start(db3, { site: 'https://invented-site.com', goal: 'x', spokenText: 'look around the example' }), /Which site\?/, 'an address he did not say is never visited'); assert.match(await B.start(db3, { site: 'https://invented.com', goal: 'x', spokenText: 'explore invented.com please' }) , /On it|opened/);
   await until(() => rowOf(db3).status === 'done'); setPaused(db3, true); assert.match(await B.start(db3, { site: 'https://invented.com', goal: 'x', spokenText: 'explore invented.com' }), /paused/); setPaused(db3, false);
@@ -93,9 +93,9 @@ test('"look around the real world" is routed by code (saved site, or a site he j
   assert.match((await converse(db, 'look around the real world and get to know it')).text, /^(Which site|On it)/i, 'nothing known yet: asks, never starts research'); assert.equal(intentCalls, 0, 'the model was not even asked');
   // he opened the site a moment ago
   const { setRunner } = await import('../mac.ts'); setRunner(async () => '{"ok":true}'); try { await O.openUrl(db, 'https://app.example.com/checklist'); } finally { setRunner(null); }
-  const r = await converse(db, 'look around the example and get to know it'); assert.match(r.text, /looking around app\.example\.com now/); await until(() => rowOf(db).status === 'done'); assert.deepEqual(state.opened, ['https://app.example.com/']);
+  B.markReady(db, 'example.com'); const r = await converse(db, 'look around the example and get to know it'); assert.match(r.text, /looking around app\.example\.com now/); await until(() => rowOf(db).status === 'done'); assert.deepEqual(state.opened, ['https://app.example.com/']);
   // saved name
-  const db2 = makeDb(); const s2 = site(PAGES, { loggedIn: true }); B.setDriver(s2.driver); O.saveShortcut(db2, 'The Real World', 'https://app.example.com/'); assert.match((await converse(db2, 'hey Jarvis, look around the real world and get to know it')).text, /looking around app\.example\.com now/);
+  const db2 = makeDb(); const s2 = site(PAGES, { loggedIn: true }); B.setDriver(s2.driver); O.saveShortcut(db2, 'The Real World', 'https://app.example.com/'); B.markReady(db2, 'example.com'); assert.match((await converse(db2, 'hey Jarvis, look around the real world and get to know it')).text, /looking around app\.example\.com now/);
   // a duplicate budget no longer errors
   const mb = await import('../missionbudget.ts'); mb.create(db, 'r:1', 'a', 100_000); mb.create(db, 'r:1', 'a', 100_000); mb.close(db, 'r:1'); mb.create(db, 'r:1', 'again', 100_000); assert.ok(mb.get(db, 'r:1'));
 });
@@ -103,7 +103,16 @@ test('"look around the real world" is routed by code (saved site, or a site he j
 test('browser choice: "use Brave for the Jarvis browser" is remembered and passed to the driver; the message names the supported browsers when none is installed', async () => {
   const db = makeDb(); const seen: (string | undefined)[] = []; const s = site(PAGES, { loggedIn: true }); const inner = s.driver; B.setDriver({ ...inner, open: async (u, a, p) => { seen.push(p); return inner.open(u, a, p); } });
   gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req: any) { return { text: '{"do":"finish","summary":"ok"}', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 } } as any; } } as any };
-  assert.match((await converse(db, 'use brave for the jarvis browser')).text, /will use Brave.*separate profile/); O.saveShortcut(db, 'The Example', 'https://app.example.com/'); await converse(db, 'look around the example'); await until(() => rowOf(db).status === 'done'); assert.deepEqual(seen, ['brave']);
+  assert.match((await converse(db, 'use brave for the jarvis browser')).text, /will use Brave.*separate profile/); O.saveShortcut(db, 'The Example', 'https://app.example.com/'); B.markReady(db, 'example.com'); await converse(db, 'look around the example'); await until(() => rowOf(db).status === 'done'); assert.deepEqual(seen, ['brave']);
   const { pickBrowser, BROWSERS } = await import('../browser-driver.ts'); assert.deepEqual(BROWSERS.map((b) => b.id), ['brave', 'chrome', 'edge', 'chromium']); assert.ok(pickBrowser('chrome') === null || typeof pickBrowser('chrome')!.path === 'string');
-  B.setDriver({ async open() { throw new Error('no browser: install Brave'); }, async clearLogins() { /* none */ } }); const db2 = makeDb(); O.saveShortcut(db2, 'The Example', 'https://app.example.com/'); assert.match(await B.start(db2, { site: 'the example', goal: 'x', spokenText: 'look around the example' }), /needs Brave, Google Chrome, Microsoft Edge or Chromium installed/);
+  B.setDriver({ async open() { throw new Error('no browser: install Brave'); }, async clearLogins() { /* none */ } }); const db2 = makeDb(); O.saveShortcut(db2, 'The Example', 'https://app.example.com/'); B.markReady(db2, 'example.com'); assert.match(await B.start(db2, { site: 'the example', goal: 'x', spokenText: 'look around the example' }), /needs Brave, Google Chrome, Microsoft Edge or Chromium installed/);
+});
+
+test('browser: the first visit to a site always waits for Luke to log in, even when the page shows no password box; after "continue" the site is remembered and later visits go straight in; forgetting logins resets it', async () => {
+  const db = makeDb(); const { state, driver } = site(PAGES, { loggedIn: true }); B.setDriver(driver); O.saveShortcut(db, 'The Example', 'https://app.example.com/');
+  model(() => ({ do: 'finish', summary: 'Looked at my own account pages.' }));
+  const first = await converse(db, 'look around the example'); assert.match(first.text, /starts logged out.*Log in there with your account.*only need to do this once/); assert.equal(rowOf(db).status, 'waiting_login'); assert.equal(state.clicked.length, 0);
+  await converse(db, 'continue'); await until(() => rowOf(db).status === 'done'); assert.equal(rowOf(db).status, 'done');
+  const second = await converse(db, 'look around the example again'); assert.match(second.text, /looking around app\.example\.com now/, 'already logged in: straight in'); await until(() => rowOf(db).status === 'done');
+  await B.forgetLogins(db); assert.match((await converse(db, 'look around the example')).text, /starts logged out/);
 });
