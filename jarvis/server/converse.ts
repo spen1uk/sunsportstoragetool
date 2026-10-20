@@ -18,7 +18,7 @@ import { route as routeSkill } from './skills/router.ts';
 import * as deleg from './delegation.ts';
 import { chatDelete as calendarDelete, chatCreate as calendarCreate, directOn as calDirect, applyNow as calApplyNow } from './calendarwrite.ts';
 import { requestApproval } from './approvals.ts';
-import { intentTurn } from './intent.ts';
+import { intentTurn, buildLast, asksCapabilities, CAPABILITIES } from './intent.ts';
 import { wantsDraftOpened, openDraft } from './opener.ts';
 import { chatControl as browserControl } from './browser.ts';
 import { mentions as chatMentions } from './chatimport.ts';
@@ -76,6 +76,13 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     if (bc) {
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', bc, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
       return { text: bc, persisted: true, source: 'command', proposals: [] };
+    }
+  }
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // "build it" after he was told something can't be done yet; "what can you do"
+    const bl = asksCapabilities(text) ? CAPABILITIES : await buildLast(db, text);
+    if (bl) {
+      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', bl, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+      return { text: bl, persisted: true, source: 'command', proposals: [] };
     }
   }
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && wantsDraftOpened(text)) {   // "open it": puts his draft in Mail or Messages for him to read and send himself
