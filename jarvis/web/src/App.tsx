@@ -21,6 +21,7 @@ import { SearchPage } from './search.tsx';
 import { GoalsPage } from './goals.tsx';
 import { LearnPage } from './learn.tsx';
 import { FoundryPage } from './foundry.tsx';
+import { BrowserPage } from './browser.tsx';
 import { CalendarWritePanel } from './calwrite.tsx';
 import { WorkspacePage } from './workspace.tsx';
 import { BriefingsPage, OvernightPage, ModeControl, Notifications } from './today.tsx';
@@ -33,6 +34,7 @@ export const NAV: { hash: string; label: string; planned?: string }[] = [
   { hash: '#/workspace', label: 'Modular Workspace' },
   { hash: '#/agents', label: 'Agents' },
   { hash: '#/foundry', label: 'Agent Foundry' },
+  { hash: '#/browser', label: 'Jarvis Browser' },
   { hash: '#/universe', label: 'Agent Universe' },
   { hash: '#/tasks', label: 'Tasks & Projects' },
   { hash: '#/goals', label: 'Goals' },
@@ -230,6 +232,7 @@ function Shell({ onLogout }: { onLogout: () => void }) {
         {hash === '#/improve' && <ImprovePage />}
         {hash === '#/agents' && <AgentsPage />}
         {hash === '#/foundry' && <FoundryPage />}
+        {hash === '#/browser' && <BrowserPage />}
         {hash === '#/search' && <SearchPage />}
         {hash === '#/goals' && <GoalsPage />}
         {hash === '#/learn' && <LearnPage />}

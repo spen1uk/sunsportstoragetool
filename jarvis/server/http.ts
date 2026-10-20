@@ -49,6 +49,7 @@ import * as brk from './breakdown.ts';
 import * as learn from './learn.ts';
 import * as deleg from './delegation.ts';
 import * as calw from './calendarwrite.ts';
+import * as jbrowser from './browser.ts';
 import * as foundry from './foundry.ts';
 import * as trig from './triggers.ts';
 import { route as routeSkill, candidates as routeCandidates } from './skills/router.ts';
@@ -468,6 +469,9 @@ route('POST', '/api/calendar/suggest', ({ db, body }) => { const b = parse(z.obj
 route('POST', '/api/calendar/request', async ({ db, body }) => await aguard(async () => ({ ...(await calw.requestCreate(db, body, calReq(db))), direct: calw.directOn(db) })));
 route('POST', '/api/calendar/move-request', ({ db, body }) => { const b = parse(z.object({ uid: z.string().min(1).max(200), calendar: z.string().min(1).max(80), newStart: z.number().int(), newEnd: z.number().int().optional() }), body); return guard(() => ({ ...calw.requestMove(db, b, calReq(db)), direct: calw.directOn(db) })); });
 route('POST', '/api/calendar/delete-request', ({ db, body }) => { const b = parse(z.object({ uid: z.string().min(1).max(200), calendar: z.string().min(1).max(80) }), body); return guard(() => ({ ...calw.requestDelete(db, b, calReq(db)), direct: calw.directOn(db) })); });
+route('GET', '/api/browser', ({ db }) => ({ runs: jbrowser.list(db), limits: jbrowser.LIMITS }));
+route('POST', '/api/browser/:id/stop', async ({ db, params }) => ({ ok: await jbrowser.stopRun(db, params.id) }));
+route('POST', '/api/browser/forget-logins', async ({ db, session }) => { if (!session || !auth.hasStepUp(session)) throw new HttpError(403, 'step-up confirmation required'); await aguard(() => jbrowser.forgetLogins(db)); auth.consumeStepUp(db, session); return { ok: true }; });
 route('POST', '/api/calendar/protected', ({ db, body }) => ({ id: guard(() => calw.addProtected(db, body)) }));
 route('DELETE', '/api/calendar/protected/:id', ({ db, params }) => ({ ok: calw.removeProtected(db, params.id) }));
 route('POST', '/api/calendar/outbox/:id/retry', async ({ db, params }) => { const ok = calw.retry(db, params.id); if (ok) void calw.drain(db); return { ok }; });

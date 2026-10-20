@@ -20,6 +20,7 @@ import { chatDelete as calendarDelete, chatCreate as calendarCreate, directOn as
 import { requestApproval } from './approvals.ts';
 import { intentTurn } from './intent.ts';
 import { wantsDraftOpened, openDraft } from './opener.ts';
+import { chatControl as browserControl } from './browser.ts';
 import { mentions as chatMentions } from './chatimport.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
@@ -69,6 +70,13 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     const reply = lastSources(db);
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // "continue" after he logs in to the Jarvis browser, or "stop browsing"
+    const bc = await browserControl(db, text);
+    if (bc) {
+      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', bc, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+      return { text: bc, persisted: true, source: 'command', proposals: [] };
+    }
   }
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && wantsDraftOpened(text)) {   // "open it": puts his draft in Mail or Messages for him to read and send himself
     const reply = await openDraft(db);
