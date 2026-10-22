@@ -136,3 +136,16 @@ test('the chair sees all three sub-agent memos in full (not a clipped copy), and
     return { text: long(/offers/.test(u) ? 'offers' : /monopoly/.test(u) ? 'monopoly' : 'product'), model: req.model, stopReason: 'end_turn', usage } as any; } } as any };
   await converse(db, '/founder-board a boat storage membership for Sullivan Wisconsin boaters'); await until(() => last(db)?.status === 'done'); const result = seen[1]; assert.ok(result.includes('END-offers') && result.includes('END-monopoly') && result.includes('END-product'), 'all three memos arrive whole');
 });
+
+test('a run that stops with questions is continued by a plain reply with the answers (and not by unrelated messages); "continue board <answers>" works too', async () => {
+  const db = makeDb(); const prompts: string[] = []; let turn = 0;
+  gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req: any) {
+    if (req.system.includes('Founder pack for Luke')) { prompts.push(req.messages[0].content); turn++; return { text: JSON.stringify(turn === 1 ? { do: 'finish', summary: 'I need your price. 1) What do you charge for a 25 ft boat? 2) How many spaces are filled?' } : { do: 'finish', summary: 'Board done with your numbers.' }), model: req.model, stopReason: 'end_turn', usage } as any; }
+    return { text: 'Plain chat answer.', model: req.model, stopReason: 'end_turn', usage } as any; } } as any };
+  const first = await converse(db, '/founder-board Sun Sport Marine heated indoor boat storage in Lake Country, priced by boat length'); assert.match(first.text, /Starting the Board/); await until(() => last(db)?.status === 'done');
+  const chat = db.prepare("SELECT content FROM messages WHERE role='jarvis' ORDER BY id DESC LIMIT 1").get() as any; assert.match(chat.content, /reply here with your answers/);
+  assert.ok(!(await converse(db, 'put dentist on my list tomorrow please')).text.startsWith('On it. Starting'), 'an unrelated request is not hijacked');
+  const reply = await converse(db, '1) about $38 a foot for the season, so a 25 ft boat is $950. 2) 40 spaces, 22 filled'); assert.match(reply.text, /Starting the Board of Directors/); await until(() => last(db)?.status === 'done' && turn === 2);
+  assert.ok(prompts[1].includes('$38 a foot') && prompts[1].includes('Heated indoor boat storage') === false || prompts[1].includes('$38 a foot'), 'the answers reach the next run'); assert.match(prompts[1], /Lake Country/);
+  turn = 0; await converse(db, '/founder-cfo run the numbers'); await until(() => last(db)?.status === 'done'); const c2 = await converse(db, 'continue cfo my rate is $950 for 25 feet'); assert.match(c2.text, /Starting the CFO/); await until(() => last(db)?.status === 'done' && turn === 2); assert.match(prompts[prompts.length - 1], /Luke adds: my rate is \$950/);
+});

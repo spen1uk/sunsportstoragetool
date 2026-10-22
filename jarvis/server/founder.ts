@@ -216,9 +216,10 @@ export async function start(db: DB, o: { mode: ModeId; request: string; spokenTe
   return `On it. Starting the ${mode.title}${full && mode.id === 'consumer' ? ' (the full 100-buyer panel, as you asked)' : mode.id === 'consumer' ? ` (the quick ${LIMITS.quick}-buyer panel)` : ''} for ${project === 'default' ? 'your idea' : project.replace(/-/g, ' ')}. It takes a few minutes; I'll report here. Say “stop founder” any time.`;
 }
 async function finish(db: DB, rid: string, status: 'done' | 'stopped' | 'failed', text: string) {
-  const l = live.get(rid); live.delete(rid); const cur = db.prepare('SELECT status,project FROM founder_runs WHERE id=?').get(rid) as { status: string; project: string } | undefined; if (!cur || cur.status !== 'running') return;
+  const l = live.get(rid); live.delete(rid); const cur = db.prepare('SELECT status,project,mode,request FROM founder_runs WHERE id=?').get(rid) as { status: string; project: string; mode: string; request: string } | undefined; if (!cur || cur.status !== 'running') return;
   const files = listFiles(cur.project); mb.close(db, `fpack:${rid}`); upd(db, rid, { status, summary: text.slice(0, 3000), files: JSON.stringify(files), web: l?.web ? 1 : 0, ...(status === 'failed' ? { error: text.slice(0, 300) } : {}) }); audit(db, 'system', `founder.${status}`, rid);
-  say(db, `${text}${status === 'done' && files.length ? `\n\nFiles: ${files.slice(0, 12).join(', ')}${files.length > 12 ? ` and ${files.length - 12} more` : ''}. Say “show founder <file>” to read one.` : ''}`, !!l?.web);
+  const asking = status === 'done' && /\?/.test(text); if (asking) setMeta(db, 'founder:awaiting', JSON.stringify({ mode: cur.mode, project: cur.project, request: cur.request, at: Date.now() })); else setMeta(db, 'founder:awaiting', '');
+  say(db, `${text}${asking ? '\n\nYou can just reply here with your answers (rough numbers are fine, and “I don\'t know” is a fine answer) and I\'ll carry on from where I stopped.' : ''}${status === 'done' && files.length ? `\n\nFiles: ${files.slice(0, 12).join(', ')}${files.length > 12 ? ` and ${files.length - 12} more` : ''}. Say “show founder <file>” to read one.` : ''}`, !!l?.web);
 }
 async function ask(db: DB, rid: string, task: 'analysis' | 'chat', system: string, messages: { role: 'user' | 'assistant'; content: string }[]) { return gw.complete(db, { task, ref: `fpack:${rid}`, system, messages, channel: 'dashboard' }); }
 
@@ -280,13 +281,18 @@ async function runPanel(db: DB, rid: string, project: string, addCost: (c: numbe
 }
 
 // ---------- chat commands ----------
+const awaiting = (db: DB, now = Date.now()): { mode: string; project: string; request: string; at: number } | null => { try { const v = JSON.parse(getMeta(db, 'founder:awaiting') || 'null'); return v && now - v.at < 30 * 60_000 ? v : null; } catch { return null; } };
 const MODE_RE = MODES.map((m) => m.id).join('|');
 export async function chatControl(db: DB, text: string): Promise<string | null> {
   const t = text.trim();
   const cmd = t.match(new RegExp(`^/?founder[- ](${MODE_RE})\\b[:\\s]*([\\s\\S]*)$`, 'i'));
   if (cmd) return start(db, { mode: cmd[1].toLowerCase() as ModeId, request: cmd[2].trim() || 'Use the idea in founder/idea.md, or the conversation.', spokenText: t });
-  const cont = t.match(new RegExp(`^continue (${MODE_RE})\\b`, 'i')); if (cont) return start(db, { mode: cont[1].toLowerCase() as ModeId, request: 'Continue from the files already in the working folder.', spokenText: t });
+  const cont = t.match(new RegExp(`^continue (${MODE_RE})\\b[:\\s]*([\\s\\S]*)$`, 'i')); if (cont) return start(db, { mode: cont[1].toLowerCase() as ModeId, request: cont[2].trim() ? `Continue from the files already in the working folder. Luke adds: ${cont[2].trim()}` : 'Continue from the files already in the working folder.', spokenText: t });
   if (/^(?:please |hey jarvis[, ]*)?(?:stop|cancel|abort)\b.*\bfounder\b/i.test(t)) { const a = active(db); if (!a) return 'No founder run is going.'; const l = live.get(a.id); if (l) l.stop = true; await finish(db, a.id, 'stopped', 'Stopped. What was written so far is in the working folder.'); return 'Stopped the founder run.'; }
+  const aw = awaiting(db);
+  if (aw && !t.startsWith('/') && t.length >= 20 && !/\?\s*$/.test(t) && !/^(?:what|how|why|who|when|where|which|put|add|delete|remove|open|show|take|set|move|schedule|stop|cancel|search|find|remember|forget|complete)\b/i.test(t) && (/\d/.test(t) || /don'?t know|not sure|no idea|unknown|haven'?t|none|skip/i.test(t))) {   // his answers to the questions the paused run asked
+    setMeta(db, 'founder:awaiting', ''); return start(db, { mode: aw.mode as ModeId, request: `${aw.request}\n\nThe run paused with questions. Luke's answers: ${t}\nContinue, using his answers; where he says he does not know, treat it as unknown and do not guess.`, spokenText: `${aw.request} ${t}` });
+  }
   if (/^founder (?:help|modes|list)\??$/i.test(t) || /^\/founder$/i.test(t)) return founderHelp();
   if (/^founder status\??$/i.test(t)) { const r = runs(db)[0]; return r ? `Latest founder run: ${r.mode} (${r.status}), ${r.steps} steps. Project “${r.project}”. ${r.summary.slice(0, 300)}` : 'No founder runs yet.'; }
   const proj = t.match(/^founder project\s+(.{2,40})$/i); if (proj) { setMeta(db, 'founder:project', slug(proj[1])); return `Founder work now goes to the project “${slug(proj[1])}”. (Saying “Sun Sport Marine” in a request always uses that project.)`; }
