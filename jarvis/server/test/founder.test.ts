@@ -127,3 +127,12 @@ test('plain words reach the founder pack through the front desk (business only);
   assert.match((await converse(db, 'work out the break-even on a $149 a month storage membership')).text, /Starting the CFO/); await until(() => last(db)?.status === 'done'); assert.equal(asked, true);
   const { buildSystemPrompt } = await import('../persona.ts'); const sys = buildSystemPrompt(db, { memories: [], proposals: false } as any); assert.match(sys, /Founder skills[\s\S]*business topics only[\s\S]*Never use them for personal life[\s\S]*quick one \(20 buyers\)[\s\S]*ask him before sending an email, changing his calendar or editing a CRM[\s\S]*Never save passwords/);
 });
+
+test('the chair sees all three sub-agent memos in full (not a clipped copy), and is told sub-agents cannot open files', async () => {
+  const db = makeDb(); const long = (n: string) => `${n} memo. ` + 'Point about the idea. '.repeat(190) + 'END-' + n; const seen: string[] = []; let turn = 0;
+  gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req: any) {
+    const u = req.messages[req.messages.length - 1].content as string;
+    if (req.system.includes('Founder pack for Luke')) { seen.push(u); assert.match(req.system, /cannot open any file/); turn++; return { text: JSON.stringify(turn === 1 ? { do: 'agents', tasks: ['offers', 'monopoly', 'product'].map((n) => ({ name: n, file: `founder/board/${n}.md`, prompt: `Apply ONLY the ${n} lens to a boat storage idea.` })) } : { do: 'finish', summary: 'done' }), model: req.model, stopReason: 'end_turn', usage } as any; }
+    return { text: long(/offers/.test(u) ? 'offers' : /monopoly/.test(u) ? 'monopoly' : 'product'), model: req.model, stopReason: 'end_turn', usage } as any; } } as any };
+  await converse(db, '/founder-board a boat storage membership for Sullivan Wisconsin boaters'); await until(() => last(db)?.status === 'done'); const result = seen[1]; assert.ok(result.includes('END-offers') && result.includes('END-monopoly') && result.includes('END-product'), 'all three memos arrive whole');
+});
