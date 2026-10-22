@@ -15,6 +15,7 @@ import { gate as webGate, looksLikeWebQuestion } from './websearch.ts';
 import { getDefaults } from './missionbudget.ts';
 import * as opener from './opener.ts';
 import * as browser from './browser.ts';
+import * as founder from './founder.ts';
 import { ask as askWeb } from './websearch.ts';
 import { getMeta, setMeta } from './db.ts';
 import * as gaps from './improve/gaps.ts';
@@ -40,11 +41,12 @@ const MENU = [
   ['open', 'He wants something pulled up on his Mac: a specific website (kind "url", target a web address he named), an app (kind "app", target the app name) or one of Jarvis\'s own pages such as Goals, Calendar or Settings (kind "page"). {"kind": "url"|"app"|"page", "target": string}'],
   ['shortcut', 'Save a name for a website so he can open it later by name. Only when he gave the address himself. {"name": string, "url": string}'],
   ['browse', 'He wants Jarvis to look around, explore or click through a website and report back (for example "get to know the real world platform", "see what is in the courses"). site is the name he used or the address; goal is what to find out. {"site": string, "goal": string}'],
+  ['founder', 'BUSINESS topics only (a business idea, pricing, an offer, a launch, marketing, Luke\'s businesses such as Sun Sport Marine); never personal life. Run one Founder step: board (test/pressure-test an idea), competitors, consumer (would people buy it, simulated buyers), pricing (what to charge), offer, cfo (unit economics, break-even, margins), marketing, brand (names), ops, launch, plan (full business plan). {"mode": "board|competitors|consumer|pricing|offer|cfo|marketing|brand|ops|launch|plan", "request": the idea or question in his words}'],
   ['cannot', 'He asked for something Jarvis truly has no way to do yet, because it needs a connection or ability that does not exist (for example reading his bank or Zoho, controlling another app by clicking, finding files on his computer, making a phone call). Do NOT use this for conversation, questions, advice, writing, or anything else on this menu. {"what": "what he wants, in a few words", "why": "what is missing, in a few words"}'],
   ['lookup', 'He wants information found on the internet AND the best page opened on screen for him (he says things like "pull up", "show me the page", "take me to"). {"query": string}'],
   ['draft', 'Write an email or text message for him to read and send himself. Write it fully, in his voice, under 150 words. {"kind": "email"|"text", "to": "address or phone number if he gave one, else empty", "subject": string, "body": string}'],
 ] as const;
-const ID = z.enum(['task', 'goal', 'remember', 'build', 'research', 'delegate', 'mission', 'open', 'shortcut', 'browse', 'cannot', 'lookup', 'draft']);
+const ID = z.enum(['task', 'goal', 'remember', 'build', 'research', 'delegate', 'mission', 'open', 'shortcut', 'browse', 'founder', 'cannot', 'lookup', 'draft']);
 const forms = {
   task: z.object({ title: z.string().min(2).max(160) }),
   goal: z.object({ title: z.string().min(3).max(120), why: z.string().max(500).default(''), targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().default(null) }),
@@ -56,6 +58,7 @@ const forms = {
   open: z.object({ kind: z.enum(['url', 'app', 'page']), target: z.string().min(2).max(300) }),
   shortcut: z.object({ name: z.string().min(2).max(40), url: z.string().min(8).max(500) }),
   browse: z.object({ site: z.string().min(2).max(300), goal: z.string().max(300).default('') }),
+  founder: z.object({ mode: z.enum(['board', 'competitors', 'consumer', 'pricing', 'offer', 'cfo', 'marketing', 'brand', 'ops', 'launch', 'plan']), request: z.string().min(3).max(1200) }),
   cannot: z.object({ what: z.string().min(3).max(150), why: z.string().max(200).default('') }),
   lookup: z.object({ query: z.string().min(4).max(300) }),
   draft: z.object({ kind: z.enum(['email', 'text']), to: z.string().max(120).default(''), subject: z.string().max(150).default(''), body: z.string().min(2).max(1500) }),
@@ -118,6 +121,7 @@ async function doAction(db: DB, action: z.infer<typeof ID>, v: any, text: string
         if (!u || !text.toLowerCase().includes(host.split('.').slice(0, -1).join('.') || host)) return intentLookup(db, text, o);   // an address he did not say is never opened directly: search for it instead
         const w = await opener.openUrl(db, u.href, o.now); return w.ok ? `Opened ${w.host} in your browser.` : w.error;
       }
+      case 'founder': return await founder.start(db, { mode: v.mode, request: v.request, spokenText: text }, o.now);
       case 'cannot': {
         let filed = ''; try { gaps.file(db, { title: String(v.what).slice(0, 120), detail: `${String(v.why).slice(0, 200)} (Luke asked: ${text.slice(0, 200)})` }, 'jarvis'); filed = ' I\'ve added it to my to-build list (the Improvements page).'; } catch { filed = ' It\'s already on my to-build list.'; }
         setMeta(db, 'cannot:last', JSON.stringify({ what: String(v.what), why: String(v.why), asked: text.slice(0, 300), at: o.now ?? Date.now() }));

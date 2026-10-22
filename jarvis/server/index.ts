@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { openDb } from './db.ts';
 import { sweepStale as sweepBrowser } from './browser.ts';
+import { sweepStale as sweepFounderRuns } from './founder.ts';
 import { backfill as backfillCategories } from './categorize.ts';
 import { sweepStale as sweepEvals } from './evals/run.ts';
 import { tick as triggerTick } from './triggers.ts';
@@ -26,7 +27,7 @@ import { startHeartbeat } from './heartbeat.ts';
 const db = openDb(dbPath());
 sweepEvals(db, Date.now() + 600_001);
 sweepFoundry(db, Date.now() + 601_000);
-sweepBrowser(db);   // an evaluation cannot survive a restart
+sweepBrowser(db); sweepFounderRuns(db);   // an evaluation cannot survive a restart
 seedStructure(db);
 backfillCategories(db);
 if (!isConfigured(db)) { console.error('Not set up yet. Run: npm run setup'); process.exit(1); }

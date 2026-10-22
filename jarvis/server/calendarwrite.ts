@@ -25,7 +25,7 @@ export function setTarget(db: DB, name: string) {
 }
 export const getTarget = target;
 /** Direct mode (on by default, Luke's choice): calendar changes he asks for himself are applied straight away, with no approval step. They are still logged, and the emergency stop still halts them. */
-export const directOn = (db: DB) => getMeta(db, 'hub:direct') !== '0';
+export const directOn = (db: DB, now = Date.now()) => getMeta(db, 'hub:direct') !== '0' && !(Number(getMeta(db, 'founder:careful_until') || 0) > now);   // for an hour after any Founder-pack work, calendar changes ask first
 export function setDirect(db: DB, on: boolean) { setMeta(db, 'hub:direct', on ? '1' : '0'); audit(db, 'luke', 'hub.direct', '', { on }); publish({ type: 'calendar' }); }
 /** The "request" function used in direct mode: queues the change at once instead of raising an approval. */
 export const applyNow = (db: DB) => (type: string, payload: unknown): string => { queue(db, type.replace('calendar_', '') as 'create' | 'move' | 'delete', payload); audit(db, 'luke', 'calendar.direct', '', { type }); void drain(db).catch(() => { /* recorded in the outbox */ }); return 'direct'; };

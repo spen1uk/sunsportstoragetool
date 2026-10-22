@@ -21,6 +21,7 @@ import { requestApproval } from './approvals.ts';
 import { intentTurn, buildLast, asksCapabilities, CAPABILITIES } from './intent.ts';
 import { wantsDraftOpened, openDraft } from './opener.ts';
 import { chatControl as browserControl } from './browser.ts';
+import { chatControl as founderControl } from './founder.ts';
 import { mentions as chatMentions } from './chatimport.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
@@ -70,6 +71,13 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     const reply = lastSources(db);
     db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
     return { text: reply, persisted: true, source: 'command', proposals: [] };
+  }
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // the Founder pack: /founder-board … , founder files, stop founder
+    const fc = await founderControl(db, text);
+    if (fc) {
+      db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', fc, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+      return { text: fc, persisted: true, source: 'command', proposals: [] };
+    }
   }
   if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // "continue" after he logs in to the Jarvis browser, or "stop browsing"
     const bc = await browserControl(db, text);
