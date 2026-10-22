@@ -37,6 +37,13 @@ test('the pack: verified against its checksum list, tamper and extra files are c
   for (const f of ['founder-cfo/unit_economics.py', 'founder-pricing/van_westendorp.py', 'founder-consumer/panel.py', 'founder-plan/compile.py']) { const src = ex(f); assert.doesNotMatch(src, /\b(?:import|from)\s+(?:socket|urllib|http|requests|subprocess|ftplib|smtplib|ssl|asyncio|ctypes|pickle)\b/, f); assert.doesNotMatch(src, /os\.system|popen|eval\(|__import__/, f); }
 });
 
+test('rule 4 does not cry wolf: the pack\'s own text (the Monopoly lens talks about “the secret”) and ordinary business wording pass', () => {
+  const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+  for (const f of walk(path.join(PACK, 'skills')).filter((x) => /\.(md|json)$/.test(x))) assert.equal(F.sensitive(fs.readFileSync(f, 'utf8')), null, path.relative(PACK, f));
+  for (const t of ['What is the secret? What does the founder know that others do not?', 'The secret sauce is covered storage', 'Our token of appreciation is a free winterising', 'Pin the pricing page to the top', 'Reset token system for lift gates', 'call 414-555-0199 or visit us, 2024 revenue 1234567 dollars']) assert.equal(F.sensitive(t), null, t);
+  assert.match(F.sensitive('the admin password is Tr0ub4dor&3 for the portal')!, /password/); assert.match(F.sensitive('client secret: abcd1234efgh')!, /password or key/); assert.match(F.sensitive('my pin is 4821')!, /PIN/);
+});
+
 test('rule 1: business topics only', () => {
   for (const t of ['pressure-test my idea for a boat storage membership', 'what should I charge at Sun Sport Marine', 'would people buy this', 'plan the launch of the dock cafe']) assert.ok(F.isBusinessTopic(t), t);
   for (const t of ['should I break up with my girlfriend', 'help me with my diet and workout', 'my feelings about my dad', 'plan my vacation']) assert.equal(F.isBusinessTopic(t), false, t);
@@ -77,13 +84,13 @@ test('board run (smoke): modes load the SKILL.md, sub-agents are model calls, fi
     { do: 'write', file: 'founder/idea.md', content: '# Dock Storage Club\n- What it is: a membership for covered boat storage\n- Who: Wisconsin boaters\n- Price: $149 a month' },
     { do: 'write', file: 'founder/board/brief.md', content: 'Idea: a membership for covered boat storage at $149 a month for Wisconsin boaters.' },
     { do: 'read', file: 'pack:founder-board/lenses.md' },
-    { do: 'agents', tasks: [{ name: 'offers', prompt: 'Read this brief and apply ONLY the Offers lens. Brief: covered boat storage membership at $149.' }, { name: 'monopoly', prompt: 'Apply ONLY the Monopoly lens to: covered boat storage membership.' }, { name: 'product', prompt: 'Apply ONLY the Product lens to: covered boat storage membership.' }] },
+    { do: 'agents', tasks: [{ name: 'offers', file: 'founder/board/offers.md', prompt: 'Read this brief and apply ONLY the Offers lens. Brief: covered boat storage membership at $149.' }, { name: 'monopoly', file: 'founder/board/monopoly.md', prompt: 'Apply ONLY the Monopoly lens to: covered boat storage membership. What is the secret? What does the founder know that others do not?' }, { name: 'product', file: 'founder/board/product.md', prompt: 'Apply ONLY the Product lens to: covered boat storage membership.' }] },
     { do: 'write', file: 'founder/board/verdict.md', content: '# Verdict\nTwo of three: fund with conditions.' },
     { do: 'finish', summary: 'The board voted fund with conditions. The main risk is unproven demand. Wrote founder/board/verdict.md.' },
   ]);
   const reply = await converse(db, '/founder-board a covered boat storage membership at $149 a month for Wisconsin boaters'); assert.match(reply.text, /Starting the Board of Directors/);
   await until(() => last(db)?.status === 'done'); const run = last(db); assert.equal(run.status, 'done', run.error); assert.equal(seen.sub, 3, 'three sub-agents'); assert.ok(seen.systems[0].includes('founder-board') && seen.systems[0].includes('Offers lens'), 'the SKILL.md is the method'); assert.ok(seen.systems[0].includes('RULES (fixed'));
-  assert.match(F.readFile(run.project, 'founder/board/verdict.md')!, /fund with conditions/); assert.deepEqual(JSON.parse(run.files).slice(0, 2), ['founder/board/brief.md', 'founder/board/verdict.md']);
+  assert.match(F.readFile(run.project, 'founder/board/verdict.md')!, /fund with conditions/); for (const f of ['offers', 'monopoly', 'product']) assert.match(F.readFile(run.project, `founder/board/${f}.md`)!, /Verdict: fund with conditions/, `${f} memo saved in full by the program`); assert.ok(JSON.parse(run.files).includes('founder/board/monopoly.md'));
   const chat = db.prepare("SELECT content FROM messages WHERE role='jarvis' ORDER BY id DESC LIMIT 1").get() as any; assert.match(chat.content, /The board voted fund with conditions[\s\S]*Files: /);
   assert.equal(W.directOn(db), false, 'rule 3: calendar changes ask first for an hour after founder work'); assert.equal(W.directOn(db, Date.now() + 61 * 60_000), true); n++; void n;
 });
