@@ -12,6 +12,7 @@ import { bus, clients } from './events.ts';
 import { converse } from './converse.ts';
 import * as gw from './llm/gateway.ts';
 import { hasSecret } from './llm/secrets.ts';
+import * as sandra from './sandra.ts';
 import { getPersona, setPersona, personaSchema } from './persona.ts';
 import * as tasks from './tasks.ts';
 import * as arts from './artifacts.ts';
@@ -321,6 +322,9 @@ route('POST', '/api/memory', ({ db, body }) => {
 });
 route('PATCH', '/api/memory/:id', ({ db, params, body }) => { const r = memory.update(db, params.id, parse(z.object({ content: z.string().min(1).max(1000) }), body).content); if (!r.ok) throw bad(r.error); return r; });
 route('POST', '/api/chat/:id/feedback', ({ db, params, body }) => { const b = parse(z.object({ rating: z.enum(['up', 'down']), note: z.string().max(300).default('') }), body); const r = fb.rate(db, Number(params.id), b.rating, b.note); if (!r.ok) throw bad(r.error ?? 'not found'); return r; });
+route('GET', '/api/sandra', ({ db }) => sandra.state(db));
+route('PUT', '/api/sandra/url', ({ db, body }) => { const b = parse(z.object({ url: z.string().max(200) }), body); if (!sandra.setUrl(db, b.url)) throw bad('Sandra\'s address must be on this computer, like http://localhost:5290.'); return sandra.state(db); });
+route('POST', '/api/sandra/check', async ({ db }) => { const r = await sandra.fetchDigest(db, { fresh: true }); return { status: r.status, message: r.status === 'ok' ? 'Connected.' : r.message, daysLeft: r.daysLeft ?? null, text: sandra.render(r) }; });
 route('GET', '/api/open-questions', ({ db }) => ({ items: openq.list(db, 'open') }));
 route('POST', '/api/open-questions', ({ db, body }) => { const b = parse(z.object({ question: z.string().min(10).max(300) }), body); const qid = openq.add(db, b.question, { source: 'luke' }); if (!qid) throw bad('That is already on the list, too short, or mentions something you asked me never to store.'); return { id: qid }; });
 route('POST', '/api/open-questions/:id/status', ({ db, params, body }) => { const b = parse(z.object({ status: z.enum(['answered', 'dropped', 'open']), note: z.string().max(300).default('') }), body); return { ok: openq.setStatus(db, params.id, b.status, b.note) }; });

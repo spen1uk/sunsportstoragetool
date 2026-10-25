@@ -257,10 +257,27 @@ export function ConnectionsPage() {
       <div className="glass pad"><table><thead><tr><th>Connection</th><th>Status</th><th>Scopes</th><th>Last sync</th><th>Notes</th></tr></thead>
         <tbody>{(data?.items ?? []).map((c: any) => <tr key={c.id}><td>{c.name}</td><td><span className={`badge ${c.status}`}>{c.status}</span></td><td>{c.scopes || '—'}</td><td>{c.last_sync ? ago(c.last_sync) : '—'}</td><td>{c.note}</td></tr>)}</tbody></table>
         <p className="muted small">Disconnect/reconnect controls arrive with the first real external connection. Nothing here holds credentials today.</p></div>
+      <SandraCard />
       <div className="glass pad section"><h2>Research allow-list</h2>
         {(data?.domains ?? []).length === 0 ? <p className="muted">No domains approved. The first research task naming a domain will ask for your approval.</p> : <ul className="plain">{data.domains.map((d: any) => <li key={d.host}>{d.host} <span className="muted small">added {ago(d.added_at)}</span></li>)}</ul>}</div>
     </section>
   );
+}
+
+
+function SandraCard() {
+  const { data, reload } = useLive<any>(() => api('/api/sandra'), ['connections']);
+  const [url, setUrl] = useState(''), [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null), [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const run = async (fn: () => Promise<string>) => { setBusy(true); setMsg(null); try { setMsg({ ok: true, t: await fn() }); await reload(); } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) }); } setBusy(false); };
+  return (
+    <div className="glass pad section"><h2>Sandra (Sun Sport Marine)</h2>
+      <p className="muted small">Read-only. Jarvis reads one counts-only summary from Sandra and nothing else; he can't change anything in the hub. Address: {data.url ?? 'not set'}. Token: {data.tokenSaved ? 'saved' : 'not saved'}.{data.daysLeft !== null && data.daysLeft <= 14 ? ` Token expires in ${Math.max(data.daysLeft, 0)} days.` : ''}</p>
+      <div className="row wrap"><input className="grow" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:5290" aria-label="Sandra address" maxLength={200} />
+        <button disabled={busy} onClick={() => void run(async () => { await api('/api/sandra/url', 'PUT', { url }); return url ? 'Saved.' : 'Cleared.'; })}>Save address</button>
+        <button className="primary" disabled={busy || !data.url || !data.tokenSaved} onClick={() => void run(async () => (await api('/api/sandra/check', 'POST')).text)}>Check connection</button></div>
+      {!data.tokenSaved && <p className="small warn">Save the token in your terminal (never in this page): <span className="mono">npm run secret:set -- sandra</span></p>}
+      {msg && <pre className={msg.ok ? 'ok small' : 'err small'} role="status" style={{ whiteSpace: 'pre-wrap' }}>{msg.t}</pre>}</div>);
 }
 
 // ---------------- Activity ----------------

@@ -29,6 +29,7 @@ import { summaryMessages, maybeSummarize } from './summary.ts';
 import { asksForPlan, plan as makePlan, wantsPlanTasks, addPlanTasks } from './planner.ts';
 import { chatRating, rate as rateAnswer } from './feedback.ts';
 import * as openq from './openq.ts';
+import { asksDigest, asksSandraFreeForm, FREEFORM_REPLY, fetchDigest, render as renderDigest } from './sandra.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
 /** Memories that match what he said, plus the latest few. Each carries how sure we are: his own words are plain, anything unconfirmed or old is labelled so the model does not state it as fact. Out-of-date and wrong ones are never used. */
@@ -84,6 +85,8 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     if (fb) { const r = rateAnswer(db, null, fb.rating, fb.note); say = !r.ok ? r.error! : fb.rating === 'up' ? 'Glad that landed, sir. Noted.' : `Noted, sir. I've marked that answer as wrong${fb.note ? ' and recorded why' : ''}. If this keeps happening it will show up on the Improvements page.${fb.note ? '' : ' Tell me what was wrong (“that was wrong because …”) and I\'ll record it.'}`; }
     else if (wantsPlanTasks(text)) say = addPlanTasks(db);
     else if (planReq) say = await makePlan(db, planReq);
+    else if (asksSandraFreeForm(text)) say = FREEFORM_REPLY;
+    else if (asksDigest(text)) say = renderDigest(await fetchDigest(db, { fresh: true }));
     else if (/^(?:what(?:'s| is| are)(?: still)? (?:open|unresolved|unanswered)|open questions|what questions are (?:still )?open|what(?:'s| is) left to find out)\??$/i.test(text)) say = openq.describe(db);
     else { const tq = text.match(/^track (?:this|that|the)(?: question)?[:,]?\s+(.{10,300})$/i); if (tq) say = openq.add(db, tq[1], { source: 'luke' }) ? 'Tracking it, sir. It will stay on your open-questions list until you mark it answered.' : 'I couldn\'t track that (it may already be on the list, or be too short).'; }
     if (say) {

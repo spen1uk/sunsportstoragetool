@@ -7,7 +7,7 @@ import { config } from '../config.ts';
  * Server-side secret lookup. Order: environment variable, then data/secrets.json (mode 0600).
  * Nothing here is ever returned by an API route; the UI only learns "configured" or "not configured".
  */
-const ENV: Record<string, string> = { anthropic: 'ANTHROPIC_API_KEY' };
+const ENV: Record<string, string> = { anthropic: 'ANTHROPIC_API_KEY', sandra: 'SANDRA_DIGEST_TOKEN' };
 const file = () => path.join(config.dataDir, 'secrets.json');
 
 /**
