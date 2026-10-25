@@ -39,7 +39,7 @@ test('Anthropic adapter (real SDK): correct request shape, key in header only, u
   try {
     const p = anthropicProvider({ baseURL: s.url, apiKey: 'sk-test-canary-0000000000000000', maxRetries: 0 });
     const r = await p.complete({ model: 'claude-haiku-5-5', system: 'SYS', messages: [{ role: 'user', content: 'hi' }], maxTokens: 50, effort: 'low' });
-    assert.equal(r.text, 'Ready.'); assert.deepEqual(r.usage, { inputTokens: 12, outputTokens: 3, cacheReadTokens: 0 });
+    assert.equal(r.text, 'Ready.'); assert.deepEqual(r.usage, { inputTokens: 12, outputTokens: 3, cacheReadTokens: 0, cacheWriteTokens: 0 });
     const q = s.seen[0]; assert.equal(q.url, '/v1/messages'); assert.equal(q.headers!['x-api-key'], 'sk-test-canary-0000000000000000');
     assert.deepEqual(q.body, { model: 'claude-haiku-5-5', max_tokens: 50, system: 'SYS', messages: [{ role: 'user', content: 'hi' }], output_config: { effort: 'low' } });
     assert.ok(!('thinking' in q.body) && !('temperature' in q.body) && !('tools' in q.body));

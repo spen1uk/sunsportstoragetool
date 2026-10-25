@@ -9,7 +9,9 @@ export const PRICES: Record<string, { in: number; out: number }> = {
 };
 export const UNKNOWN_PRICE = { in: 10, out: 50 };
 export const priceOf = (model: string) => PRICES[model] ?? UNKNOWN_PRICE;
-export const costMicro = (model: string, inTok: number, outTok: number) => { const p = priceOf(model); return Math.ceil(inTok * p.in + outTok * p.out); };
+/** Prompt caching (Anthropic docs, checked 2026-10-25): a cache read costs about a tenth of normal input, a cache write 1.25x (5-minute entries). Input tokens reported by the API exclude both. */
+export const CACHE_READ_MULT = 0.1, CACHE_WRITE_MULT = 1.25;
+export const costMicro = (model: string, inTok: number, outTok: number, cacheReadTok = 0, cacheWriteTok = 0) => { const p = priceOf(model); return Math.ceil(inTok * p.in + outTok * p.out + cacheReadTok * p.in * CACHE_READ_MULT + cacheWriteTok * p.in * CACHE_WRITE_MULT); };
 /** Rough pre-flight token estimate (≈3.5 chars/token, deliberately conservative). */
 export const estTokens = (s: string) => Math.ceil(s.length / 3.5);
 

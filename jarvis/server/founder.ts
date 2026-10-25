@@ -221,7 +221,9 @@ async function finish(db: DB, rid: string, status: 'done' | 'stopped' | 'failed'
   const asking = status === 'done' && /\?/.test(text); if (asking) setMeta(db, 'founder:awaiting', JSON.stringify({ mode: cur.mode, project: cur.project, request: cur.request, at: Date.now() })); else setMeta(db, 'founder:awaiting', '');
   say(db, `${text}${asking ? '\n\nYou can just reply here with your answers (rough numbers are fine, and “I don\'t know” is a fine answer) and I\'ll carry on from where I stopped.' : ''}${status === 'done' && files.length ? `\n\nFiles: ${files.slice(0, 12).join(', ')}${files.length > 12 ? ` and ${files.length - 12} more` : ''}. Say “show founder <file>” to read one.` : ''}`, !!l?.web);
 }
-async function ask(db: DB, rid: string, task: 'analysis' | 'chat', system: string, messages: { role: 'user' | 'assistant'; content: string }[]) { return gw.complete(db, { task, ref: `fpack:${rid}`, system, messages, channel: 'dashboard' }); }
+const ACT_SCHEMA = { type: 'object', properties: { do: { type: 'string', enum: ['read', 'write', 'script', 'agents', 'panel_run', 'search', 'finish'] }, file: { type: 'string' }, content: { type: 'string' }, name: { type: 'string' }, args: { type: 'array', items: { type: 'string' } }, tasks: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, prompt: { type: 'string' }, file: { type: 'string' } }, required: ['name', 'prompt'], additionalProperties: false } }, query: { type: 'string' }, summary: { type: 'string' } }, required: ['do'], additionalProperties: false };
+/** The orchestrator loop re-sends a growing conversation every step, so it asks the API to cache it (reads cost about a tenth). Sub-agents are one-off and do not. */
+async function ask(db: DB, rid: string, task: 'analysis' | 'chat', system: string, messages: { role: 'user' | 'assistant'; content: string }[], o: { loop?: boolean } = {}) { return gw.complete(db, { task, ref: `fpack:${rid}`, system, messages, channel: 'dashboard', ...(o.loop ? { cache: true, schema: ACT_SCHEMA } : {}) }); }
 
 async function run(db: DB, rid: string, mode: ModeId, request: string, project: string, full: boolean, webOk: boolean) {
   const st = live.get(rid)!; const t0 = Date.now(); let steps = 0, cost = 0; const log: string[] = [];
@@ -231,7 +233,8 @@ async function run(db: DB, rid: string, mode: ModeId, request: string, project: 
   while (steps < LIMITS.steps) {
     if (st.stop || isPaused(db) || !live.has(rid)) return void finish(db, rid, 'stopped', 'Stopped. What was written so far is in the working folder.');
     if (cost >= LIMITS.capMicro || Date.now() - t0 > LIMITS.minutes * 60_000) return void finish(db, rid, 'done', `I stopped at my limit (${cost >= LIMITS.capMicro ? 'spending' : 'time'}) to keep it safe. What exists so far is in the working folder; say “continue ${mode}” to carry on.`);
-    const r = await ask(db, rid, 'analysis', system, msgs.slice(-24)); if (!r.ok) return void finish(db, rid, 'failed', `I lost the model part way through (${r.error.slice(0, 120)}). Whatever was written is in the working folder.`);
+    const window = msgs.length > 40 ? [msgs[0], ...msgs.slice(-39)] : msgs;   // the start never moves for the first 20 steps, so the cached prefix stays valid
+    const r = await ask(db, rid, 'analysis', system, window, { loop: true }); if (!r.ok) return void finish(db, rid, 'failed', `I lost the model part way through (${r.error.slice(0, 120)}). Whatever was written is in the working folder.`);
     cost += r.costMicroUsd; steps++; msgs.push({ role: 'assistant', content: r.text.slice(0, 7000) }); const j = jsonOf(r.text); const p = j ? act.safeParse(j) : null;
     if (!p?.success) { out('Reply with exactly one valid JSON action.'); continue; } const a = p.data;
     try {

@@ -1,8 +1,8 @@
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
 export type Effort = 'low' | 'medium' | 'high';
 
-export type CompletionRequest = { model: string; system: string; messages: ChatMessage[]; maxTokens: number; effort?: Effort; webSearch?: { maxUses: number; timezone?: string; allowedDomains?: string[]; blockedDomains?: string[] } };
-export type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens: number };
+export type CompletionRequest = { model: string; system: string; messages: ChatMessage[]; maxTokens: number; effort?: Effort; cache?: boolean; schema?: Record<string, unknown>; webSearch?: { maxUses: number; timezone?: string; allowedDomains?: string[]; blockedDomains?: string[] } };
+export type Usage = { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens?: number };
 export type Source = { url: string; title: string };
 export type Claim = { text: string; cites: { url: string; title: string; citedText: string }[] };
 export type Completion = { text: string; usage: Usage; model: string; stopReason: string; searches?: number; sources?: Source[]; claims?: Claim[]; pageAges?: Record<string, string> };

@@ -19,6 +19,7 @@ import * as deleg from './delegation.ts';
 import { chatDelete as calendarDelete, chatCreate as calendarCreate, directOn as calDirect, applyNow as calApplyNow } from './calendarwrite.ts';
 import { requestApproval } from './approvals.ts';
 import { intentTurn, buildLast, asksCapabilities, CAPABILITIES } from './intent.ts';
+import { testStructured } from './llm/gateway.ts';
 import { wantsDraftOpened, openDraft } from './opener.ts';
 import { chatControl as browserControl } from './browser.ts';
 import { chatControl as founderControl } from './founder.ts';
@@ -87,7 +88,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     }
   }
   if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // "build it" after he was told something can't be done yet; "what can you do"
-    const bl = asksCapabilities(text) ? CAPABILITIES : await buildLast(db, text);
+    const bl = asksCapabilities(text) ? CAPABILITIES : /^test structured (?:answers|output|replies)\.?$/i.test(text) ? await testStructured(db) : await buildLast(db, text);
     if (bl) {
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', bl, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
       return { text: bl, persisted: true, source: 'command', proposals: [] };

@@ -44,7 +44,7 @@ export type Result = { ok: true; text: string; model: string; costMicroUsd: numb
  * Transient failures (rate limit, network, 5xx) and auth failures fall through to the next candidate; refusals and
  * bad requests do not. Every attempt is recorded in llm_usage; the reservation is replaced by actual cost.
  */
-export async function complete(db: DB, o: { task: Task; system: string; messages: ChatMessage[]; strong?: boolean; ref?: string; optional?: boolean; channel?: string; deviceId?: string; webSearch?: { maxUses: number; timezone?: string; allowedDomains?: string[]; blockedDomains?: string[] }; pin?: Candidate }, now = Date.now()): Promise<Result> {
+export async function complete(db: DB, o: { task: Task; system: string; messages: ChatMessage[]; strong?: boolean; ref?: string; optional?: boolean; channel?: string; deviceId?: string; webSearch?: { maxUses: number; timezone?: string; allowedDomains?: string[]; blockedDomains?: string[] }; pin?: Candidate; cache?: boolean; schema?: Record<string, unknown> }, now = Date.now()): Promise<Result> {
   if (isPaused(db)) return { ok: false, kind: 'paused', error: 'Jarvis is paused; no model calls.' };
   const cfg = getConfig(db);
   let route = o.pin ? [o.pin] : effective(db, o.task);
@@ -64,11 +64,14 @@ export async function complete(db: DB, o: { task: Task; system: string; messages
     if (!res.ok) return { ok: false, kind: 'budget', error: res.reason };
     const t0 = Date.now();
     try {
-      const r = await p.complete({ model: c.model, system: o.system, messages: o.messages, maxTokens: c.maxTokens, effort: c.effort, ...(o.webSearch ? { webSearch: o.webSearch } : {}) });
-      const cost = costMicro(c.model, r.usage.inputTokens, r.usage.outputTokens) + (r.searches ?? 0) * SEARCH_MICRO; // price the model we asked for, not whatever alias the provider echoes
+      const useSchema = !!o.schema && structuredOn(db);   // structured answers only after "test structured answers" has passed on the real API
+      const send = (schema?: Record<string, unknown>) => p.complete({ model: c.model, system: o.system, messages: o.messages, maxTokens: c.maxTokens, effort: c.effort, ...(o.cache ? { cache: true } : {}), ...(schema ? { schema } : {}), ...(o.webSearch ? { webSearch: o.webSearch } : {}) });
+      let r; try { r = await send(useSchema ? o.schema : undefined); }
+      catch (e) { if (useSchema && e instanceof LlmError && e.kind === 'bad_request') { setStructured(db, false, `the API rejected a schema: ${e.message.slice(0, 120)}`); r = await send(); } else throw e; }   // never break a working feature over a schema
+      const cost = costMicro(c.model, r.usage.inputTokens, r.usage.outputTokens, r.usage.cacheReadTokens, r.usage.cacheWriteTokens ?? 0) + (r.searches ?? 0) * SEARCH_MICRO; // price the model we asked for, not whatever alias the provider echoes
       settle(db, res.id, cost, `llm:${o.task}`);
-      db.prepare('INSERT INTO llm_usage(at,task,provider,model,input_tokens,output_tokens,cache_read_tokens,cost_micro_usd,ok,ref,channel,device_id,latency_ms) VALUES(?,?,?,?,?,?,?,?,1,?,?,?,?)')
-        .run(now, o.task, c.provider, c.model, r.usage.inputTokens, r.usage.outputTokens, r.usage.cacheReadTokens, cost, o.ref ?? null, o.channel ?? null, o.deviceId ?? null, Date.now() - t0);
+      db.prepare('INSERT INTO llm_usage(at,task,provider,model,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_micro_usd,ok,ref,channel,device_id,latency_ms) VALUES(?,?,?,?,?,?,?,?,?,1,?,?,?,?)')
+        .run(now, o.task, c.provider, c.model, r.usage.inputTokens, r.usage.outputTokens, r.usage.cacheReadTokens, r.usage.cacheWriteTokens ?? 0, cost, o.ref ?? null, o.channel ?? null, o.deviceId ?? null, Date.now() - t0);
       return { ok: true, text: r.text, model: c.model, costMicroUsd: cost, searches: r.searches ?? 0, sources: r.sources ?? [], claims: r.claims ?? [], pageAges: r.pageAges ?? {} };
     } catch (e) {
       releaseReservation(db, res.id);
@@ -89,9 +92,26 @@ export const deviceSpend = (db: DB, deviceId: string, now = Date.now()) => (db.p
 
 export function usageSummary(db: DB, now = Date.now()) {
   const monthStart = monthStartOf(now);
-  const q = (since: number) => db.prepare('SELECT COUNT(*) calls, COALESCE(SUM(cost_micro_usd),0) cost, COALESCE(SUM(input_tokens),0) i, COALESCE(SUM(output_tokens),0) o FROM llm_usage WHERE ok=1 AND at>=?').get(since) as any;
+  const q = (since: number) => db.prepare('SELECT COUNT(*) calls, COALESCE(SUM(cost_micro_usd),0) cost, COALESCE(SUM(input_tokens),0) i, COALESCE(SUM(output_tokens),0) o, COALESCE(SUM(cache_read_tokens),0) cr, COALESCE(SUM(cache_write_tokens),0) cw FROM llm_usage WHERE ok=1 AND at>=?').get(since) as any;
   const byModel = db.prepare('SELECT model, COUNT(*) calls, SUM(cost_micro_usd) cost FROM llm_usage WHERE ok=1 AND at>=? GROUP BY model').all(monthStart);
   const failures = (db.prepare('SELECT COUNT(*) c FROM llm_usage WHERE ok=0 AND at>=?').get(monthStart) as any).c;
   const byChannel = db.prepare("SELECT COALESCE(channel,'system') channel, COUNT(*) calls, SUM(cost_micro_usd) cost FROM llm_usage WHERE ok=1 AND at>=? GROUP BY 1 ORDER BY cost DESC").all(monthStart);
   return { today: q(dayStart(now)), month: q(monthStart), byModel, byChannel, failures };
+}
+
+// ---------- structured answers (the API forces the reply into a JSON shape) ----------
+/** Off until `test structured answers` succeeds against the real API; switched off again, once, if the API ever rejects a schema. */
+export const structuredOn = (db: DB) => getMeta(db, 'llm:structured') === '1';
+export function setStructured(db: DB, on: boolean, why: string) { setMeta(db, 'llm:structured', on ? '1' : '0'); audit(db, on ? 'luke' : 'system', 'llm.structured', on ? 'on' : 'off', { why }); }
+const TEST_SCHEMA = { type: 'object', properties: { ok: { type: 'boolean' }, word: { type: 'string' } }, required: ['ok', 'word'], additionalProperties: false };
+/** One tiny, cheap call that proves the real API accepts and obeys a schema. Turns structured answers on when it does. */
+export async function testStructured(db: DB, now = Date.now()): Promise<string> {
+  if (!ready(db, 'chat')) return 'I need a model connected to test this.';
+  setMeta(db, 'llm:structured', '1');   // the test call must actually send the schema
+  const r = await complete(db, { task: 'chat', ref: 'structured-test', system: 'Reply with the JSON object the schema asks for: ok true and word "ready".', messages: [{ role: 'user', content: 'Go.' }], schema: TEST_SCHEMA }, now);
+  if (!r.ok) { setStructured(db, false, `test failed: ${r.error.slice(0, 100)}`); return `The test call failed (${r.error.slice(0, 120)}), so structured answers stay off.`; }
+  let j: any = null; try { j = JSON.parse(r.text); } catch { /* not JSON */ }
+  const exact = structuredOn(db) && !!j && j.ok === true && typeof j.word === 'string' && Object.keys(j).length === 2;   // still on = the API did not reject the schema
+  setStructured(db, exact, exact ? 'test passed' : 'reply did not match the schema');
+  return exact ? `Structured answers work on the real API (the reply was exactly the shape asked for), so they are now on for calendar, founder and browser steps. They switch themselves off if the API ever rejects one. The test cost about $${(r.costMicroUsd / 1e6).toFixed(4)}.` : 'The API did not give the exact shape (or rejected the schema), so structured answers stay off. Nothing else changes.';
 }
