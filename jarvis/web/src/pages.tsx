@@ -249,6 +249,18 @@ function RecentlyLearned() {
     </div>
   );
 }
+function DocumentsCard() {
+  const { data, reload } = useLive<any>(() => api('/api/documents'), ['documents']); const a = useAction(); const [msg, setMsg] = useState('');
+  const pick = (f: File | undefined) => { if (!f) return; setMsg(''); void a.run(async () => { const buf = new Uint8Array(await f.arrayBuffer()); let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000)); const r = await api('/api/documents', 'POST', { name: f.name, data: btoa(bin) }); setMsg(r.message); reload(); }); };
+  return (
+    <div className="glass pad section"><h2>Documents</h2><Err m={a.err} />
+      <p className="muted small">Give me a PDF, Word, Excel, PowerPoint, text or CSV file (up to 10 MB), then ask in chat: “summarise the service guide” or “what does the service guide say about heated storage”. I keep only the text, never the file, and it never goes to a web search. Scans and screenshots (pictures of text) can't be read yet.</p>
+      <input type="file" aria-label="Add a document" accept=".pdf,.docx,.xlsx,.pptx,.txt,.md,.csv,.html,.htm" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
+      {msg && <p className="ok small" role="status">{msg}</p>}
+      {(data?.items ?? []).length > 0 && <ul className="plain">{data.items.map((d: any) => <li key={d.id} className="row wrap"><span className="grow">{d.name} <span className="muted small">{d.kind.toUpperCase()} · {d.units} {d.units === 1 ? 'part' : 'parts'} · {ago(new Date(d.created_at).toISOString())}</span></span><button className="danger" onClick={() => a.run(() => api(`/api/documents/${d.id}`, 'DELETE').then(reload))}>Forget</button></li>)}</ul>}
+    </div>
+  );
+}
 export function MemoryPage() {
   const { data, reload } = useLive<any[]>(() => api('/api/memory'), ['memory']);
   const [text, setText] = useState(''), [edit, setEdit] = useState<{ id: string; v: string } | null>(null); const a = useAction();
@@ -260,6 +272,7 @@ export function MemoryPage() {
       <p className="muted small">Secrets, passwords and codes are refused. “Forget” deletes the record outright; database backups age out per the retention note in docs/THREAT_MODEL.md. Suggested memories below come from your saved chats and only become memories when you accept them.</p>
       <MemoryReviews />
       <RecentlyLearned />
+      <DocumentsCard />
       <MemorySuggestions />
       <div className="glass pad section"><ul className="plain">
         {(data ?? []).map((m) => (

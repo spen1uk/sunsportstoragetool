@@ -29,6 +29,7 @@ import { summaryMessages, maybeSummarize } from './summary.ts';
 import { asksForPlan, plan as makePlan, wantsPlanTasks, addPlanTasks } from './planner.ts';
 import { chatRating, rate as rateAnswer } from './feedback.ts';
 import * as openq from './openq.ts';
+import * as docs from './documents.ts';
 import { learnFrom, describeLearned, forgetJustLearned, setAutoLearn } from './autolearn.ts';
 import { asksDigest, asksSandraFreeForm, FREEFORM_REPLY, fetchDigest, render as renderDigest } from './sandra.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
@@ -90,6 +91,8 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     else if (/^forget (?:what you (?:just )?learn(?:ed|t)|that you (?:just )?learn(?:ed|t)|what you just picked up)\.?$/i.test(text)) { const n = forgetJustLearned(db); say = n ? `Done, sir. I've forgotten the ${n === 1 ? 'one thing' : n + ' things'} I picked up in the last half hour.` : 'There was nothing I\'d picked up on my own in the last half hour, sir.'; }
     else if (/^(?:stop|turn off|switch off|disable) (?:automatic(?:ally)? (?:learning|memory|remembering)|learning (?:things )?(?:automatically|on your own)|remembering (?:things )?(?:automatically|on your own))\.?$/i.test(text)) { setAutoLearn(db, false); say = 'Understood, sir. I\'ll only remember what you tell me to. Say "start learning automatically" to switch it back on.'; }
     else if (/^(?:start|turn on|switch on|enable|resume) (?:automatic(?:ally)? (?:learning|memory|remembering)|learning (?:things )?(?:automatically|on your own)|remembering (?:things )?(?:automatically|on your own))\.?$/i.test(text)) { setAutoLearn(db, true); say = 'Very good, sir. I\'ll write down lasting things you tell me, and you can review or forget them on the Memory page.'; }
+    else if (/^(?:what|which) documents(?: do (?:you|i) have| have i (?:given|added|uploaded)(?: you)?)?\??$|^list (?:my )?documents\.?$/i.test(text)) say = docs.describe(db);
+    else if (docs.list(db).length && documentRequest(db, text)) say = await documentRequest(db, text)!();
     else if (asksSandraFreeForm(text)) say = FREEFORM_REPLY;
     else if (asksDigest(text)) say = renderDigest(await fetchDigest(db, { fresh: true }));
     else if (/^(?:what(?:'s| is| are)(?: still)? (?:open|unresolved|unanswered)|open questions|what questions are (?:still )?open|what(?:'s| is) left to find out)\??$/i.test(text)) say = openq.describe(db);
@@ -227,6 +230,20 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   } finally { publish({ type: 'thinking', on: false }); }
 }
 
+
+/** Plain-words requests about the documents he gave me. Returns what to do, or null if the sentence is not about a document. */
+function documentRequest(db: DB, text: string): (() => Promise<string>) | null {
+  const t = text.trim().replace(/[?.!]+$/, '');
+  let m = t.match(/^forget (?:the )?(?:document|doc|file)\s+(.+)$/i);
+  if (m) return async () => { const d = docs.find(db, m![1]); return d && docs.remove(db, d.id) ? `Done, sir. I've forgotten "${d.name}".` : 'I don\'t have a document by that name, sir.'; };
+  m = t.match(/^(?:summari[sz]e|sum up|give me (?:a )?summary of|what(?:'s| is) in)\s+(?:the |my |this |that )?(?:document|doc|file|pdf|spreadsheet|sheet|presentation)?\s*(.*)$/i);
+  if (m) { const d = docs.find(db, m[1] || 'it'); const named = !!m[1] && !/^(?:it|this|that|one)$/i.test(m[1].trim()); if (d && (named || /\b(document|doc|file|pdf|spreadsheet|presentation)\b/i.test(t))) return () => docs.summarise(db, d); }
+  m = t.match(/^what does (?:the |my )?(.+?) say (?:about|on|regarding)\s+(.+)$/i);
+  if (m) { const d = docs.find(db, m[1]); if (d) return () => docs.ask(db, m![2], d.id); }
+  m = t.match(/^(?:in|according to|from) (?:the |my )?(.+?),\s*(.+)$/i);
+  if (m) { const d = docs.find(db, m[1]); if (d) return () => docs.ask(db, m![2], d.id); }
+  return null;
+}
 
 /** A deliberate "search: …" turn: walled off from private data and from actions (see websearch.ts). */
 async function webTurn(db: DB, text: string, query: string, o: { private: boolean; channel?: string; brief?: boolean; deviceId?: string }): Promise<ChatReply> {
