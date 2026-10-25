@@ -525,3 +525,16 @@ test('over HTTP: the Jarvis browser page needs a session, Stop works, forgetting
     const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; assert.ok([401, 404].includes((await t.api('/api/browser', { headers: { authorization: `Bearer ${token}` } })).status));
   } finally { B.setDriver(null); t.close(); }
 });
+
+test('over HTTP: memory decisions need a session; Luke can settle a conflict and mark a memory out of date; a device key reaches none of it', async () => {
+  const t = await boot();
+  try {
+    const M = await import('../memory.ts'); M.remember(t.db, 'Winter storage for a 25 ft boat costs $1,650 at the shop', { source: 't' }); const b = M.remember(t.db, 'Winter storage for a 25 ft boat costs $1,750 at the shop', { source: 't' }) as any;
+    assert.equal((await t.api('/api/memory/reviews')).status, 401); const j = await (await t.api('/api/memory/reviews', { headers: t.me })).json() as any; assert.equal(j.items.length, 1);
+    assert.equal((await t.api(`/api/memory/reviews/${j.items[0].id}/resolve`, { method: 'POST', headers: t.me, body: { action: 'nonsense' } })).status, 400);
+    assert.equal(((await (await t.api(`/api/memory/reviews/${j.items[0].id}/resolve`, { method: 'POST', headers: t.me, body: { action: 'replace' } })).json()) as any).ok, true);
+    assert.equal(((await (await t.api(`/api/memory/${b.id}/status`, { method: 'PUT', headers: t.me, body: { status: 'historical' } })).json()) as any).ok, true); assert.equal((await t.api(`/api/memory/${b.id}/status`, { method: 'PUT', headers: t.me, body: { status: 'bogus' } })).status, 400);
+    const { token } = await (await t.api('/api/devices', { method: 'POST', headers: t.me, body: { name: 'Car', kind: 'car' } })).json() as any; // devices need a fresh step-up, so this may be refused; either way the memory routes stay closed to a key
+    if (token) assert.ok([401, 404].includes((await t.api('/api/memory/reviews', { headers: { authorization: `Bearer ${token}` } })).status));
+  } finally { t.close(); }
+});

@@ -318,6 +318,9 @@ route('POST', '/api/memory', ({ db, body }) => {
   const r = memory.remember(db, b.content, { source: 'dashboard', scope: b.scope }); if (!r.ok) throw bad(r.error); return r;
 });
 route('PATCH', '/api/memory/:id', ({ db, params, body }) => { const r = memory.update(db, params.id, parse(z.object({ content: z.string().min(1).max(1000) }), body).content); if (!r.ok) throw bad(r.error); return r; });
+route('GET', '/api/memory/reviews', ({ db }) => ({ items: memory.listReviews(db) }));
+route('POST', '/api/memory/reviews/:id/resolve', ({ db, params, body }) => ({ ok: memory.resolveReview(db, params.id, parse(z.object({ action: z.enum(['replace', 'keep_both', 'drop_new']) }), body).action) }));
+route('PUT', '/api/memory/:id/status', ({ db, params, body }) => ({ ok: memory.setStatus(db, params.id, parse(z.object({ status: z.enum(memory.STATUSES) }), body).status) }));
 route('DELETE', '/api/memory/:id', ({ db, params }) => ({ ok: memory.forget(db, params.id) }));
 
 // ---- today: briefing, recap, overnight, contact mode, notifications ----

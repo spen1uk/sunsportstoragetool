@@ -106,7 +106,7 @@ async function doAction(db: DB, action: z.infer<typeof ID>, v: any, text: string
     switch (action) {
       case 'task': createTask(db, { title: v.title, kind: 'manual' }); return `Added to your tasks: “${v.title}”.`;
       case 'goal': goals.create(db, { title: v.title, why: v.why, targetDate: v.targetDate }); return `Done. I've started a goal: “${v.title}”${v.targetDate ? `, aiming for ${v.targetDate}` : ''}. You can add milestones on the Goals page.`;
-      case 'remember': { const m = memory.remember(db, v.text, { source: 'chat' }); return m.ok ? 'Noted. You can review it on the Memory page.' : m.error; }
+      case 'remember': { const m = memory.remember(db, v.text, { source: 'chat' }); return m.ok ? memory.describeSaved(m) : m.error; }
       case 'build': { const b = await briefs.draftFrom(db, v.request, v.repo); return `I've written a brief for Claude Code: “${b.title ?? 'your build'}”. Open the Integrations page to review it, then copy it into Claude Code on your Mac. I can't launch Claude Code myself.`; }
       case 'research': { const why = webGate(db, { channel: o.channel }); if (why) return why; startDeep(db, v.question, 'deep'); return `On it. I've started proper research on that. It runs within a $${(getDefaults(db).deepMicro / 1e6).toFixed(2)} limit and the write-up will be in Ready for Review.`; }
       case 'delegate': { const d = deleg.delegate(db, { request: v.request }); return d.agent.agentId === 'prometheus' ? `Handed to Prometheus (${d.agent.why}), within a $${(deleg.DEFAULT_CAP / 1e6).toFixed(2)} limit. I'll check what comes back before you see it.` : `${d.agent.why} I've put it on your task list.`; }

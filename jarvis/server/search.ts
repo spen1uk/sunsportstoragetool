@@ -16,7 +16,7 @@ const ms = (v: string | number | null) => (v == null ? null : typeof v === 'numb
 
 type Src = { kind: string; sql: string; cols: string[]; title: string; body: string[]; id: string; at: string; link: (r: any) => string; where?: string };
 const SOURCES: Src[] = [
-  { kind: 'memory', sql: 'FROM memories WHERE superseded_by IS NULL', cols: ['content'], title: 'content', body: ['content'], id: 'id', at: 'created_at', link: () => '#/memory' },
+  { kind: 'memory', sql: 'FROM memories WHERE superseded_by IS NULL AND status NOT IN (\'historical\',\'disproven\')', cols: ['content'], title: 'content', body: ['content'], id: 'id', at: 'created_at', link: () => '#/memory' },
   { kind: 'task', sql: "FROM tasks WHERE kind='manual' AND is_demo=0", cols: ['title', 'description'], title: 'title', body: ['description', 'title'], id: 'id', at: 'updated_at', link: () => '#/tasks' },
   { kind: 'research', sql: "FROM tasks WHERE kind='research' AND is_demo=0", cols: ['title', 'description'], title: 'title', body: ['description', 'title'], id: 'id', at: 'updated_at', link: (r) => `#/research/${r.id}` },
   { kind: 'research', sql: 'FROM evidence', cols: ['claim', 'cited_text', 'source_title'], title: 'claim', body: ['cited_text', 'claim'], id: 'task_id', at: 'retrieved_at', link: (r) => `#/research/${r.task_id}` },

@@ -69,7 +69,7 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
   if ((m = text.match(/^remember(?: that)?\s+(.+)$/i))) {
     if (priv) return reply('Private mode does not write memory, sir.');
     const r = memory.remember(db, m[1], { source: 'chat' });
-    return reply(r.ok ? 'Noted, sir. You can review or correct it on the Memory page.' : r.error);
+    return reply(r.ok ? memory.describeSaved(r) : r.error);
   }
   if ((m = text.match(/^forget\s+(.+)$/i))) {
     if (priv) return reply('Private mode does not modify memory, sir.');

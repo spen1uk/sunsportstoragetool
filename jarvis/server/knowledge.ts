@@ -90,7 +90,7 @@ export function applyExclusion(db: DB, pattern: string, note = '') {
   let removed = 0;
   for (const e of listEntities(db)) if (ex.isExcluded(db, textOf(e))) { forgetEntity(db, e.id); removed++; }
   db.prepare('SELECT id,note FROM edges').all().forEach((e: any) => { if (ex.isExcluded(db, e.note)) db.prepare('DELETE FROM edges WHERE id=?').run(e.id); });
-  const mems = (db.prepare('SELECT id,content FROM memories WHERE superseded_by IS NULL').all() as { id: string; content: string }[]).filter((m) => m.content.toLowerCase().includes(pattern.trim().toLowerCase())).length;
+  const mems = (db.prepare('SELECT id,content FROM memories WHERE superseded_by IS NULL AND status NOT IN (\'historical\',\'disproven\')').all() as { id: string; content: string }[]).filter((m) => m.content.toLowerCase().includes(pattern.trim().toLowerCase())).length;
   return { ok: true as const, id: r.id, entitiesRemoved: removed, memoriesMatching: mems };
 }
 
@@ -132,7 +132,7 @@ export function refresh(db: DB) {
     db.prepare("DELETE FROM edges WHERE origin='derived' AND rel IN ('related_to','mentions')").run();
     const ents = listEntities(db).filter((e) => e.name.length >= 3 && !['agent', 'mission', 'source', 'file', 'decision'].includes(e.kind));   // agent names like "Research" are common words; they are not matched against free text
     const pats = ents.map((e) => ({ e, res: [e.name, ...e.aliases].filter((n) => n.length >= 3).map(wordRe) }));
-    const mems = db.prepare('SELECT id,content FROM memories WHERE superseded_by IS NULL').all() as { id: string; content: string }[];
+    const mems = db.prepare('SELECT id,content FROM memories WHERE superseded_by IS NULL AND status NOT IN (\'historical\',\'disproven\')').all() as { id: string; content: string }[];
     const tasks = db.prepare("SELECT id,title,description FROM tasks WHERE kind='manual' AND owner='luke' AND is_demo=0 AND state NOT IN ('completed','canceled')").all() as { id: string; title: string; description: string }[];
     const ins = db.prepare("INSERT OR IGNORE INTO entity_links(entity_id,kind,ref_id,origin,created_at) VALUES(?,?,?,'derived',?)");
     const pairs = new Map<string, number>(); let links = 0;
@@ -304,7 +304,7 @@ export function applyRetention(db: DB, nowMs = Date.now()) {
   const r = getRetention(db), c = cutoffs(r, nowMs);
   return atomic(db, () => {
     const out = { messages: 0, research: 0, missions: 0 };
-    if (c.messages) out.messages = Number(db.prepare('DELETE FROM messages WHERE at<?').run(c.messages).changes);
+    if (c.messages) { out.messages = Number(db.prepare('DELETE FROM messages WHERE at<?').run(c.messages).changes); if (out.messages) db.prepare('DELETE FROM conversation_summary WHERE id=1').run(); }   // a summary must not outlive the messages it came from
     if (c.research) out.research = Number(db.prepare('DELETE FROM research_results WHERE created_at<?').run(c.research).changes);
     if (c.missions) {
       const old = (db.prepare("SELECT id FROM missions WHERE status IN ('done','stopped','failed') AND COALESCE(finished_at,updated_at)<?").all(c.missions) as { id: string }[]).map((m) => m.id);

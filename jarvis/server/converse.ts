@@ -24,13 +24,16 @@ import { wantsDraftOpened, openDraft } from './opener.ts';
 import { chatControl as browserControl } from './browser.ts';
 import { chatControl as founderControl } from './founder.ts';
 import { mentions as chatMentions } from './chatimport.ts';
+import { ACTIVE } from './memory.ts';
+import { summaryMessages, maybeSummarize } from './summary.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
+/** Memories that match what he said, plus the latest few. Each carries how sure we are: his own words are plain, anything unconfirmed or old is labelled so the model does not state it as fact. Out-of-date and wrong ones are never used. */
 function relevantMemories(db: DB, text: string): string[] {
-  const rows = new Map<string, string>();
+  const rows = new Map<string, string>(); const tag = (m: any) => `${m.content}${m.status === 'unverified' ? ' (unconfirmed)' : m.status === 'preference' ? ' (a preference)' : ''}${Date.now() - Date.parse(m.created_at) > 365 * 86_400_000 && m.status !== 'confirmed' ? ' (saved over a year ago, may be out of date)' : ''}`;
   for (const k of keywords(text).slice(0, 6))
-    for (const m of db.prepare("SELECT id, content FROM memories WHERE superseded_by IS NULL AND content LIKE ? ESCAPE '\\' LIMIT 3").all(`%${k.replace(/[\\%_]/g, '')}%`) as any[]) rows.set(m.id, m.content);
-  for (const m of db.prepare('SELECT id, content FROM memories WHERE superseded_by IS NULL ORDER BY created_at DESC LIMIT 4').all() as any[]) rows.set(m.id, m.content);
+    for (const m of db.prepare(`SELECT id, content, status, created_at FROM memories WHERE ${ACTIVE} AND content LIKE ? ESCAPE '\\' LIMIT 3`).all(`%${k.replace(/[\\%_]/g, '')}%`) as any[]) rows.set(m.id, tag(m));
+  for (const m of db.prepare(`SELECT id, content, status, created_at FROM memories WHERE ${ACTIVE} ORDER BY created_at DESC LIMIT 4`).all() as any[]) rows.set(m.id, tag(m));
   return [...rows.values()].slice(0, 8);
 }
 
@@ -174,7 +177,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   }
 
   const strong = /^deep:\s*/i.test(text); const prompt = text.replace(/^deep:\s*/i, '');
-  const messages: ChatMessage[] = [...(priv ? [] : history(db)), { role: 'user', content: prompt }];
+  const messages: ChatMessage[] = [...(priv ? [] : [...summaryMessages(db), ...history(db)]), { role: 'user', content: prompt }];
   publish({ type: 'thinking', on: true });
   try {
     const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt), context: priv ? undefined : buildContext(db, Date.now(), o.channel ?? 'dashboard'), proposals: !priv, brief: o.brief }), messages, strong, channel: o.channel ?? 'dashboard', deviceId: o.deviceId });
@@ -188,6 +191,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     if (!priv) {
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard');
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+      void maybeSummarize(db);   // folds older turns into the running summary, off the critical path
       publish({ type: 'chat' });
     }
     return { text: reply, persisted: !priv, source: r.ok ? 'model' : 'command', model: r.ok ? r.model : undefined, costMicroUsd: r.ok ? r.costMicroUsd : 0, proposals };

@@ -209,6 +209,22 @@ export function ApprovalsPage() {
 }
 
 // ---------------- Memory ----------------
+const STATUS_LABEL: Record<string, string> = { stated: 'you said it', confirmed: 'confirmed by you', preference: 'a preference', unverified: 'unconfirmed', historical: 'out of date (not used)', disproven: 'wrong (not used)' };
+/** Memories that may contradict each other: only you can say which is right. */
+function MemoryReviews() {
+  const { data, reload } = useLive<any>(() => api('/api/memory/reviews'), ['memory']); const a = useAction(); const items = data?.items ?? [];
+  if (!items.length) return null;
+  return (
+    <div className="glass pad section"><h2>Needs your decision</h2><Err m={a.err} />
+      <p className="muted small">A new memory may disagree with an older one. Until you decide, both are used.</p>
+      <ul className="plain">{items.map((r: any) => (
+        <li key={r.id}><div><b>Newer:</b> {r.newer.content}</div><div><b>Earlier:</b> {r.earlier.content}</div><div className="muted small">Why I flagged it: {r.reason}</div>
+          <div className="row wrap"><button className="primary" onClick={() => a.run(() => api(`/api/memory/reviews/${r.id}/resolve`, 'POST', { action: 'replace' }).then(reload))}>Newer is right (replace the earlier)</button>
+            <button onClick={() => a.run(() => api(`/api/memory/reviews/${r.id}/resolve`, 'POST', { action: 'keep_both' }).then(reload))}>Both are true</button>
+            <button className="danger" onClick={() => a.run(() => api(`/api/memory/reviews/${r.id}/resolve`, 'POST', { action: 'drop_new' }).then(reload))}>Earlier is right (forget the newer)</button></div></li>))}</ul>
+    </div>
+  );
+}
 export function MemoryPage() {
   const { data, reload } = useLive<any[]>(() => api('/api/memory'), ['memory']);
   const [text, setText] = useState(''), [edit, setEdit] = useState<{ id: string; v: string } | null>(null); const a = useAction();
@@ -218,13 +234,14 @@ export function MemoryPage() {
         <input className="grow" value={text} onChange={(e) => setText(e.target.value)} placeholder="Remember…" maxLength={1000} /><button className="primary" disabled={!text.trim()}>Remember</button>
       </form>
       <p className="muted small">Secrets, passwords and codes are refused. “Forget” deletes the record outright; database backups age out per the retention note in docs/THREAT_MODEL.md. Suggested memories below come from your saved chats and only become memories when you accept them.</p>
+      <MemoryReviews />
       <MemorySuggestions />
       <div className="glass pad section"><ul className="plain">
         {(data ?? []).map((m) => (
           <li key={m.id} className={m.superseded_by ? 'dim' : ''}>
             {edit && edit.id === m.id ? <form className="row" onSubmit={(e) => { e.preventDefault(); void a.run(async () => { await api(`/api/memory/${m.id}`, 'PATCH', { content: edit.v }); setEdit(null); reload(); }); }}><input className="grow" value={edit.v} onChange={(e) => setEdit({ id: m.id, v: e.target.value })} /><button className="primary">Save correction</button><button type="button" onClick={() => setEdit(null)}>Cancel</button></form> : (
-              <div className="row wrap"><div className="grow">{m.content}<div className="muted small">{m.scope} · source: {m.source} · confidence {m.confidence} · {ago(m.created_at)}{m.superseded_by ? ' · superseded by a correction' : ''}</div></div>
-                {!m.superseded_by && <button onClick={() => setEdit({ id: m.id, v: m.content })}>Correct</button>}<button className="danger" onClick={() => a.run(() => api(`/api/memory/${m.id}`, 'DELETE').then(reload))}>Forget</button></div>)}
+              <div className="row wrap"><div className="grow">{m.content}<div className="muted small">{m.scope} · source: {m.source} · {STATUS_LABEL[m.status] ?? m.status} · confidence {m.confidence} · {ago(m.created_at)}{m.superseded_by ? ' · superseded by a correction' : ''}</div></div>
+                {!m.superseded_by && m.status !== 'historical' && m.status !== 'disproven' && <><button onClick={() => a.run(() => api(`/api/memory/${m.id}/status`, 'PUT', { status: 'confirmed' }).then(reload))}>Still true</button><button onClick={() => a.run(() => api(`/api/memory/${m.id}/status`, 'PUT', { status: 'historical' }).then(reload))}>Out of date</button><button onClick={() => a.run(() => api(`/api/memory/${m.id}/status`, 'PUT', { status: 'disproven' }).then(reload))}>Wrong</button></>}{!m.superseded_by && <button onClick={() => setEdit({ id: m.id, v: m.content })}>Correct</button>}<button className="danger" onClick={() => a.run(() => api(`/api/memory/${m.id}`, 'DELETE').then(reload))}>Forget</button></div>)}
           </li>))}
         {(data ?? []).length === 0 && <li className="muted">Nothing remembered yet.</li>}
       </ul></div>
