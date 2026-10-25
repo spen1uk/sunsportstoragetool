@@ -10,7 +10,7 @@ import type { ChatMessage } from './llm/types.ts';
 import { extractProposals, createProposals } from './proposals.ts';
 import { autoRun } from './standing.ts';
 import { getDefaults } from './missionbudget.ts';
-import { parseWebRequest, looksLikeWebQuestion, needsWebModel, isQuestionLike, pendingOffer, clearOffer, saysYes, asksForSources, lastSources, ask as askWeb, gate as webGate } from './websearch.ts';
+import { parseWebRequest, looksLikeWebQuestion, needsWebModel, isQuestionLike, pendingOffer, clearOffer, saysYes, asksForSources, lastSources, ask as askWeb, gate as webGate, isMixedAsk } from './websearch.ts';
 import { startDeep } from './deepresearch.ts';
 import { describe as knowDescribe } from './knowledge.ts';
 import { describeForChat as searchReply } from './search.ts';
@@ -194,11 +194,16 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     }
   }
 
+  let webNote = '';   // "the weather tomorrow and what's on my calendar": the outside part is looked up (walled off from his data), the rest comes from his own data, and one reply covers both
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && isMixedAsk(text) && !webGate(db, { channel: o.channel ?? 'dashboard' })) {
+    const w = await askWeb(db, text.replace(/\b(?:my|our)\s+(?:calendar|schedule|tasks?|to-?dos?|day|week)\b/gi, 'the day'), { channel: o.channel ?? 'dashboard', deviceId: o.deviceId, brief: true, private: false, history: [] });
+    if (w.ok) webNote = w.text;
+  }
   const strong = /^deep:\s*/i.test(text); const prompt = text.replace(/^deep:\s*/i, '');
   const messages: ChatMessage[] = [...(priv ? [] : [...summaryMessages(db), ...history(db)]), { role: 'user', content: prompt }];
   publish({ type: 'thinking', on: true });
   try {
-    const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt), context: priv ? undefined : buildContext(db, Date.now(), o.channel ?? 'dashboard'), proposals: !priv, brief: o.brief }), messages, strong, channel: o.channel ?? 'dashboard', deviceId: o.deviceId });
+    const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt), context: priv ? undefined : buildContext(db, Date.now(), o.channel ?? 'dashboard'), proposals: !priv, brief: o.brief, channel: o.channel ?? 'dashboard', web: webNote }), messages, strong, channel: o.channel ?? 'dashboard', deviceId: o.deviceId });
     const raw = r.ok ? r.text.trim() || '…' : `I couldn't reach a language model just now, sir (${r.error}). Command mode is still available: type "help".`;
     // The model may PROPOSE actions; they become Confirm cards and do nothing until Luke clicks. In private mode nothing is stored, so proposals are dropped.
     const ex = r.ok ? extractProposals(raw) : { text: raw, actions: [], dropped: 0 };

@@ -35,7 +35,7 @@ test('web search: a search turn sees nothing private, cannot propose actions, an
   assert.doesNotMatch(req.system, /Secret marina|teal|CURRENT STATE|WHAT YOU KNOW/, 'no private context');
   assert.equal(req.webSearch?.maxUses, 3); assert.match(req.model, /sonnet/);
   assert.equal(r.proposals?.length, 0); assert.equal((db.prepare("SELECT COUNT(*) c FROM tasks WHERE title='pwned'").get() as any).c, 0); assert.equal((db.prepare('SELECT COUNT(*) c FROM proposals').get() as any).c, 0);
-  assert.doesNotMatch(r.text, /ACTIONS|From the internet|https|espn|dig deeper/i, 'no links, no site names, no boilerplate unless asked');
+  assert.doesNotMatch(r.text, /ACTIONS|From the internet|dig deeper|insecure|evil|javascript|<b>|pw@/i, 'no boilerplate, and only clean https sources'); assert.match(r.text, /Sources:\n1\. Bears beat Vikings \(espn\.com\) https:\/\/www\.espn\.com\/nfl\/game\/1/, 'the guide: researched answers cite name plus link');
   const src = await converse(db, 'where did you get that?'); assert.equal(src.source, 'command'); assert.match(src.text, /1\. Bears beat Vikings \(espn\.com\) https:\/\/www\.espn\.com\/nfl\/game\/1/); assert.doesNotMatch(src.text, /insecure|evil|javascript|<b>|pw@/); assert.equal(calls.length, 1, 'showing sources costs nothing and asks no model');
   assert.ok((r.costMicroUsd ?? 0) >= 2 * 10_000, 'each search is paid for');
 });
@@ -85,7 +85,7 @@ test('everyday web questions are answered from the web without "search:", seeing
 test('web answers read like a person: markdown and headings are removed; asking for sources works before anything was searched and in several phrasings', async () => {
   const db = makeDb(); on(db); assert.match((await converse(db, 'sources')).text, /haven't looked anything up/);
   fake('## Weather\n**Sunny** and 62°F in West Allis today.', { searches: 1, sources: [{ url: 'https://www.weather.gov/mkx', title: 'NWS Milwaukee' }] });
-  const r = await converse(db, "what's the weather in West Allis"); assert.match(r.text, /Sunny and 62°F in West Allis today\./); assert.doesNotMatch(r.text, /\*\*|#|weather\.gov|NWS/);
+  const r = await converse(db, "what's the weather in West Allis"); assert.match(r.text, /Sunny and 62°F in West Allis today\./); assert.doesNotMatch(r.text, /\*\*|#/); assert.match(r.text, /Sources:\n1\. NWS Milwaukee \(weather\.gov\)/);
   for (const q of ['sources', 'Show me the links', 'where did you find that', 'how do you know?']) assert.match((await converse(db, q)).text, /weather\.gov/, q);
   const { asksForSources } = await import('../websearch.ts'); for (const t of ['tell me about sources of income', 'links in my notes', 'add a task about sources']) assert.equal(asksForSources(t), false, t);
 });

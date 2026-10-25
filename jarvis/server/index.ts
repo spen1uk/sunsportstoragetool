@@ -22,6 +22,8 @@ import { maybeApplyRetention } from './knowledge.ts';
 import { syncCalendar, sources } from './calendar.ts';
 import { syncNotes } from './notes.ts';
 import { isMac } from './mac.ts';
+import { backupSavedPersona } from './persona.ts';
+import path from 'node:path';
 import { bus } from './events.ts';
 import { startHeartbeat } from './heartbeat.ts';
 
@@ -30,6 +32,7 @@ sweepEvals(db, Date.now() + 600_001);
 sweepFoundry(db, Date.now() + 601_000);
 sweepBrowser(db); sweepFounderRuns(db);   // an evaluation cannot survive a restart
 seedStructure(db);
+try { backupSavedPersona(db, path.join(config.dataDir, 'backups')); } catch { /* a backup problem must never stop Jarvis starting */ }
 backfillCategories(db);
 if (!isConfigured(db)) { console.error('Not set up yet. Run: npm run setup'); process.exit(1); }
 if (config.host !== '127.0.0.1' && config.host !== 'localhost') console.warn('WARNING: binding to a non-loopback address. Put TLS and a reverse proxy in front; never expose this port directly.');
