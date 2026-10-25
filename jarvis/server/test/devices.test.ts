@@ -538,3 +538,18 @@ test('over HTTP: memory decisions need a session; Luke can settle a conflict and
     if (token) assert.ok([401, 404].includes((await t.api('/api/memory/reviews', { headers: { authorization: `Bearer ${token}` } })).status));
   } finally { t.close(); }
 });
+
+test('over HTTP: rating an answer and the open-questions list need a session; ratings show on the chat list; a device key reaches none of it', async () => {
+  const t = await boot();
+  try {
+    const mid = Number(t.db.prepare("INSERT INTO messages(role,content,at,channel,web) VALUES('jarvis','An answer',?, 'dashboard', 0)").run(new Date().toISOString()).lastInsertRowid);
+    assert.equal((await t.api(`/api/chat/${mid}/feedback`, { method: 'POST', body: { rating: 'down' } })).status, 401);
+    assert.equal((await t.api(`/api/chat/${mid}/feedback`, { method: 'POST', headers: t.me, body: { rating: 'meh' } })).status, 400); assert.equal((await t.api(`/api/chat/99999/feedback`, { method: 'POST', headers: t.me, body: { rating: 'down' } })).status, 400);
+    assert.equal((await t.api(`/api/chat/${mid}/feedback`, { method: 'POST', headers: t.me, body: { rating: 'down', note: 'out of date' } })).status, 200);
+    const chat = await (await t.api('/api/chat', { headers: t.me })).json() as any[]; assert.equal(chat.find((m) => m.id === mid).rating, 'down');
+    assert.equal((await t.api('/api/open-questions')).status, 401); const add = await t.api('/api/open-questions', { method: 'POST', headers: t.me, body: { question: 'How many heated spaces do the two nearest barns have?' } }); assert.equal(add.status, 200); const { id } = await add.json() as any;
+    assert.equal((await t.api('/api/open-questions', { method: 'POST', headers: t.me, body: { question: 'short' } })).status, 400); assert.equal(((await (await t.api('/api/open-questions', { headers: t.me })).json()) as any).items.length, 1);
+    assert.equal((await t.api(`/api/open-questions/${id}/look`, { method: 'POST', headers: t.me, body: {} })).status, 200); assert.equal((t.db.prepare("SELECT COUNT(*) c FROM missions WHERE status='proposed'").get() as any).c, 1, 'it is only proposed; nothing starts');
+    assert.equal((await t.api(`/api/open-questions/${id}/status`, { method: 'POST', headers: t.me, body: { status: 'answered' } })).status, 200); assert.equal(((await (await t.api('/api/open-questions', { headers: t.me })).json()) as any).items.length, 0);
+  } finally { t.close(); }
+});

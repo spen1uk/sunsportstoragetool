@@ -91,6 +91,7 @@ test('deep research: plan, search each angle, evidence rows, cross-check; confid
   assert.equal(src.get(db, 'solo.example.org')!.status, 'suggested'); assert.equal(src.get(db, 'noaa.gov')!.added_by, 'prometheus');
   assert.equal((db.prepare("SELECT COUNT(*) c FROM proposals").get() as any).c, 0, 'a research job can never propose actions'); assert.equal((db.prepare("SELECT COUNT(*) c FROM tasks WHERE title='x'").get() as any).c, 0);
   assert.equal(db.prepare('SELECT 1 FROM research_runs WHERE task_id=?').get(tid), undefined, 'checkpoint cleared when finished'); assert.ok(mb.get(db, tid) === undefined, 'budget closed');
+  const oq = db.prepare("SELECT question, source, task_id FROM open_questions WHERE source='research'").all() as any[]; assert.equal(oq.length, 1, 'what the report could not settle becomes an open question'); assert.match(oq[0].question, /No primary data/); assert.equal(oq[0].task_id, tid);
   deep.setLegalFooter(db, false); const t2 = deep.startDeep(db, 'patent search again', 'quick'); await tick(db, 'w1'); assert.doesNotMatch(report(db, t2), /not legal advice/); assert.match(report(db, t2), /Quick research: one search, not cross-checked/);
 });
 

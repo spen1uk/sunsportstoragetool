@@ -3,11 +3,11 @@ import { api, useLive, usd } from './api.ts';
 import { ProposalTray } from './Proposals.tsx';
 import { speak, stop, supported } from './speech.ts';
 
-export type Msg = { id: number | string; role: 'luke' | 'jarvis'; content: string };
+export type Msg = { id: number | string; role: 'luke' | 'jarvis'; content: string; rating?: 'up' | 'down' | null };
 
 /** All conversation behaviour in one place, shared by the small dock and the Command Center console. */
 export function useConversation(navigate: (h: string) => void, setThinking: (b: boolean) => void) {
-  const { data } = useLive<Msg[]>(() => api('/api/chat'), ['chat']);
+  const { data, reload: reloadChat } = useLive<Msg[]>(() => api('/api/chat'), ['chat']);
   const { data: persona } = useLive<any>(() => api('/api/persona'), []);
   const [local, setLocal] = useState<Msg[]>([]); // private-mode turns live only in this component's memory
   const [text, setText] = useState(''), [priv, setPriv] = useState(false), [busy, setBusy] = useState(false), [meta, setMeta] = useState('');
@@ -29,13 +29,13 @@ export function useConversation(navigate: (h: string) => void, setThinking: (b: 
     } catch (x) { setLocal((l) => [...l, { id: 'e' + Math.random(), role: 'jarvis', content: `Error: ${(x as Error).message}` }]); }
     finally { setBusy(false); setThinking(false); }
   }
-  return { msgs, text, setText, priv, setPriv, busy, meta, aloud, setAloud, persona, send, speakMsg: (m: string) => persona && speak(m, persona.voice) };
+  return { msgs, reloadChat, text, setText, priv, setPriv, busy, meta, aloud, setAloud, persona, send, speakMsg: (m: string) => persona && speak(m, persona.voice) };
 }
 export type Conversation = ReturnType<typeof useConversation>;
 
 /** The small floating dock used on the Agent Universe and as the "Talk to Jarvis" button on other pages. */
 export function Chat({ open, setOpen, convo, hidden }: { open: boolean; setOpen: (b: boolean) => void; convo: Conversation; hidden?: boolean }) {
-  const { msgs, text, setText, priv, setPriv, busy, meta, aloud, setAloud, persona, send, speakMsg } = convo;
+  const { msgs, reloadChat, text, setText, priv, setPriv, busy, meta, aloud, setAloud, persona, send, speakMsg } = convo;
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [msgs.length, open]);
   if (hidden) return null;
@@ -52,7 +52,7 @@ export function Chat({ open, setOpen, convo, hidden }: { open: boolean; setOpen:
       {priv && <p className="note">Private mode: this session is not saved, indexed, logged or used for memory, and Jarvis will not create or change records. The browser keeps it only until you leave private mode. (The model is off in private mode unless you allow it in Settings.)</p>}
       <div className="chat-log" role="log" aria-live="polite">
         {msgs.length === 0 && <p className="muted">Try: <em>research “dry stack storage costs” from https://…</em>, <em>add task call the marina</em>, <em>status</em>, <em>show me Sales</em>. Start a message with <em>deep:</em> for the stronger model.</p>}
-        {msgs.map((m) => <div key={m.id} className={`msg ${m.role}`}>{m.content}{m.role === 'jarvis' && supported() && persona && <button className="link small say" onClick={() => speakMsg(m.content)} aria-label="Read aloud">🔊</button>}</div>)}
+        {msgs.map((m) => <div key={m.id} className={`msg ${m.role}`}>{m.content}{m.role === 'jarvis' && supported() && persona && <button className="link small say" onClick={() => speakMsg(m.content)} aria-label="Read aloud">🔊</button>}{m.role === 'jarvis' && typeof m.id === 'number' && <span className="rate"><button className="link small" aria-label="Good answer" aria-pressed={m.rating === 'up'} title="Good answer" onClick={() => void api(`/api/chat/${m.id}/feedback`, 'POST', { rating: 'up' }).then(() => reloadChat())}>{m.rating === 'up' ? '👍' : '👍🏻'}</button><button className="link small" aria-label="Wrong answer" aria-pressed={m.rating === 'down'} title="Wrong answer" onClick={() => void api(`/api/chat/${m.id}/feedback`, 'POST', { rating: 'down' }).then(() => reloadChat())}>{m.rating === 'down' ? '👎' : '👎🏻'}</button></span>}</div>)}
         <div ref={end} />
       </div>
       <ProposalTray className="dock-props" />

@@ -20,6 +20,21 @@ function EgoGraph({ centre, edges, onPick }: { centre: any; edges: any[]; onPick
   );
 }
 
+/** What earlier research could not settle, plus anything he asked to track. Nothing is researched or spent until he says so. */
+function OpenQuestions() {
+  const { data, reload } = useLive<any>(() => api('/api/open-questions'), ['knowledge']); const [q, setQ] = useState(''), [m, setM] = useState<string>(''); const items = data?.items ?? [];
+  const act = async (f: () => Promise<unknown>, ok = '') => { setM(''); try { await f(); if (ok) setM(ok); reload(); } catch (e) { setM(e instanceof Error ? e.message : String(e)); } };
+  return (
+    <div className="glass pad section"><h2>Open questions</h2>
+      <p className="muted small">Things research could not settle, and anything you ask me to track. Old research findings and due questions come back as <i>proposed</i> missions on the Missions page, to accept or dismiss; nothing is researched without you.</p>
+      {m && <p className="small" role="status">{m}</p>}
+      <form className="row" onSubmit={(e) => { e.preventDefault(); void act(async () => { await api('/api/open-questions', 'POST', { question: q }); setQ(''); }); }}><input className="grow" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Track a question, e.g. who else offers heated storage near Hartland?" maxLength={300} aria-label="Question to track" /><button disabled={q.trim().length < 10}>Track</button></form>
+      {items.length === 0 ? <p className="muted">Nothing is open.</p> : <ul className="plain">{items.map((r: any) => (
+        <li key={r.id}><div>{r.question}</div><div className="muted small">{r.source === 'research' ? 'left open by research' : 'you asked me to track it'}</div>
+          <div className="row wrap"><button onClick={() => act(() => api(`/api/open-questions/${r.id}/look`, 'POST', {}), 'Proposed on the Missions page. It waits for your OK.')}>Look into it</button><button onClick={() => act(() => api(`/api/open-questions/${r.id}/status`, 'POST', { status: 'answered' }))}>Answered</button><button className="danger" onClick={() => act(() => api(`/api/open-questions/${r.id}/status`, 'POST', { status: 'dropped' }))}>Drop</button></div></li>))}</ul>}
+    </div>
+  );
+}
 export function KnowledgePage() {
   const { data, reload } = useLive<any>(() => api('/api/knowledge'), ['knowledge', 'memory']);
   const dec = useLive<any>(() => api('/api/decisions'), ['knowledge']);
@@ -68,6 +83,7 @@ export function KnowledgePage() {
           <input value={ne.name} onChange={(e) => setNe({ ...ne, name: e.target.value })} placeholder="Name" aria-label="Name" /><input className="grow" value={ne.notes} onChange={(e) => setNe({ ...ne, notes: e.target.value })} placeholder="Notes (optional)" aria-label="Notes" />
           <button className="primary" disabled={ne.name.trim().length < 2} onClick={() => void run(async () => { await post('/api/knowledge/entities', ne); setNe({ ...ne, name: '', notes: '' }); }, 'Added.')}>Add</button></div></div>
 
+      <OpenQuestions />
       <div className="glass pad section"><h2>Decision log</h2>
         <p className="muted small">Write down what you are deciding, what you expect, and how sure you are. Later you look back; over time it shows how well your confidence matches what happens.</p>
         {dec.data.items.map((d: any) => (

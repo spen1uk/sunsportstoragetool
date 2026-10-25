@@ -5,6 +5,7 @@ import { audit } from '../audit.ts';
 import { publish } from '../events.ts';
 import { looksSecret } from '../memory.ts';
 import { isExcluded } from '../exclusions.ts';
+import { downByKind } from '../feedback.ts';
 
 /**
  * Gaps: places where Jarvis demonstrably fell short. Found by counting real failures (free, no model), or filed by Luke or an agent.
@@ -37,6 +38,7 @@ export function scan(db: DB, now = Date.now()): number {
   for (const w of wf) if (w.c >= 3) if (upsert(db, { kind: 'failing_workflow', key: `wf:${w.workflow_id}`, title: `The workflow "${w.name}" keeps failing`, detail: `${w.c} failed runs in 14 days. Latest: ${w.err.slice(0, 150)}`, evidence: { workflowId: w.workflow_id, count: w.c }, severity: 2, count: w.c }, 'system', now)) fresh++;
   const ms = db.prepare("SELECT COALESCE(NULLIF(blockers,''), stop_reason, '') why, COUNT(*) c FROM missions WHERE status IN ('blocked','failed') AND updated_at>? GROUP BY why").all(now - 30 * 86_400_000) as { why: string; c: number }[];
   for (const m of ms) if (m.c >= 2 && m.why) if (upsert(db, { kind: 'failing_missions', key: `mission:${h(norm(m.why))}`, title: 'Research missions keep getting stuck the same way', detail: `${m.c} missions in 30 days stopped with: ${m.why.slice(0, 150)}`, evidence: { reason: m.why.slice(0, 150), count: m.c }, severity: 1, count: m.c }, 'system', now)) fresh++;
+  for (const f of downByKind(db, now)) if (f.count >= 3) if (upsert(db, { kind: 'request', key: `fb:${f.kind}`, title: f.kind === 'web' ? 'Answers from internet searches were marked wrong' : 'Ordinary answers were marked wrong', detail: `${f.count} answers marked wrong in 14 days.${f.notes.length ? ` What you said: ${f.notes.map((n) => `“${n.slice(0, 100)}”`).join('; ')}` : ''}`, evidence: { kind: f.kind, count: f.count }, severity: 2, count: f.count }, 'system', now)) fresh++;
   if (fresh) publish({ type: 'improve' }); return fresh;
 }
 

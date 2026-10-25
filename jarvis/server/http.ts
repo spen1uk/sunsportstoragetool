@@ -50,6 +50,8 @@ import * as learn from './learn.ts';
 import * as deleg from './delegation.ts';
 import * as calw from './calendarwrite.ts';
 import * as jbrowser from './browser.ts';
+import * as fb from './feedback.ts';
+import * as openq from './openq.ts';
 import * as foundry from './foundry.ts';
 import * as trig from './triggers.ts';
 import { route as routeSkill, candidates as routeCandidates } from './skills/router.ts';
@@ -318,6 +320,11 @@ route('POST', '/api/memory', ({ db, body }) => {
   const r = memory.remember(db, b.content, { source: 'dashboard', scope: b.scope }); if (!r.ok) throw bad(r.error); return r;
 });
 route('PATCH', '/api/memory/:id', ({ db, params, body }) => { const r = memory.update(db, params.id, parse(z.object({ content: z.string().min(1).max(1000) }), body).content); if (!r.ok) throw bad(r.error); return r; });
+route('POST', '/api/chat/:id/feedback', ({ db, params, body }) => { const b = parse(z.object({ rating: z.enum(['up', 'down']), note: z.string().max(300).default('') }), body); const r = fb.rate(db, Number(params.id), b.rating, b.note); if (!r.ok) throw bad(r.error ?? 'not found'); return r; });
+route('GET', '/api/open-questions', ({ db }) => ({ items: openq.list(db, 'open') }));
+route('POST', '/api/open-questions', ({ db, body }) => { const b = parse(z.object({ question: z.string().min(10).max(300) }), body); const qid = openq.add(db, b.question, { source: 'luke' }); if (!qid) throw bad('That is already on the list, too short, or mentions something you asked me never to store.'); return { id: qid }; });
+route('POST', '/api/open-questions/:id/status', ({ db, params, body }) => { const b = parse(z.object({ status: z.enum(['answered', 'dropped', 'open']), note: z.string().max(300).default('') }), body); return { ok: openq.setStatus(db, params.id, b.status, b.note) }; });
+route('POST', '/api/open-questions/:id/look', ({ db, params }) => { const m = openq.lookInto(db, params.id); if (!m) throw bad('That is already proposed, or the list of proposals is full. Check the Missions page.'); return { missionId: m }; });
 route('GET', '/api/memory/reviews', ({ db }) => ({ items: memory.listReviews(db) }));
 route('POST', '/api/memory/reviews/:id/resolve', ({ db, params, body }) => ({ ok: memory.resolveReview(db, params.id, parse(z.object({ action: z.enum(['replace', 'keep_both', 'drop_new']) }), body).action) }));
 route('PUT', '/api/memory/:id/status', ({ db, params, body }) => ({ ok: memory.setStatus(db, params.id, parse(z.object({ status: z.enum(memory.STATUSES) }), body).status) }));
@@ -570,7 +577,7 @@ route('PUT', '/api/layout', ({ db, body }) => {
   return { ok: true };
 });
 route('DELETE', '/api/layout', ({ db }) => { db.prepare("DELETE FROM layouts WHERE key='universe'").run(); return { ok: true }; });
-route('GET', '/api/chat', ({ db }) => rows(db, 'SELECT * FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 100) ORDER BY id'));
+route('GET', '/api/chat', ({ db }) => rows(db, 'SELECT m.*, (SELECT rating FROM feedback f WHERE f.message_id=m.id) AS rating FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 100) m ORDER BY m.id'));
 route('POST', '/api/chat', async ({ db, body }) => { const b = parse(z.object({ text: z.string().min(1).max(2000), private: z.boolean().default(false), channel: z.enum(['dashboard', 'phone', 'car', 'sms', 'voice']).default('dashboard') }), body); return await converse(db, b.text, { private: b.private, channel: b.channel }); });
 
 // ---- persona + model layer (keys are never returned; only "configured" flags) ----

@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { openDb } from './db.ts';
 import { sweepStale as sweepBrowser } from './browser.ts';
 import { sweepStale as sweepFounderRuns } from './founder.ts';
+import { recheckDaily } from './openq.ts';
 import { backfill as backfillCategories } from './categorize.ts';
 import { sweepStale as sweepEvals } from './evals/run.ts';
 import { tick as triggerTick } from './triggers.ts';
@@ -37,7 +38,7 @@ createServer(db).listen(config.port, config.host, () => console.log(`Jarvis API 
 if (process.env.JARVIS_EMBEDDED_WORKER !== '0') { startWorker(db); console.log('Embedded worker started (set JARVIS_EMBEDDED_WORKER=0 and run `npm run worker` separately to split).'); }
 
 // Local, cheap: a 30-second tick decides what is due. No model calls, no polling of external services.
-const tick = () => { try { db.prepare('DELETE FROM sessions WHERE expires_at<?').run(Date.now()); db.prepare('DELETE FROM passkey_challenges WHERE created_at<?').run(Date.now() - 120_000); tickNotifications(db); maybeApplyRetention(db); improveMonitor(db); } catch (e) { console.error('[notify]', (e as Error).message); } void improveDaily(db).catch((e) => console.error('[improve]', (e as Error).message)); void maybeAutoSuggest(db).catch((e) => console.error('[memory]', (e as Error).message)); };
+const tick = () => { try { db.prepare('DELETE FROM sessions WHERE expires_at<?').run(Date.now()); db.prepare('DELETE FROM passkey_challenges WHERE created_at<?').run(Date.now() - 120_000); tickNotifications(db); maybeApplyRetention(db); improveMonitor(db); } catch (e) { console.error('[notify]', (e as Error).message); } try { recheckDaily(db); } catch (e) { console.error('[openq]', (e as Error).message); } void improveDaily(db).catch((e) => console.error('[improve]', (e as Error).message)); void maybeAutoSuggest(db).catch((e) => console.error('[memory]', (e as Error).message)); };
 setInterval(tick, 30_000); tick();
 setInterval(() => { if (isMac()) void drainCalendar(db).catch(() => { /* recorded in the outbox */ }); }, 30_000);
 setInterval(() => void triggerTick(db).catch((e) => console.error('[triggers]', (e as Error).message)), 30_000);
