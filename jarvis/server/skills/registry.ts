@@ -6,6 +6,7 @@ import { isPaused } from '../pause.ts';
 import { canonicalJson } from '../db.ts';
 import { ALL_BUILTIN, type Entry } from './catalog.ts';
 import { PROMPT_SKILLS } from './promptskills.ts';
+import { outsideNarrowLane } from '../limits.ts';
 import { PRINCIPALS, SENS_RANK, tierOf, isPrincipal, type Manifest } from './manifest.ts';
 
 /**
@@ -64,6 +65,7 @@ export function access(db: DB, principal: string, skillId: string): Access {
   if (!ceil) return { allowed: false, reasons: ['unknown agent'] };
   const missing = m.permissions.filter((p) => !(ceil.capabilities as string[]).includes(p)); if (missing.length) why.push(`${human ? 'test runs' : isPrincipal(principal) ? PRINCIPALS[principal].label : 'a temporary agent'} cannot hold: ${missing.join(', ')}`);
   if (SENS_RANK[m.dataSensitivity] > SENS_RANK[ceil.maxSensitivity]) why.push(`handles ${m.dataSensitivity} data, above this agent's ${ceil.maxSensitivity} ceiling`);
+  if (tmp) why.push(...outsideNarrowLane(m).map((x) => `outside the narrow lane for temporary agents: ${x}`));
   if (why.length) return { allowed: false, reasons: why };
   if (human) return { allowed: true, via: 'human', reasons: [] };
   if (db.prepare('SELECT 1 FROM skill_grants WHERE principal=? AND skill_id=?').get(principal, skillId)) return { allowed: true, via: 'grant', reasons: [] };

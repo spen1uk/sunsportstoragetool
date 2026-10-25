@@ -8,6 +8,7 @@ import * as missions from './missions.ts';
 import { createTask } from './tasks.ts';
 import { gate as webGate } from './websearch.ts';
 import { monthStartOf } from './llm/gateway.ts';
+import { beginConsult } from './limits.ts';
 
 /**
  * The delegation loop. Jarvis takes a request, picks the best agent that really exists and can do it (with the reason), states the objective,
@@ -34,14 +35,20 @@ const hydrate = (r: any) => ({ id: r.id, request: r.request, objective: r.object
 export const list = (db: DB) => (db.prepare("SELECT * FROM delegations ORDER BY CASE status WHEN 'in_review' THEN 0 WHEN 'working' THEN 1 WHEN 'returned' THEN 1 WHEN 'blocked' THEN 2 ELSE 3 END, created_at DESC LIMIT 60").all() as any[]).map(hydrate);
 
 const reqIn = z.object({ request: z.string().min(8).max(500), deliverable: z.string().max(200).optional(), deadlineDays: z.number().int().min(1).max(60).optional(), capMicro: z.number().int().min(50_000).max(MAX_CAP).optional() }).strict();
-export function delegate(db: DB, raw: unknown, now = Date.now()) {
+/** `by` is who is asking. Luke (and Jarvis for him) start new work; any other agent may only hand work on as part of a delegation it was given (`parentId`), within the depth and consult limits. */
+export function delegate(db: DB, raw: unknown, now = Date.now(), by: { agent: string; parentId?: string } = { agent: 'luke' }) {
   const v = reqIn.parse(raw); const text = clean(v.request, 500); if (looksSecret(text) || isExcluded(db, text)) throw new Error('That looks like a secret or mentions something you asked me never to store.');
   const pick = chooseAgent(db, text); if (!pick.available) throw new Error(pick.why);
-  const did = id(), deadline = v.deadlineDays ? now + v.deadlineDays * 86_400_000 : null, deliverable = clean(v.deliverable ?? (pick.agentId === 'prometheus' ? 'A short sourced write-up with a clear recommendation and what is still uncertain.' : 'The task done.'), 200), cap = pick.agentId === 'prometheus' ? (v.capMicro ?? DEFAULT_CAP) : 0;
+  const ownWork = by.agent === 'luke' || by.agent === 'jarvis';
+  if (!ownWork && !by.parentId) throw new Error('An agent can only hand work on as part of work it was given.');
+  const did: string = id(); let rootId: string = did, depth = 0;
+  if (by.parentId) { const c = beginConsult(db, { parentId: by.parentId, from: by.agent, to: pick.agentId, kind: 'delegate' }, now); rootId = c.rootId; depth = c.depth; }
+  const deadline = v.deadlineDays ? now + v.deadlineDays * 86_400_000 : null, deliverable = clean(v.deliverable ?? (pick.agentId === 'prometheus' ? 'A short sourced write-up with a clear recommendation and what is still uncertain.' : 'The task done.'), 200), cap = pick.agentId === 'prometheus' ? (v.capMicro ?? DEFAULT_CAP) : 0;
   let mission: string | null = null, task: string | null = null;
   if (pick.agentId === 'prometheus') { const g = webGate(db, { channel: 'dashboard' }); if (g) throw new Error(g); mission = missions.createAssigned(db, { goal: text, title: text.slice(0, 80), capMicro: cap, value: `Delegated by Jarvis. Deliverable: ${deliverable}` }, now); }
   else task = createTask(db, { title: text.slice(0, 120), description: `Delegated: ${deliverable}`, deadline: deadline ?? undefined, priority: 3 });
   db.prepare("INSERT INTO delegations(id,request,objective,deliverable,agent_id,why_agent,deadline_ms,cap_micro,mission_id,task_id,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").run(did, text, text, deliverable, pick.agentId, pick.why, deadline, cap, mission, task, pick.agentId === 'prometheus' ? 'working' : 'accepted', now, now);
+  db.prepare('UPDATE delegations SET parent_id=?, root_id=?, depth=? WHERE id=?').run(by.parentId ?? null, rootId, depth, did);
   log(db, did, 'assigned', `${pick.name}: ${pick.why}`); if (pick.agentId !== 'prometheus') db.prepare('UPDATE delegations SET finished_at=? WHERE id=?').run(now, did);
   audit(db, 'luke', 'delegation.created', did, { agent: pick.agentId, cap }); publish({ type: 'delegations' }); return { id: did, agent: pick };
 }

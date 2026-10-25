@@ -86,7 +86,7 @@ export function requestApproval(db: DB, a: { actionType: string; payload: unknow
 }
 
 /** Anything that spends real money or contacts other people always waits for Luke, whatever the mode. */
-const ALWAYS_ASK = new Set(['budget_increase', 'raise_daily_ceiling', 'send_message', 'trade_or_transfer']);
+export const ALWAYS_ASK = new Set(['budget_increase', 'raise_daily_ceiling', 'send_message', 'trade_or_transfer']);
 /**
  * Luke's own request. In direct mode (his choice) an action inside Jarvis that he asked for himself is done at once: the approval record is still written and marked
  * as decided by him directly, so the audit trail is complete. Money, texts, emails and calls, and anything an agent asks for on its own, still wait for him.

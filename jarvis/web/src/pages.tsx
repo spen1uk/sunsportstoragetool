@@ -165,6 +165,16 @@ export function ReviewPage() {
 }
 
 // ---------------- Approvals ----------------
+const ASKS: Record<string, string> = { never: 'nothing', request: 'your request is the go-ahead', approve: 'an approval card', always: 'always waits for you', cannot: 'cannot happen: not connected' };
+function PolicyTable() {
+  const { data } = useLive<any>(() => api('/api/policy/actions'), []);
+  if (!data) return null;
+  return (
+    <div className="glass pad section"><h2>What Jarvis can do, and what asks you</h2>
+      <p className="muted small">Agents can only propose; they never act on their own. Work handed between agents stops at {data.limits.maxDepth} levels deep and {data.limits.maxConsults} consults. Temporary and Foundry agents are limited to public, read-only skills.</p>
+      <table><thead><tr><th>What</th><th>Risk</th><th>Asks you</th><th>Agents</th></tr></thead>
+        <tbody>{data.items.map((r: any) => <tr key={r.id}><td>{r.what}</td><td>{r.risk}</td><td>{ASKS[r.asks]}</td><td>{r.agents}</td></tr>)}</tbody></table></div>);
+}
 export function ApprovalsPage() {
   const { data, reload } = useLive<any>(() => api('/api/approvals'), ['approvals']);
   const a = useAction(); const [pw, setPw] = useState(''); const [stepped, setStepped] = useState(false);
@@ -201,6 +211,7 @@ export function ApprovalsPage() {
         <table><thead><tr><th>When</th><th>Action</th><th>Status</th><th>Channel</th><th>Outcome</th></tr></thead>
           <tbody>{hist.map((i) => <tr key={i.id}><td>{ago(i.created_at)}</td><td>{i.summary}</td><td><span className={`state ${i.status}`}>{i.status}</span></td><td>{i.source_channel ?? '—'}</td><td>{i.outcome ?? ''}</td></tr>)}</tbody></table>
       </div>
+      <PolicyTable />
       <div className="glass pad section"><h2>Protected actions</h2>
         <table><thead><tr><th>Action</th><th>Risk</th><th>Executor</th></tr></thead><tbody>{(data?.actions ?? []).map((x: any) => <tr key={x.type}><td>{x.type}</td><td>{x.risk}</td><td>{x.available ? 'available' : `unavailable — ${x.reason}`}</td></tr>)}</tbody></table>
       </div>

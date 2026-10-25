@@ -3,6 +3,8 @@ import { id } from './db.ts';
 import { audit } from './audit.ts';
 import { access } from './skills/registry.ts';
 import { spentOn } from './missionbudget.ts';
+import { outsideNarrowLane } from './limits.ts';
+import { resolve } from './skills/registry.ts';
 
 /**
  * Temporary specialist agents. One is created for one mission step with: a charter, a small list of read-only registry skills (each of which the
@@ -13,11 +15,12 @@ import { spentOn } from './missionbudget.ts';
 export const MAX_ACTIVE = 3, MAX_TTL_MS = 24 * 3_600_000, MAX_BUDGET = 2_000_000;
 export const principalOf = (agentId: string) => `temp:${agentId}`;
 
-export function spawn(db: DB, o: { name: string; charter: string; missionId: string; skills?: string[]; budgetMicro: number; ttlMs?: number }, now = Date.now()): string {
+export function spawn(db: DB, o: { by?: string; name: string; charter: string; missionId: string; skills?: string[]; budgetMicro: number; ttlMs?: number }, now = Date.now()): string {
+  if (o.by?.startsWith('temp:')) throw new Error('A temporary agent cannot create other agents.');
   if ((db.prepare("SELECT COUNT(*) c FROM temp_agents WHERE status='active'").get() as any).c >= MAX_ACTIVE) throw new Error(`Only ${MAX_ACTIVE} temporary agents can be active at once.`);
   const ttl = Math.min(o.ttlMs ?? 6 * 3_600_000, MAX_TTL_MS), budget = Math.min(Math.max(0, Math.round(o.budgetMicro)), MAX_BUDGET); if (budget < 10_000) throw new Error('A temporary agent needs at least $0.01.');
   const skills = [...new Set(o.skills ?? [])];
-  for (const s of skills) { const a = access(db, 'prometheus', s); if (!a.allowed) throw new Error(`Prometheus may not use "${s}" (${a.reasons.join('; ')}), so a temporary agent cannot either.`); }
+  for (const s of skills) { const a = access(db, 'prometheus', s); if (!a.allowed) throw new Error(`Prometheus may not use "${s}" (${a.reasons.join('; ')}), so a temporary agent cannot either.`); const man = resolve(db, s)?.entry.manifest, lane = man ? outsideNarrowLane(man) : []; if (lane.length) throw new Error(`"${s}" is outside the narrow lane for temporary agents (${lane.join('; ')}).`); }
   const aid = id();
   db.prepare('INSERT INTO temp_agents(id,name,charter,mission_id,skills,budget_micro_usd,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)').run(aid, o.name.slice(0, 60), o.charter.slice(0, 300), o.missionId, JSON.stringify(skills), budget, now, now + ttl);
   const g = db.prepare('INSERT INTO skill_grants(principal,skill_id,granted_at,granted_by) VALUES(?,?,?,?)'); for (const s of skills) g.run(principalOf(aid), s, now, 'system:spawn');

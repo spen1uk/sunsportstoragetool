@@ -328,3 +328,10 @@ Luke's guide is `server/personality-guide.md`, loaded at startup into every chat
 ## Automatic memory (guide section 9)
 
 `server/autolearn.ts`. After an ordinary chat turn Jarvis may write down durable things Luke said (preferences, routines, decisions, promises, people, projects). A cheap local check runs first (a statement about himself, not a question, not a pasted block); only then one cheap model call, at most 40 a day and 20 saves a day. Everything goes through the normal memory rules (secrets and excluded names refused, duplicates merged, conflicts to "Needs your decision"); a flagged correction replaces the old fact. Never from private mode, web answers, or Jarvis's own words. Quiet in chat. Memory page: "Recently learned" with Keep, Forget and a switch. Chat: "what have you learned", "forget what you just learned", "stop/start learning automatically". Unverified with the real model: how well it picks what is worth keeping.
+
+## Stage 4: limits on agents, and the action table
+
+- `server/limits.ts`: work handed from agent to agent stops at 2 levels deep and 6 consults per piece of work (table `consults`, migration 038; `delegations` gains parent, root and depth). Luke and Jarvis start new work freely; any other agent may only hand work on under a delegation it was given. The refusal says it comes back to Luke.
+- The narrow lane: temporary agents (and the Foundry's design list) are limited to public, read-only, direct skills. Checked when a temporary agent is created and again every time it runs a skill. A temporary agent cannot create agents.
+- `server/actionpolicy.ts`: one table of what Jarvis can do, its risk and what it asks Luke for, shown on the Approvals page. A test fails if a protected action has no row, a row names an action that does not exist, or the table disagrees with the code on risk or on what always asks.
+- Today no agent actually hands work on by itself (the research agent runs steps, not delegations), so the caps are a guard in place before that is ever built.
