@@ -97,9 +97,12 @@ test('in chat: list, summarise, ask what a document says; the document is only e
   assert.match((await converse(db, 'forget document service guide')).text, /forgotten "Service Guide\.docx"/); assert.equal(docs.list(db).length, 0);
 });
 
-test('a PDF without the reader package installed says what is missing, not a stack trace (skipped once the package is installed)', async (t) => {
-  let have = true; try { await import('unpdf' as string); } catch { have = false; } if (have) return t.skip('unpdf is installed');
-  await assert.rejects(readDocument(Buffer.from('%PDF-1.4\n%fake')), /needs one package that has not been installed yet/);
+const fx = (n: string) => fs.readFileSync(new URL(`./fixtures/${n}`, import.meta.url));
+test('PDF (unpdf 1.9.1): a text PDF is read page by page and answers questions; a picture-only PDF (scan or screenshot) is refused with a clear reason and nothing is kept', async () => {
+  const r = await readDocument(fx('service-guide.pdf')); assert.equal(r.kind, 'pdf'); assert.equal(r.units.length, 2); assert.deepEqual(r.units.map((u) => u.label), ['page 1', 'page 2']); assert.match(r.units[0].text, /Heated indoor storage is \$14 per foot/); assert.match(r.units[1].text, /shrink wrap is \$18/);
+  const db = makeDb(); const a = await docs.add(db, 'Service Guide.pdf', fx('service-guide.pdf')); assert.ok(a.ok, JSON.stringify(a)); assert.match(docs.search(db, 'shrink wrap price')[0].text, /\$18 per foot/); assert.equal(docs.search(db, 'shrink wrap price')[0].label, 'page 2');
+  const pic = await docs.add(db, 'Screenshot.pdf', fx('picture-only.pdf')); assert.equal(pic.ok, false); assert.match((pic as any).error, /scan or a screenshot/); assert.equal(docs.list(db).length, 1, 'the picture-only file was not kept');
+  await assert.rejects(readDocument(Buffer.from('%PDF-1.4\nthis is not really a pdf')), /damaged or not one I can read/);
 });
 
 test('the reader is wired safely: it spawns with an empty environment and a memory limit, opens no network connection, and the routes exist', () => {
