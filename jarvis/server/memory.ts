@@ -30,6 +30,13 @@ export function relate(db: DB, text: string, ignoreId?: string): { duplicate: { 
   return { duplicate, conflicts };
 }
 
+/** The active memory that is most nearly about the same thing (word overlap), for applying a clear correction. */
+export function closest(db: DB, text: string, min = 0.5): { id: string; content: string } | null {
+  const A = words(text); let best: { id: string; content: string } | null = null, bj = min;
+  for (const m of db.prepare(`SELECT id, content FROM memories WHERE ${ACTIVE} ORDER BY created_at DESC LIMIT 400`).all() as { id: string; content: string }[]) { const B = words(m.content); let sh = 0; for (const w of A) if (B.has(w)) sh++; const j = sh / (A.size + B.size - sh || 1); if (j >= bj) { bj = j; best = m; } }
+  return best;
+}
+
 export function remember(db: DB, content: string, o: { source: string; scope?: string; kind?: string; confidence?: number; status?: MemStatus; ignoreId?: string }) {
   const text = content.trim().slice(0, 1000);
   if (!text) return { ok: false as const, error: 'nothing to remember' };

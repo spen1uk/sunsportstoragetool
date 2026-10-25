@@ -29,6 +29,7 @@ import { summaryMessages, maybeSummarize } from './summary.ts';
 import { asksForPlan, plan as makePlan, wantsPlanTasks, addPlanTasks } from './planner.ts';
 import { chatRating, rate as rateAnswer } from './feedback.ts';
 import * as openq from './openq.ts';
+import { learnFrom, describeLearned, forgetJustLearned, setAutoLearn } from './autolearn.ts';
 import { asksDigest, asksSandraFreeForm, FREEFORM_REPLY, fetchDigest, render as renderDigest } from './sandra.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
@@ -85,6 +86,10 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     if (fb) { const r = rateAnswer(db, null, fb.rating, fb.note); say = !r.ok ? r.error! : fb.rating === 'up' ? 'Glad that landed, sir. Noted.' : `Noted, sir. I've marked that answer as wrong${fb.note ? ' and recorded why' : ''}. If this keeps happening it will show up on the Improvements page.${fb.note ? '' : ' Tell me what was wrong (“that was wrong because …”) and I\'ll record it.'}`; }
     else if (wantsPlanTasks(text)) say = addPlanTasks(db);
     else if (planReq) say = await makePlan(db, planReq);
+    else if (/^(?:what (?:have you|did you) (?:learn(?:ed|t)?|pick(?:ed)? up|remember(?:ed)?)(?: (?:lately|recently|about me|on your own))?|what do you know about me|what have you learned)\??$/i.test(text)) say = describeLearned(db);
+    else if (/^forget (?:what you (?:just )?learn(?:ed|t)|that you (?:just )?learn(?:ed|t)|what you just picked up)\.?$/i.test(text)) { const n = forgetJustLearned(db); say = n ? `Done, sir. I've forgotten the ${n === 1 ? 'one thing' : n + ' things'} I picked up in the last half hour.` : 'There was nothing I\'d picked up on my own in the last half hour, sir.'; }
+    else if (/^(?:stop|turn off|switch off|disable) (?:automatic(?:ally)? (?:learning|memory|remembering)|learning (?:things )?(?:automatically|on your own)|remembering (?:things )?(?:automatically|on your own))\.?$/i.test(text)) { setAutoLearn(db, false); say = 'Understood, sir. I\'ll only remember what you tell me to. Say "start learning automatically" to switch it back on.'; }
+    else if (/^(?:start|turn on|switch on|enable|resume) (?:automatic(?:ally)? (?:learning|memory|remembering)|learning (?:things )?(?:automatically|on your own)|remembering (?:things )?(?:automatically|on your own))\.?$/i.test(text)) { setAutoLearn(db, true); say = 'Very good, sir. I\'ll write down lasting things you tell me, and you can review or forget them on the Memory page.'; }
     else if (asksSandraFreeForm(text)) say = FREEFORM_REPLY;
     else if (asksDigest(text)) say = renderDigest(await fetchDigest(db, { fresh: true }));
     else if (/^(?:what(?:'s| is| are)(?: still)? (?:open|unresolved|unanswered)|open questions|what questions are (?:still )?open|what(?:'s| is) left to find out)\??$/i.test(text)) say = openq.describe(db);
@@ -214,6 +219,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     if (!priv) {
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard');
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
+      void learnFrom(db, text);   // quietly writes down durable things he said (guide section 9)
       void maybeSummarize(db);   // folds older turns into the running summary, off the critical path
       publish({ type: 'chat' });
     }

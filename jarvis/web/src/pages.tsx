@@ -225,6 +225,19 @@ function MemoryReviews() {
     </div>
   );
 }
+function RecentlyLearned() {
+  const { data, reload } = useLive<any>(() => api('/api/memory/learned'), ['memory']); const a = useAction();
+  if (!data) return null;
+  return (
+    <div className="glass pad section"><h2>Recently learned</h2><Err m={a.err} />
+      <p className="muted small">Lasting things you told me in chat that I wrote down myself. Never from private mode, web answers or pasted text, and never secrets. <label><input type="checkbox" checked={data.on} onChange={(e) => a.run(() => api('/api/memory/autolearn', 'PUT', { on: e.target.checked }).then(reload))} /> Learn automatically</label></p>
+      {data.items.length === 0 ? <p className="muted small">Nothing yet.</p> : <ul className="plain">{data.items.map((m: any) => (
+        <li key={m.id} className="row wrap"><div className="grow">{m.content}<div className="muted small">{m.kind} · {ago(m.created_at)}{m.status === 'confirmed' ? ' · you confirmed it' : ''}</div></div>
+          {m.status !== 'confirmed' && <button onClick={() => a.run(() => api(`/api/memory/${m.id}/status`, 'PUT', { status: 'confirmed' }).then(reload))}>Keep</button>}
+          <button className="danger" onClick={() => a.run(() => api(`/api/memory/${m.id}`, 'DELETE').then(reload))}>Forget</button></li>))}</ul>}
+    </div>
+  );
+}
 export function MemoryPage() {
   const { data, reload } = useLive<any[]>(() => api('/api/memory'), ['memory']);
   const [text, setText] = useState(''), [edit, setEdit] = useState<{ id: string; v: string } | null>(null); const a = useAction();
@@ -235,6 +248,7 @@ export function MemoryPage() {
       </form>
       <p className="muted small">Secrets, passwords and codes are refused. “Forget” deletes the record outright; database backups age out per the retention note in docs/THREAT_MODEL.md. Suggested memories below come from your saved chats and only become memories when you accept them.</p>
       <MemoryReviews />
+      <RecentlyLearned />
       <MemorySuggestions />
       <div className="glass pad section"><ul className="plain">
         {(data ?? []).map((m) => (

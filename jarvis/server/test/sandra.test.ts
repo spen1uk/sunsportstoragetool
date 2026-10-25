@@ -3,11 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { makeDb } from './helpers.ts';
 import * as S from '../sandra.ts';
-import { setSecret, clearSecret } from '../llm/secrets.ts';
 import { converse } from '../converse.ts';
 
 const DAY = 86_400_000; const NOW = 1_800_000_000_000;
-afterEach(() => { S._hooks.setFetch(null); clearSecret('sandra'); delete process.env.SANDRA_DIGEST_TOKEN; });
+afterEach(() => { S._hooks.setFetch(null); delete process.env.SANDRA_DIGEST_TOKEN; });
 type Reply = { status?: number; body?: unknown; headers?: Record<string, string>; throws?: boolean };
 function fake(r: Reply) { const seen: { url: string; auth: string; redirect: string }[] = []; S._hooks.setFetch(async (url, init) => { seen.push({ url, auth: init.headers.authorization, redirect: init.redirect }); if (r.throws) throw new Error('down'); return { status: r.status ?? 200, headers: { get: (n: string) => r.headers?.[n.toLowerCase()] ?? null }, text: async () => typeof r.body === 'string' ? r.body : JSON.stringify(r.body ?? {}) }; }); return seen; }
 const setup = (db: any) => { process.env.SANDRA_DIGEST_TOKEN = 'tok-1234567890abcdef'; assert.ok(S.setUrl(db, 'http://localhost:5290/anything?x=1')); };
@@ -71,10 +70,10 @@ test('in chat: "Sandra\'s digest" answers from the digest with no model call; "a
   const a = await converse(db, "what's Sandra's digest?"); assert.equal(a.source, 'command'); assert.match(a.text, /Total: 420/);
   const b = await converse(db, 'ask Sandra how many customers are overdue'); assert.match(b.text, /can't ask Sandra free-form/);
   const c = await converse(db, 'is Sandra connected?'); assert.match(c.text, /Total: 420/);
-  clearSecret('sandra'); delete process.env.SANDRA_DIGEST_TOKEN; const d = await converse(db, 'Sandra status'); assert.match(d.text, /don't have a token/);
+  delete process.env.SANDRA_DIGEST_TOKEN; const d = await converse(db, 'Sandra status'); assert.match(d.text, /don't have a token/);
 });
 
 test('secrets: the sandra token has its own env name, the CLI accepts it, and no source file prints it', () => {
-  assert.match(fs.readFileSync(new URL('../secret-set.ts', import.meta.url), 'utf8'), /'sandra'/); setSecret('sandra', 'file-token-abcdef1234'); assert.equal(S.state(makeDb()).tokenSaved, true);
+  assert.match(fs.readFileSync(new URL('../secret-set.ts', import.meta.url), 'utf8'), /'sandra'/); process.env.SANDRA_DIGEST_TOKEN = 'env-token-abcdef1234'; assert.equal(S.state(makeDb()).tokenSaved, true);   // env only: tests never write the real secrets file
   const src = fs.readFileSync(new URL('../sandra.ts', import.meta.url), 'utf8'); assert.doesNotMatch(src, /console\.|JSON\.stringify\(\{[^}]*token/);
 });
