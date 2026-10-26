@@ -44,11 +44,12 @@ import type { Completion, CompletionRequest, Provider } from '../llm/types.ts';
 import { converse } from '../converse.ts';
 import * as ws from '../websearch.ts';
 import * as registry from '../skills/registry.ts';
+import { setPlace } from '../place.ts';
 import { createTask } from '../tasks.ts';
 const orig = gw.registry.providers; afterEach(() => { gw.registry.providers = orig; });
 
 test('the self-test question: the weather part is looked up (walled off from his data), the calendar part comes from his own data, and one reply covers both', async () => {
-  const db = makeDb(); ws.setConfig(db, { enabled: true, perDay: 15 }); createTask(db, { title: 'Call Reid about the dock', kind: 'manual', priority: 1 } as any);
+  const db = makeDb(); ws.setConfig(db, { enabled: true, perDay: 15 }); setPlace(db, 'Oconomowoc, WI'); createTask(db, { title: 'Call Reid about the dock', kind: 'manual', priority: 1 } as any);
   const calls: CompletionRequest[] = [];
   gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req) { calls.push(req); const web = !!req.webSearch; return { text: web ? 'Sunny and 64 tomorrow, rain holding off until evening.' : 'Sunny and 64 tomorrow, sir, with rain holding off until evening. Nothing is on your calendar in the morning.', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 0 }, searches: web ? 1 : 0, sources: [] } as Completion; } } as Provider };
   const r = await converse(db, "what's the weather tomorrow and what's on my calendar in the morning?");
@@ -62,7 +63,7 @@ test('the self-test question: the weather part is looked up (walled off from his
 
 test('the mixed question is not swallowed by the skill router, with web search on or off; with it off, Jarvis answers the calendar part and says the weather needs web search', async () => {
   for (const on of [true, false]) {
-    const db = makeDb(); ws.setConfig(db, { enabled: on, perDay: 15 }); registry.grant(db, 'jarvis', 'search.everything', 'luke'); const calls: CompletionRequest[] = [];
+    const db = makeDb(); ws.setConfig(db, { enabled: on, perDay: 15 }); registry.grant(db, 'jarvis', 'search.everything', 'luke'); setPlace(db, 'Oconomowoc, WI'); const calls: CompletionRequest[] = [];
     gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req) { calls.push(req); const router = /route a request to ONE tool/.test(req.system); return { text: router ? '{"skill":"search.everything","input":{"query":"weather tomorrow calendar morning"}}' : 'Combined answer.', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 0 }, searches: req.webSearch ? 1 : 0, sources: [] } as Completion; } } as Provider };
     const r = await converse(db, "what's the weather tomorrow and what's on my calendar in the morning?");
     assert.equal(r.text, 'Combined answer.', `web ${on ? 'on' : 'off'}`); const chat = calls.filter((c) => /You are Jarvis, the personal assistant/.test(c.system)); assert.equal(chat.length, 1);

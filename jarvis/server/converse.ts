@@ -30,6 +30,7 @@ import { asksForPlan, plan as makePlan, wantsPlanTasks, addPlanTasks } from './p
 import { chatRating, rate as rateAnswer } from './feedback.ts';
 import * as openq from './openq.ts';
 import * as docs from './documents.ts';
+import * as place from './place.ts';
 import { learnFrom, describeLearned, forgetJustLearned, setAutoLearn } from './autolearn.ts';
 import { asksDigest, asksSandraFreeForm, FREEFORM_REPLY, fetchDigest, render as renderDigest } from './sandra.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
@@ -45,9 +46,14 @@ function relevantMemories(db: DB, text: string): string[] {
 
 /** The last couple of web question-and-answer pairs, so follow-ups ("which one is cheaper?") make sense. Only turns that were already sent to the web are ever included. */
 function webHistory(db: DB): ChatMessage[] {
-  const rows = db.prepare('SELECT role, content, web FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 10) ORDER BY id').all() as { role: string; content: string; web: number }[];
+  // Only the web exchanges at the very end of the conversation, and only from the last 20 minutes. If anything else was said since (a calendar answer, a question about
+  // where he is), the old web topic is dropped, so a new message is never read as a follow-up to something stale.
+  const rows = db.prepare('SELECT role, content, web, at FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 10) ORDER BY id').all() as { role: string; content: string; web: number; at: string }[];
   const out: ChatMessage[] = [];
-  for (let i = 1; i < rows.length; i++) if (rows[i].role === 'jarvis' && rows[i].web && rows[i - 1].role === 'luke') out.push({ role: 'user', content: rows[i - 1].content.slice(0, 400) }, { role: 'assistant', content: rows[i].content.slice(0, 700) });
+  for (let i = rows.length - 1; i >= 1; i--) {
+    if (rows[i].role !== 'jarvis') continue; if (!rows[i].web || rows[i - 1].role !== 'luke' || Date.now() - Date.parse(rows[i].at) > 20 * 60_000) break;
+    out.unshift({ role: 'user', content: rows[i - 1].content.slice(0, 400) }, { role: 'assistant', content: rows[i].content.slice(0, 700) }); i--;
+  }
   return out.slice(-4);
 }
 /** True if the last thing in the conversation is a web answer from the last 20 minutes (so the next question is probably a follow-up). */
@@ -71,6 +77,14 @@ function history(db: DB): ChatMessage[] {
  */
 export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string; brief?: boolean; deviceId?: string } = {}): Promise<ChatReply> {
   const text = textIn.trim().slice(0, 2000).replace(/^(?:(?:hey|hi|hello|ok|okay|yo|so)[,\s]+)?jarvis[,:!]?\s+(?=\S)/i, ''), priv = !!o.private, cfg = getConfig(db);   // "hey Jarvis, …" is just the request
+  if (!priv) {   // where he is: an answer to "where are you?", a plain statement ("I live in …"), or "forget where I live"
+    const ch = o.channel ?? 'dashboard', say = (reply: string): ChatReply => { db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), ch); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), ch); publish({ type: 'chat' }); return { text: reply, persisted: true, source: 'command', proposals: [] }; };
+    if (/^forget (?:where i (?:live|am)|my (?:location|city|town|home))\.?$/i.test(text)) return say(place.clearPlace(db) ? 'Done, sir. I\'ve forgotten where you are.' : 'I didn\'t have a location for you, sir.');
+    const pend = place.pending(db), pl = place.parsePlace(text, !!pend);
+    if (pl && pend) { place.setPlace(db, pl); place.clearPending(db); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), ch); return await converse(db, pend.original, o); }   // finish the question he asked before
+    if (pl && !pend && /^(?:i\s+(?:live|am based|\'m based)|my\s+(?:city|town|location|home)|we\s+live)/i.test(text)) { place.setPlace(db, pl); return say(`Noted, sir: ${pl}. I'll use it for weather and anything local, and you can say "forget where I live" any time.`); }
+    if (pend && !pl && !/\?$/.test(text) && text.split(/\s+/).length <= 3) place.clearPending(db);   // he moved on
+  }
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && saysYes(text) && justSearched(db) && pendingOffer(db)) {   // "yes" to Jarvis's own offer of deeper research
     const q = pendingOffer(db)!; const why = webGate(db, { channel: o.channel ?? 'dashboard' }); clearOffer(db); if (!why) startDeep(db, q, 'deep');
     const reply = why ? why : `On it. I've started a proper look into that. It takes a few minutes and stays within a $${(getDefaults(db).deepMicro / 1e6).toFixed(2)} limit; I'll put the write-up in Ready for Review.`;
@@ -180,6 +194,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
   const webQ = parseWebRequest(text);
+  if (webQ && !priv && place.needsPlace(db, webQ) && !webGate(db, { channel: o.channel ?? 'dashboard' })) { place.setPending(db, text); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', place.ASK, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' }); return { text: place.ASK, persisted: true, source: 'command', proposals: [] }; }
   if (webQ) return await webTurn(db, text, webQ, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
   const modelOk = ready(db, 'chat') && (!priv || cfg.allowInPrivate);
   const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk, channel: o.channel });
@@ -192,7 +207,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     }
   }
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !webGate(db, { channel: o.channel ?? 'dashboard' }) && (looksLikeWebQuestion(text) || (justSearched(db) && isQuestionLike(text)) || await needsWebModel(db, text)))   // everyday questions that need the internet just go there; if search is off or at its limit, fall through to a normal chat
-    return await webTurn(db, text, text, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
+    return place.needsPlace(db, text) ? (place.setPending(db, text), db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'), db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', place.ASK, now(), o.channel ?? 'dashboard'), publish({ type: 'chat' }), { text: place.ASK, persisted: true, source: 'command' as const, proposals: [] }) : await webTurn(db, text, text, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
 
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !isMixedAsk(text)) {   // plain-words skill routing (a message that mixes the outside world with his own data goes to the combined answer below, not to one skill): one cheap pick, then the registry decides and runs it
     const sk = await routeSkill(db, text);
@@ -203,8 +218,9 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   }
 
   let webNote = '';   // "the weather tomorrow and what's on my calendar": the outside part is looked up (walled off from his data), the rest comes from his own data, and one reply covers both
-  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && isMixedAsk(text) && !webGate(db, { channel: o.channel ?? 'dashboard' })) {
-    const w = await askWeb(db, text.replace(/\b(?:my|our)\s+(?:calendar|schedule|tasks?|to-?dos?|day|week)\b/gi, 'the day'), { channel: o.channel ?? 'dashboard', deviceId: o.deviceId, brief: true, private: false, history: [] });
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && isMixedAsk(text) && place.needsPlace(db, text) && !webGate(db, { channel: o.channel ?? 'dashboard' })) { place.setPending(db, text); webNote = 'NOTE: you do not know where Luke is. Answer the part about his own data, and for the outside-world part say you need his city, and that he can simply tell you.'; }
+  else if (!priv && (o.channel ?? 'dashboard') !== 'sms' && isMixedAsk(text) && !webGate(db, { channel: o.channel ?? 'dashboard' })) {
+    const w = await askWeb(db, place.withPlace(db, text.replace(/\b(?:my|our)\s+(?:calendar|schedule|tasks?|to-?dos?|day|week)\b/gi, 'the day')), { channel: o.channel ?? 'dashboard', deviceId: o.deviceId, brief: true, private: false, history: [] });
     if (w.ok) webNote = w.text;
   }
   const strong = /^deep:\s*/i.test(text); const prompt = text.replace(/^deep:\s*/i, '');
@@ -251,7 +267,7 @@ async function webTurn(db: DB, text: string, query: string, o: { private: boolea
   publish({ type: 'thinking', on: true });
   try {
     if (query.length >= 5) setMeta(db, 'web:last', query.slice(0, 400));
-    const r = await askWeb(db, query, { channel, deviceId: o.deviceId, brief: o.brief, private: o.private, history: o.private ? [] : webHistory(db) });
+    const r = await askWeb(db, place.withPlace(db, query), { channel, deviceId: o.deviceId, brief: o.brief, private: o.private, history: o.private ? [] : webHistory(db) });
     if (!o.private) {
       db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,0)').run('luke', text, now(), channel);
       db.prepare('INSERT INTO messages(role,content,at,channel,web) VALUES(?,?,?,?,?)').run('jarvis', r.text, now(), channel, r.ok ? 1 : 0); publish({ type: 'chat' });
