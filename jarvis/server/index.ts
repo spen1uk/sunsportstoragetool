@@ -23,6 +23,7 @@ import { syncCalendar, sources } from './calendar.ts';
 import { syncNotes } from './notes.ts';
 import { isMac } from './mac.ts';
 import { backupSavedPersona } from './persona.ts';
+import { indexAll as indexMeaning } from './embed.ts';
 import path from 'node:path';
 import { bus } from './events.ts';
 import { startHeartbeat } from './heartbeat.ts';
@@ -47,6 +48,7 @@ setInterval(() => { if (isMac()) void drainCalendar(db).catch(() => { /* recorde
 setInterval(() => void triggerTick(db).catch((e) => console.error('[triggers]', (e as Error).message)), 30_000);
 // Missions: plan, start, watch and finish research missions (cheap, no model call unless a step needs planning or a review).
 let missionBusy = false; const missionTick = () => { if (missionBusy) return; missionBusy = true; void missions.tick(db).then(() => syncDelegations(db)).catch((e) => console.error('[missions]', (e as Error).message)).finally(() => { missionBusy = false; }); };
+setInterval(() => void indexMeaning(db).catch(() => { /* Ollama off: words only */ }), 5 * 60_000);   // keeps the meaning index current
 setInterval(missionTick, 30_000); setTimeout(missionTick, 3_000);
 // Read-only copy of the chosen Apple Calendar / Notes, refreshed every 15 minutes while Jarvis runs on the Mac (no network, no model calls).
 const macSync = async () => { for (const [k, f] of [['calendar', syncCalendar], ['notes', syncNotes]] as const) { if (sources(db, k).some((x) => x.enabled)) await f(db).catch((e) => console.error(`[${k}]`, (e as Error).message)); } };

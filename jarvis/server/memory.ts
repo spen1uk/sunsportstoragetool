@@ -71,7 +71,7 @@ export function update(db: DB, memoryId: string, content: string) {
 /** Forget is a hard delete (row removed, not flagged). Backups roll off per retention; see docs/THREAT_MODEL.md. */
 export function forget(db: DB, memoryId: string) {
   const r = db.prepare('DELETE FROM memories WHERE id=?').run(memoryId);
-  if (r.changes) { db.prepare("DELETE FROM entity_links WHERE kind='memory' AND ref_id=?").run(memoryId); db.prepare('DELETE FROM memory_reviews WHERE new_id=? OR existing_id=?').run(memoryId, memoryId); audit(db, 'luke', 'memory.forgotten', memoryId); publish({ type: 'memory' }); }
+  if (r.changes) { db.prepare("DELETE FROM embeddings WHERE kind='memory' AND ref=?").run(memoryId); db.prepare("DELETE FROM entity_links WHERE kind='memory' AND ref_id=?").run(memoryId); db.prepare('DELETE FROM memory_reviews WHERE new_id=? OR existing_id=?').run(memoryId, memoryId); audit(db, 'luke', 'memory.forgotten', memoryId); publish({ type: 'memory' }); }
   return !!r.changes;
 }
 /** Mark a memory as confirmed, still true, out of date, or wrong. Out of date and wrong stop being used in answers but are kept until forgotten. */

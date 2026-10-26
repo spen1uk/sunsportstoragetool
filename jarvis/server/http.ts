@@ -15,6 +15,7 @@ import { hasSecret } from './llm/secrets.ts';
 import * as sandra from './sandra.ts';
 import * as autolearn from './autolearn.ts';
 import * as docs from './documents.ts';
+import * as embedMod from './embed.ts';
 import { actionPolicy } from './actionpolicy.ts';
 import { MAX_DEPTH, MAX_CONSULTS } from './limits.ts';
 import { getPersona, setPersona, personaSchema } from './persona.ts';
@@ -333,6 +334,9 @@ route('GET', '/api/open-questions', ({ db }) => ({ items: openq.list(db, 'open')
 route('POST', '/api/open-questions', ({ db, body }) => { const b = parse(z.object({ question: z.string().min(10).max(300) }), body); const qid = openq.add(db, b.question, { source: 'luke' }); if (!qid) throw bad('That is already on the list, too short, or mentions something you asked me never to store.'); return { id: qid }; });
 route('POST', '/api/open-questions/:id/status', ({ db, params, body }) => { const b = parse(z.object({ status: z.enum(['answered', 'dropped', 'open']), note: z.string().max(300).default('') }), body); return { ok: openq.setStatus(db, params.id, b.status, b.note) }; });
 route('POST', '/api/open-questions/:id/look', ({ db, params }) => { const m = openq.lookInto(db, params.id); if (!m) throw bad('That is already proposed, or the list of proposals is full. Check the Missions page.'); return { missionId: m }; });
+route('GET', '/api/embed', async ({ db }) => embedMod.status(db));
+route('POST', '/api/embed/index', async ({ db }) => { let last = await embedMod.indexAll(db); for (let i = 0; i < 20 && last.ok && last.remaining > 0; i++) last = await embedMod.indexAll(db); return last; });
+route('PUT', '/api/embed/settings', ({ db, body }) => { const b = parse(z.object({ on: z.boolean().optional(), model: z.string().max(40).optional(), url: z.string().max(100).optional() }), body); if (!embedMod.setSettings(db, b)) throw bad('That model or address is not allowed. The address must be on this computer.'); return { ok: true }; });
 route('GET', '/api/documents', ({ db }) => ({ items: docs.list(db) }));
 route('POST', '/api/documents', async ({ db, body }) => { const b = parse(z.object({ name: z.string().min(1).max(200), data: z.string().min(4).max(14 * 1024 * 1024) }), body); const r = await docs.add(db, b.name, Buffer.from(b.data, 'base64')); if (!r.ok) throw bad(r.error); return r; });
 route('DELETE', '/api/documents/:id', ({ db, params }) => ({ ok: docs.remove(db, params.id) }));

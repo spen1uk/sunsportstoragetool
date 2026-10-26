@@ -249,6 +249,20 @@ function RecentlyLearned() {
     </div>
   );
 }
+function MeaningSearchCard() {
+  const { data, reload } = useLive<any>(() => api('/api/embed'), ['memory', 'documents']); const a = useAction(); const [msg, setMsg] = useState('');
+  if (!data) return null;
+  const pct = (n: number, t: number) => (t ? `${n} of ${t}` : 'none yet');
+  return (
+    <div className="glass pad section"><h2>Meaning search</h2><Err m={a.err} />
+      <p className="muted small">Finds memories and document passages by what they mean, not only the words. It uses a small model on this Mac through Ollama; nothing is sent anywhere else. Without it I fall back to word matching.</p>
+      <p className="small">{!data.on ? 'Switched off.' : data.reachable ? `Ollama ${data.version} is running. Model ${data.model}: ${data.modelPulled ? 'ready' : `not downloaded yet (run: ollama pull ${data.model})`}.` : 'Ollama was not found on this Mac (install it from ollama.com, then run: ollama pull ' + data.model + ').'} Indexed: memories {pct(data.indexed.memories, data.total.memories)}, document pieces {pct(data.indexed.chunks, data.total.chunks)}.</p>
+      <div className="row wrap"><button className="primary" disabled={!data.on || !data.reachable || !data.modelPulled} onClick={() => a.run(async () => { const r = await api('/api/embed/index', 'POST'); setMsg(r.message); reload(); })}>Build meaning index</button>
+        <label className="small"><input type="checkbox" checked={data.on} onChange={(e) => a.run(() => api('/api/embed/settings', 'PUT', { on: e.target.checked }).then(reload))} /> Use meaning search</label></div>
+      {msg && <p className="ok small" role="status">{msg}</p>}
+    </div>
+  );
+}
 function DocumentsCard() {
   const { data, reload } = useLive<any>(() => api('/api/documents'), ['documents']); const a = useAction(); const [msg, setMsg] = useState('');
   const pick = (f: File | undefined) => { if (!f) return; setMsg(''); void a.run(async () => { const buf = new Uint8Array(await f.arrayBuffer()); let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000)); const r = await api('/api/documents', 'POST', { name: f.name, data: btoa(bin) }); setMsg(r.message); reload(); }); };
@@ -273,6 +287,7 @@ export function MemoryPage() {
       <MemoryReviews />
       <RecentlyLearned />
       <DocumentsCard />
+      <MeaningSearchCard />
       <MemorySuggestions />
       <div className="glass pad section"><ul className="plain">
         {(data ?? []).map((m) => (

@@ -31,17 +31,27 @@ import { chatRating, rate as rateAnswer } from './feedback.ts';
 import * as openq from './openq.ts';
 import * as docs from './documents.ts';
 import * as place from './place.ts';
+import * as embed from './embed.ts';
 import { learnFrom, describeLearned, forgetJustLearned, setAutoLearn } from './autolearn.ts';
 import { asksDigest, asksSandraFreeForm, FREEFORM_REPLY, fetchDigest, render as renderDigest } from './sandra.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
 
 /** Memories that match what he said, plus the latest few. Each carries how sure we are: his own words are plain, anything unconfirmed or old is labelled so the model does not state it as fact. Out-of-date and wrong ones are never used. */
-function relevantMemories(db: DB, text: string): string[] {
-  const rows = new Map<string, string>(); const tag = (m: any) => `${m.content}${m.status === 'unverified' ? ' (unconfirmed)' : m.status === 'preference' ? ' (a preference)' : ''}${Date.now() - Date.parse(m.created_at) > 365 * 86_400_000 && m.status !== 'confirmed' ? ' (saved over a year ago, may be out of date)' : ''}`;
+const tagOf = (m: any) => `${m.content}${m.status === 'unverified' ? ' (unconfirmed)' : m.status === 'preference' ? ' (a preference)' : ''}${Date.now() - Date.parse(m.created_at) > 365 * 86_400_000 && m.status !== 'confirmed' ? ' (saved over a year ago, may be out of date)' : ''}`;
+function relevantMemories(db: DB, text: string, byMeaning: string[] = []): string[] {
+  const rows = new Map<string, string>(); const tag = tagOf;
   for (const k of keywords(text).slice(0, 6))
     for (const m of db.prepare(`SELECT id, content, status, created_at FROM memories WHERE ${ACTIVE} AND content LIKE ? ESCAPE '\\' LIMIT 3`).all(`%${k.replace(/[\\%_]/g, '')}%`) as any[]) rows.set(m.id, tag(m));
   for (const m of db.prepare(`SELECT id, content, status, created_at FROM memories WHERE ${ACTIVE} ORDER BY created_at DESC LIMIT 4`).all() as any[]) rows.set(m.id, tag(m));
-  return [...rows.values()].slice(0, 8);
+  return [...byMeaning, ...rows.values()].filter((v, i, a) => a.indexOf(v) === i).slice(0, 9);
+}
+/** Memories whose MEANING is close to what he said (when the local model is available); these go first. */
+async function memoriesByMeaning(db: DB, text: string): Promise<string[]> {
+  try {
+    const hits = await embed.similar(db, text, { kind: 'memory', limit: 3 }); if (!hits) return [];
+    const get = db.prepare(`SELECT id, content, status, created_at FROM memories WHERE id=? AND ${ACTIVE}`);
+    return hits.filter((h) => h.score >= embed.MIN_SIMILARITY).map((h) => get.get(h.ref) as any).filter(Boolean).map(tagOf);
+  } catch { return []; }
 }
 
 /** The last couple of web question-and-answer pairs, so follow-ups ("which one is cheaper?") make sense. Only turns that were already sent to the web are ever included. */
@@ -227,7 +237,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   const messages: ChatMessage[] = [...(priv ? [] : [...summaryMessages(db), ...history(db)]), { role: 'user', content: prompt }];
   publish({ type: 'thinking', on: true });
   try {
-    const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt), context: priv ? undefined : buildContext(db, Date.now(), o.channel ?? 'dashboard'), proposals: !priv, brief: o.brief, channel: o.channel ?? 'dashboard', web: webNote }), messages, strong, channel: o.channel ?? 'dashboard', deviceId: o.deviceId });
+    const r = await complete(db, { task: 'chat', system: buildSystemPrompt(db, { memories: priv ? [] : relevantMemories(db, prompt, await memoriesByMeaning(db, prompt)), context: priv ? undefined : buildContext(db, Date.now(), o.channel ?? 'dashboard'), proposals: !priv, brief: o.brief, channel: o.channel ?? 'dashboard', web: webNote }), messages, strong, channel: o.channel ?? 'dashboard', deviceId: o.deviceId });
     const raw = r.ok ? r.text.trim() || '…' : `I couldn't reach a language model just now, sir (${r.error}). Command mode is still available: type "help".`;
     // The model may PROPOSE actions; they become Confirm cards and do nothing until Luke clicks. In private mode nothing is stored, so proposals are dropped.
     const ex = r.ok ? extractProposals(raw) : { text: raw, actions: [], dropped: 0 };

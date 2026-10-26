@@ -5,6 +5,7 @@ import { publish } from './events.ts';
 import * as gw from './llm/gateway.ts';
 import { isExcluded } from './exclusions.ts';
 import type { Read } from './docread.ts';
+import * as embed from './embed.ts';
 
 /**
  * Documents Luke gives Jarvis (PDF, Word, Excel, PowerPoint, text, CSV, web pages). Only the extracted text is kept, in pieces; the file itself is never stored.
@@ -52,10 +53,10 @@ export async function add(db: DB, rawName: string, bytes: Buffer, now = Date.now
   if (noText) return { ok: false, error: `${note} I have not kept it. Picture-only files need reading the page images, which I do not do yet.` };
   db.prepare('INSERT INTO documents(id,name,kind,bytes,units,chars,status,note,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(did, name, r.kind, bytes.length, r.units.length, chars, 'ready', '', now);
   { const ins = db.prepare('INSERT INTO document_chunks(doc_id,idx,unit,label,text) VALUES(?,?,?,?,?)'); chunks(r.units).forEach((c, i) => ins.run(did, i, c.unit, c.label, c.text)); }
-  audit(db, 'luke', 'document.added', did, { kind: r.kind, bytes: bytes.length, units: r.units.length, chars }); publish({ type: 'documents' });
+  audit(db, 'luke', 'document.added', did, { kind: r.kind, bytes: bytes.length, units: r.units.length, chars }); publish({ type: 'documents' }); embed.indexSoon(db);
   return { ok: true, id: did, message: `Got it, sir. I've read "${name}" (${r.kind.toUpperCase()}, ${r.units.length} ${r.units.length === 1 ? 'part' : 'parts'}). Ask me for a summary, or what it says about something.` };
 }
-export function remove(db: DB, did: string) { const d = get(db, did); if (!d) return false; db.prepare('DELETE FROM document_chunks WHERE doc_id=?').run(did); db.prepare('DELETE FROM documents WHERE id=?').run(did); audit(db, 'luke', 'document.removed', did, { kind: d.kind }); publish({ type: 'documents' }); return true; }
+export function remove(db: DB, did: string) { const d = get(db, did); if (!d) return false; db.prepare('DELETE FROM document_chunks WHERE doc_id=?').run(did); db.prepare("DELETE FROM embeddings WHERE kind='chunk' AND ref LIKE ?").run(`${did}:%`); db.prepare('DELETE FROM documents WHERE id=?').run(did); audit(db, 'luke', 'document.removed', did, { kind: d.kind }); publish({ type: 'documents' }); return true; }
 
 const STOP = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'what', 'which', 'does', 'say', 'about', 'are', 'was', 'were', 'have', 'has', 'how', 'much', 'many', 'any', 'you', 'your', 'its', 'into', 'there', 'their', 'who', 'when', 'where', 'tell', 'document', 'file']);
 const terms = (q: string) => [...new Set(q.toLowerCase().replace(/[^a-z0-9$.% ]/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w)).map((w) => w.replace(/s$/, '')))];
@@ -67,6 +68,17 @@ export function search(db: DB, question: string, docId?: string, limit = 4) {
   for (const t of ts) df.set(t, low.filter((x) => x.includes(t)).length);
   return rows.map((r, i) => { let s = 0; for (const t of ts) { const n = low[i].split(t).length - 1; if (n) s += (1 + Math.log(n)) * Math.log(1 + rows.length / (df.get(t) || 1)); } return { ...r, score: s }; })
     .filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, limit);
+}
+/** Words AND meaning, merged (reciprocal rank fusion). If meaning search is unavailable this is exactly the word search. */
+export async function searchHybrid(db: DB, question: string, docId?: string, limit = 4) {
+  const kw = search(db, question, docId, 12); let mean: { ref: string; score: number }[] | null = null;
+  try { const refs = docId ? (db.prepare('SELECT doc_id, idx FROM document_chunks WHERE doc_id=?').all(docId) as { doc_id: string; idx: number }[]).map((r) => `${r.doc_id}:${r.idx}`) : undefined; mean = await embed.similar(db, question, { kind: 'chunk', limit: 12, refs }); } catch { mean = null; }
+  if (!mean) return kw.slice(0, limit);
+  const fused = new Map<string, number>(), key = (d: string, i: number) => `${d}:${i}`;
+  kw.forEach((h, r) => fused.set(key(h.doc_id, h.idx), (fused.get(key(h.doc_id, h.idx)) ?? 0) + 1 / (60 + r)));
+  mean.filter((m) => m.score >= embed.MIN_SIMILARITY).forEach((m, r) => fused.set(m.ref, (fused.get(m.ref) ?? 0) + 1 / (60 + r)));
+  const get = db.prepare('SELECT c.*, d.name FROM document_chunks c JOIN documents d ON d.id=c.doc_id WHERE c.doc_id=? AND c.idx=?');
+  return [...fused.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([ref, score]) => { const [d, i] = [ref.slice(0, ref.lastIndexOf(':')), Number(ref.slice(ref.lastIndexOf(':') + 1))]; const row = get.get(d, i) as any; return row && { ...row, score }; }).filter(Boolean) as ReturnType<typeof search>;
 }
 /** Find a document by what Luke called it ("the service guide", "storage rates"); "this"/"it" means the newest. */
 export function find(db: DB, ref: string): Doc | null {
@@ -86,7 +98,7 @@ const SYSTEM = [
 
 export async function ask(db: DB, question: string, docId?: string): Promise<string> {
   if (!gw.ready(db, 'chat')) return 'I can\'t reach a language model right now, sir, so I can\'t read the document for you.';
-  const hits = search(db, question, docId); if (!hits.length) return docId ? 'I can\'t find that in this document, sir. Try different words, or ask for a summary.' : 'I can\'t find that in any of your documents, sir.';
+  const hits = await searchHybrid(db, question, docId); if (!hits.length) return docId ? 'I can\'t find that in this document, sir. Try different words, or ask for a summary.' : 'I can\'t find that in any of your documents, sir.';
   const body = hits.map((h) => `[${h.name}, ${h.label}]\n${redact(h.text)}`).join('\n\n');
   const r = await gw.complete(db, { task: 'chat', ref: 'documents', system: SYSTEM, messages: [{ role: 'user', content: `<data kind="document pieces">\n${body.replace(/<\/?data[^>]*>/gi, ' ')}\n</data>\n\nQuestion: ${clean(question, 300)}` }] });
   return r.ok ? r.text.trim() : `I couldn't read the document just now, sir (${r.error}).`;
