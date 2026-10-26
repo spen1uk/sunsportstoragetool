@@ -194,7 +194,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !webGate(db, { channel: o.channel ?? 'dashboard' }) && (looksLikeWebQuestion(text) || (justSearched(db) && isQuestionLike(text)) || await needsWebModel(db, text)))   // everyday questions that need the internet just go there; if search is off or at its limit, fall through to a normal chat
     return await webTurn(db, text, text, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
 
-  if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // plain-words skill routing: one cheap pick, then the registry decides and runs it
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !isMixedAsk(text)) {   // plain-words skill routing (a message that mixes the outside world with his own data goes to the combined answer below, not to one skill): one cheap pick, then the registry decides and runs it
     const sk = await routeSkill(db, text);
     if (sk.handled) {
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', sk.text, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });

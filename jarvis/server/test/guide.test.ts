@@ -43,6 +43,7 @@ import * as gw from '../llm/gateway.ts';
 import type { Completion, CompletionRequest, Provider } from '../llm/types.ts';
 import { converse } from '../converse.ts';
 import * as ws from '../websearch.ts';
+import * as registry from '../skills/registry.ts';
 import { createTask } from '../tasks.ts';
 const orig = gw.registry.providers; afterEach(() => { gw.registry.providers = orig; });
 
@@ -57,4 +58,14 @@ test('the self-test question: the weather part is looked up (walled off from his
   assert.match(r.text, /Sunny and 64[\s\S]*calendar/);
   const sms = await converse(db, "what's the weather tomorrow and what's on my calendar in the morning?", { channel: 'sms' }); assert.ok(sms.text); assert.equal(calls.filter((c) => c.webSearch).length, 1, 'no web search over text messages');
   const { isMixedAsk } = ws; for (const t of ["what's on my schedule tomorrow", 'what is the weather in Rome', 'add a task to check my calendar']) assert.equal(isMixedAsk(t), false, t);
+});
+
+test('the mixed question is not swallowed by the skill router, with web search on or off; with it off, Jarvis answers the calendar part and says the weather needs web search', async () => {
+  for (const on of [true, false]) {
+    const db = makeDb(); ws.setConfig(db, { enabled: on, perDay: 15 }); registry.grant(db, 'jarvis', 'search.everything', 'luke'); const calls: CompletionRequest[] = [];
+    gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req) { calls.push(req); const router = /route a request to ONE tool/.test(req.system); return { text: router ? '{"skill":"search.everything","input":{"query":"weather tomorrow calendar morning"}}' : 'Combined answer.', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 0 }, searches: req.webSearch ? 1 : 0, sources: [] } as Completion; } } as Provider };
+    const r = await converse(db, "what's the weather tomorrow and what's on my calendar in the morning?");
+    assert.equal(r.text, 'Combined answer.', `web ${on ? 'on' : 'off'}`); const chat = calls.filter((c) => /You are Jarvis, the personal assistant/.test(c.system)); assert.equal(chat.length, 1);
+    if (!on) assert.match(chat[0].system, /WEB SEARCH: not enabled/);
+  }
 });
