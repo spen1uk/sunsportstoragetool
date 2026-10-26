@@ -31,7 +31,7 @@ export const autoLearnOn = (db: DB) => getMeta(db, 'memory:autolearn') !== '0';
 export const setAutoLearn = (db: DB, on: boolean) => { setMeta(db, 'memory:autolearn', on ? '1' : '0'); audit(db, 'luke', 'memory.autolearn', '', { on }); };
 
 const CUES = /\b(i|i'm|i've|i'll|i'd|my|me|we|we're|we've|our|us)\b/i;
-const THEMES = /\b(prefer\w*|always|never|usually|every (?:day|week|morning|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|from now on|remember|decided|deciding|going to|plan(?:ning)? to|promised?|birthday|anniversary|wife|husband|girlfriend|boyfriend|fianc\w+|brother|sister|mom|mother|dad|father|son|daughter|kids?|partner|works? (?:at|for)|lives?|favou?rite|hate|love|call me|text me|email me|don't (?:like|want|eat|drink)|allergic|goal|deadline|launch(?:ing)?|opening|hiring|price[sd]?|rate|closed on|open (?:from|on))\b/i;
+const THEMES = /\b(prefer\w*|always|never|usually|every (?:day|week|morning|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|from now on|remember|decided|deciding|going to|plan(?:ning)? to|promised?|birthday|anniversary|wife|husband|girlfriend|boyfriend|fianc\w+|brother|sister|mom|mother|dad|father|son|daughter|kids?|partner|works? (?:at|for)|lives?|favou?rite|hate|love|(?:really |also )?(?:like|enjoy|dislike)s?|call me|text me|email me|don't (?:like|want|eat|drink)|allergic|goal|deadline|launch(?:ing)?|opening|hiring|price[sd]?|rate|closed on|open (?:from|on))\b/i;
 /** Cheap check before any model call: a statement about himself, not a question, not a pasted block. */
 export function worthLearning(text: string): boolean {
   const t = text.trim(); if (t.length < 12 || t.length > 600) return false;

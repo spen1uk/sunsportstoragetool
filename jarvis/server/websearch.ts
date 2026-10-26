@@ -41,9 +41,12 @@ export function parseWebRequest(text: string): string | null {
  * messages stays an ordinary private chat, and the web turn itself never sees any of his data.
  */
 const PRIVATE_WORDS = /\b(my|our|mine)\s+(tasks?|to-?dos?|calendar|schedule|reminders?|notes?|habits?|memor(?:y|ies)|projects?|budget|approvals?|e-?mails?|messages?|texts?|passphrase|password|goals?|day|week|briefing)\b|\b(remind me|add (?:a )?task|remember that|approve|deny)\b/i;
+/** Questions about HIM ("what do I like to eat", "who is my wife", "where do I live"): answered from what Jarvis knows about him, never sent to the internet. */
+const ABOUT_SELF = /\b(?:what|which|who|where|when|how)\b[^?]{0,40}\b(?:do|did|am|have|was|were)\s+i\s+(?:like|love|prefer|hate|dislike|enjoy|want|usually|normally|always|never|eat|drink|live|work|tell|say|decide|promise|mention|own|drive)\b|\b(?:do|did|am) i (?:like|love|prefer|hate|dislike|enjoy|usually|normally|always|never|have|own)\b|\bwhat(?:'s| is| are) my (?:favou?rites?|usual|preferred|wife|husband|partner|kids?|dogs?|cats?|address|hobbies|routine)\b|\bwho(?:'s| is| are) my\b|\bwhat do you (?:know|remember) about me\b|\bdo you remember\b|\bwhat did i (?:tell|say|ask)\b|\bremind me (?:what|who|where|when|how)\b/i;
+export const asksAboutSelf = (t: string) => ABOUT_SELF.test(t);
 const WEB_WORDS = /\b(weather|forecast|temperature|rain(?:ing)?|snow(?:ing)?|news|headlines?|latest|breaking|right now|currently|today'?s|tonight|this (?:week|weekend)|score|scores|who won|standings|stock|share price|price of|how much (?:is|are|does|do)|exchange rate|release date|when (?:is|are|was|were|do|does|did|will|can|should)|what time|schedule|kickoff|tip-?off|fixtures?|who (?:is|are|was|plays|owns|leads)|what happened|what'?s happening|opening hours|open (?:now|today)|look(?:ing)? up|recommend(?:ed|ation|ations)?|best|top rated|cheapest|compare|comparison| vs |where (?:can|do|to) (?:i|we)|looking for|who makes|alternatives? to|worth buying|look it up|find (?:me|out|information|info)|search for|any news|trending|review of|reviews of)\b/i;
 /** True if it reads like a question or request (so a tiny model check is worth a fraction of a cent), and is not obviously about Luke's own things. */
-export const isQuestionLike = (text: string) => { const t = text.trim(); return t.length >= 10 && t.length <= 400 && !PRIVATE_WORDS.test(t) && !/^(deep|deep research|prometheus|mission|research deeply)\s*:/i.test(t) && !/^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|yep|nope|sure|good (?:morning|afternoon|evening|night)|how are you|what'?s up)\b[\s\S]{0,20}$/i.test(t); };
+export const isQuestionLike = (text: string) => { const t = text.trim(); return t.length >= 10 && t.length <= 400 && !PRIVATE_WORDS.test(t) && !ABOUT_SELF.test(t) && !/^(?:i|i'm|i've|i'll|i'd|we|we're|we've)\b[^?]*$/i.test(t) && !/^(deep|deep research|prometheus|mission|research deeply)\s*:/i.test(t) && !/^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|yep|nope|sure|good (?:morning|afternoon|evening|night)|how are you|what'?s up)\b[\s\S]{0,20}$/i.test(t); };
 /**
  * For questions the plain rules did not recognise: a tiny, cheap model check (a few tokens, no private data, only his question text) decides
  * whether it needs current information from the internet. Any doubt or failure means no, so it falls back to a normal chat.
@@ -55,7 +58,7 @@ export async function needsWebModel(db: DB, text: string, now = Date.now()): Pro
 }
 export function looksLikeWebQuestion(text: string): boolean {
   const t = text.trim(); if (t.length < 8 || t.length > 400) return false;
-  if (/^(deep|deep research|prometheus|mission|research deeply)\s*:/i.test(t) || PRIVATE_WORDS.test(t)) return false;
+  if (/^(deep|deep research|prometheus|mission|research deeply)\s*:/i.test(t) || PRIVATE_WORDS.test(t) || ABOUT_SELF.test(t)) return false;
   return WEB_WORDS.test(t);
 }
 

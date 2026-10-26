@@ -87,3 +87,13 @@ test('wiring: the index refreshes in the background, removing a document clears 
   const src = fs.readFileSync(new URL('../embed.ts', import.meta.url), 'utf8'); assert.doesNotMatch(src, /console\./); assert.match(src, /redirect: 'manual'/);
   const http = fs.readFileSync(new URL('../http.ts', import.meta.url), 'utf8'); assert.match(http, /'\/api\/embed\/index'/); assert.match(fs.readFileSync(new URL('../index.ts', import.meta.url), 'utf8'), /indexMeaning/);
 });
+
+import * as ws from '../websearch.ts';
+test('questions about HIM are answered from what Jarvis knows, never sent to the internet, even with web search on and a router that says yes to everything; his statements of taste are remembered', async () => {
+  const db = makeDb(); ws.setConfig(db, { enabled: true, perDay: 15 }); ollama(); const calls: CompletionRequest[] = [];
+  gw.registry.providers = { anthropic: { id: 'anthropic', available: () => true, async complete(req) { calls.push(req); const learn = req.system.includes('durable worth remembering'); return { text: learn ? JSON.stringify({ facts: [{ text: 'Likes steak over pizza.', kind: 'preference', correction: false }] }) : /Decide whether answering/.test(req.system) ? 'yes' : 'You like steak over pizza, sir.', model: req.model, stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 }, searches: 0, sources: [] } as Completion; } } as Provider };
+  await converse(db, 'I like steak over pizza'); await new Promise((r) => setTimeout(r, 40)); assert.match(String((db.prepare("SELECT content FROM memories WHERE source='auto'").get() as any)?.content), /steak over pizza/, 'a plain statement of taste is remembered');
+  for (const q of ['what do i like to eat', 'What do I like to eat?', 'who is my wife', 'where do I live', 'what is my favorite food', 'what did I tell you about dinner', 'do you remember what I like']) { assert.equal(ws.asksAboutSelf(q), true, q); assert.equal(ws.looksLikeWebQuestion(q), false, q); assert.equal(ws.isQuestionLike(q), false, q); }
+  for (const q of ['what is the best steak house in Oconomowoc', 'who owns Tesla', 'what do people like to eat in Wisconsin', 'where do i buy a trailer hitch near me']) assert.equal(ws.asksAboutSelf(q), false, q);
+  const r = await converse(db, 'what do i like to eat'); assert.match(r.text, /steak over pizza/); assert.equal(calls.filter((c) => c.webSearch).length, 0, 'no web search'); const chat = calls.filter((c) => /You are Jarvis, the personal assistant/.test(c.system)).pop()!; assert.match(chat.system, /Likes steak over pizza/);
+});
