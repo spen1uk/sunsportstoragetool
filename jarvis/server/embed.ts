@@ -90,7 +90,7 @@ export async function indexAll(db: DB, limit = 400): Promise<{ ok: boolean; adde
       part.forEach((p, k) => { ins.run(p.kind, p.ref, model, vs[k].length, blob(vs[k]), sha256(p.text), Date.now()); added++; });
     }
     if (added) audit(db, 'jarvis', 'embed.index', '', { added, model });
-    const remaining = todo.length - added; return { ok: true, added, remaining, message: remaining ? `Indexed ${added}; ${remaining} still to do (press again).` : added ? `Indexed ${added} items. Meaning search is ready.` : 'Everything is already indexed.' };
+    const remaining = todo.length - added; return { ok: true, added, remaining, message: remaining ? `Indexed ${added}; ${remaining} still to do (press again).` : added ? `Indexed ${added} items. Meaning search is ready.` : items.length ? `Everything is already indexed (${items.length} items). Meaning search is ready.` : 'There is nothing to index yet. Add a document or a memory first, then press this again.' };
   } finally { indexing = false; }
 }
 let timer: ReturnType<typeof setTimeout> | null = null;

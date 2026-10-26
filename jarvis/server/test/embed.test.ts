@@ -38,13 +38,15 @@ test('status: finds Ollama and the model, says what is missing, and stays quiet 
   const log = ollama(); E.setSettings(db, { on: false }); s = await E.status(db); assert.equal(s.on, false); assert.equal(log.length, 0, 'switched off: no calls at all');
 });
 
+test('an empty shelf says so instead of claiming success', async () => { const db = makeDb(); ollama(); assert.match((await E.indexAll(db)).message, /nothing to index yet/); });
+
 test('indexing: only memories in force that are not secret or excluded, document pieces, nothing twice; forgotten and replaced things leave the index; works in batches', async () => {
   const db = makeDb(); X.add(db, 'Project Nightingale'); const log = ollama();
   const a = memory.remember(db, 'Prefers text messages in the morning.', { source: 'luke' }); memory.remember(db, 'Wife is Sarah.', { source: 'luke' }); db.prepare("INSERT INTO memories(id,kind,content,scope,source,confidence,created_at,status) VALUES('s1','fact','the wifi password is hunter2hunter2','personal','luke',0.9,?,'stated')").run(new Date().toISOString());
   db.prepare("INSERT INTO memories(id,kind,content,scope,source,confidence,created_at,status) VALUES('x1','fact','Project Nightingale budget','personal','luke',0.9,?,'stated')").run(new Date().toISOString()); db.prepare("INSERT INTO memories(id,kind,content,scope,source,confidence,created_at,status) VALUES('h1','fact','Old fact','personal','luke',0.9,?,'historical')").run(new Date().toISOString());
   const r1 = await E.indexAll(db); assert.deepEqual([r1.ok, r1.added, r1.remaining], [true, 2, 0]); const refs = (db.prepare('SELECT ref FROM embeddings').all() as any[]).map((x) => x.ref); assert.ok(!refs.includes('s1') && !refs.includes('x1') && !refs.includes('h1'));
   const bodies = log.filter((l) => l.path === '/api/embed').flatMap((l) => l.body.input as string[]); assert.ok(bodies.every((b) => b.startsWith('search_document: ')), 'document prefix for nomic'); assert.ok(!bodies.join(' ').includes('hunter2'));
-  const before = log.length; assert.equal((await E.indexAll(db)).added, 0); assert.equal(log.length, before, 'nothing to do, no calls');
+  assert.match((await E.indexAll(db)).message, /already indexed \(2 items\)/); const before = log.length; assert.equal((await E.indexAll(db)).added, 0); assert.equal(log.length, before, 'nothing to do, no calls');
   memory.forget(db, a.ok ? a.id : ''); assert.equal((db.prepare("SELECT COUNT(*) c FROM embeddings WHERE kind='memory'").get() as any).c, 1);
   db.prepare("UPDATE memories SET content='Wife is Sarah and married ten years.' WHERE content='Wife is Sarah.'").run(); assert.equal((await E.indexAll(db)).added, 1, 'changed text is re-embedded');
   for (let i = 0; i < 40; i++) memory.remember(db, `Fact number ${i} about the dock lights at the shop.`, { source: 'luke' });
