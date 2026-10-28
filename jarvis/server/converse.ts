@@ -31,28 +31,11 @@ import { chatRating, rate as rateAnswer } from './feedback.ts';
 import * as openq from './openq.ts';
 import * as docs from './documents.ts';
 import * as place from './place.ts';
-import * as embed from './embed.ts';
+import { relevantMemories, memoriesByMeaning, history } from './chatctx.ts';
+import * as agent from './agent.ts';
 import { learnFrom, describeLearned, forgetJustLearned, setAutoLearn } from './autolearn.ts';
 import { asksDigest, asksSandraFreeForm, FREEFORM_REPLY, fetchDigest, render as renderDigest } from './sandra.ts';
 import { createAssigned, ASSIGNED_DEFAULT_CAP } from './missions.ts';
-
-/** Memories that match what he said, plus the latest few. Each carries how sure we are: his own words are plain, anything unconfirmed or old is labelled so the model does not state it as fact. Out-of-date and wrong ones are never used. */
-const tagOf = (m: any) => `${m.content}${m.status === 'unverified' ? ' (unconfirmed)' : m.status === 'preference' ? ' (a preference)' : ''}${Date.now() - Date.parse(m.created_at) > 365 * 86_400_000 && m.status !== 'confirmed' ? ' (saved over a year ago, may be out of date)' : ''}`;
-function relevantMemories(db: DB, text: string, byMeaning: string[] = []): string[] {
-  const rows = new Map<string, string>(); const tag = tagOf;
-  for (const k of keywords(text).slice(0, 6))
-    for (const m of db.prepare(`SELECT id, content, status, created_at FROM memories WHERE ${ACTIVE} AND content LIKE ? ESCAPE '\\' LIMIT 3`).all(`%${k.replace(/[\\%_]/g, '')}%`) as any[]) rows.set(m.id, tag(m));
-  for (const m of db.prepare(`SELECT id, content, status, created_at FROM memories WHERE ${ACTIVE} ORDER BY created_at DESC LIMIT 4`).all() as any[]) rows.set(m.id, tag(m));
-  return [...byMeaning, ...rows.values()].filter((v, i, a) => a.indexOf(v) === i).slice(0, 9);
-}
-/** Memories whose MEANING is close to what he said (when the local model is available); these go first. */
-async function memoriesByMeaning(db: DB, text: string): Promise<string[]> {
-  try {
-    const hits = await embed.similar(db, text, { kind: 'memory', limit: 3 }); if (!hits) return [];
-    const get = db.prepare(`SELECT id, content, status, created_at FROM memories WHERE id=? AND ${ACTIVE}`);
-    return hits.filter((h) => h.score >= embed.MIN_SIMILARITY).map((h) => get.get(h.ref) as any).filter(Boolean).map(tagOf);
-  } catch { return []; }
-}
 
 /** The last couple of web question-and-answer pairs, so follow-ups ("which one is cheaper?") make sense. Only turns that were already sent to the web are ever included. */
 function webHistory(db: DB): ChatMessage[] {
@@ -72,13 +55,6 @@ function justSearched(db: DB): boolean {
   return !!r && r.role === 'jarvis' && !!r.web && Date.now() - Date.parse(r.at) < 20 * 60_000;
 }
 
-function history(db: DB): ChatMessage[] {
-  const rows = db.prepare('SELECT role, content, web FROM (SELECT * FROM messages ORDER BY id DESC LIMIT 12) ORDER BY id').all() as { role: 'luke' | 'jarvis'; content: string; web: number }[];
-  // An earlier answer that came from the internet stays in history only as a clipped, labelled, unverified note (page text must not steer later private chats).
-  const msgs: ChatMessage[] = rows.map((r) => ({ role: r.role === 'luke' ? 'user' : 'assistant', content: r.web && r.role === 'jarvis' ? `(Earlier answer from a web search, unverified:) ${r.content.split('\n\nFrom the internet')[0].slice(0, 500)}` : r.content }));
-  while (msgs.length && msgs[0].role !== 'user') msgs.shift();   // conversations must open with a user turn
-  return msgs;
-}
 
 /**
  * Chat entry point. Deterministic commands always win (so "pause", "add task…" stay instant, free and exact).
@@ -87,6 +63,7 @@ function history(db: DB): ChatMessage[] {
  */
 export async function converse(db: DB, textIn: string, o: { private?: boolean; channel?: string; brief?: boolean; deviceId?: string } = {}): Promise<ChatReply> {
   const text = textIn.trim().slice(0, 2000).replace(/^(?:(?:hey|hi|hello|ok|okay|yo|so)[,\s]+)?jarvis[,:!]?\s+(?=\S)/i, ''), priv = !!o.private, cfg = getConfig(db);   // "hey Jarvis, …" is just the request
+  const agentOn = !priv && agent.enabled(db, o.channel ?? 'dashboard') && ready(db, 'agent');   // the tool-using brain (Settings → Chat brain): one capable model chooses its own tools, so most of the pattern-matching below is skipped
   if (!priv) {   // where he is: an answer to "where are you?", a plain statement ("I live in …"), or "forget where I live"
     const ch = o.channel ?? 'dashboard', say = (reply: string): ChatReply => { db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), ch); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), ch); publish({ type: 'chat' }); return { text: reply, persisted: true, source: 'command', proposals: [] }; };
     if (/^forget (?:where i (?:live|am)|my (?:location|city|town|home))\.?$/i.test(text)) return say(place.clearPlace(db) ? 'Done, sir. I\'ve forgotten where you are.' : 'I didn\'t have a location for you, sir.');
@@ -107,18 +84,18 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     return { text: reply, persisted: true, source: 'command', proposals: [] };
   }
   if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // plans and decisions, the feedback signal, and the open-questions list
-    let say: string | null = null; const fb = chatRating(text), planReq = asksForPlan(text);
+    let say: string | null = null; const fb = chatRating(text), planReq = agentOn ? null : asksForPlan(text);
     if (fb) { const r = rateAnswer(db, null, fb.rating, fb.note); say = !r.ok ? r.error! : fb.rating === 'up' ? 'Glad that landed, sir. Noted.' : `Noted, sir. I've marked that answer as wrong${fb.note ? ' and recorded why' : ''}. If this keeps happening it will show up on the Improvements page.${fb.note ? '' : ' Tell me what was wrong (“that was wrong because …”) and I\'ll record it.'}`; }
-    else if (wantsPlanTasks(text)) say = addPlanTasks(db);
+    else if (!agentOn && wantsPlanTasks(text)) say = addPlanTasks(db);
     else if (planReq) say = await makePlan(db, planReq);
     else if (/^(?:what (?:have you|did you) (?:learn(?:ed|t)?|pick(?:ed)? up|remember(?:ed)?)(?: (?:lately|recently|about me|on your own))?|what do you know about me|what have you learned)\??$/i.test(text)) say = describeLearned(db);
     else if (/^forget (?:what you (?:just )?learn(?:ed|t)|that you (?:just )?learn(?:ed|t)|what you just picked up)\.?$/i.test(text)) { const n = forgetJustLearned(db); say = n ? `Done, sir. I've forgotten the ${n === 1 ? 'one thing' : n + ' things'} I picked up in the last half hour.` : 'There was nothing I\'d picked up on my own in the last half hour, sir.'; }
     else if (/^(?:stop|turn off|switch off|disable) (?:automatic(?:ally)? (?:learning|memory|remembering)|learning (?:things )?(?:automatically|on your own)|remembering (?:things )?(?:automatically|on your own))\.?$/i.test(text)) { setAutoLearn(db, false); say = 'Understood, sir. I\'ll only remember what you tell me to. Say "start learning automatically" to switch it back on.'; }
     else if (/^(?:start|turn on|switch on|enable|resume) (?:automatic(?:ally)? (?:learning|memory|remembering)|learning (?:things )?(?:automatically|on your own)|remembering (?:things )?(?:automatically|on your own))\.?$/i.test(text)) { setAutoLearn(db, true); say = 'Very good, sir. I\'ll write down lasting things you tell me, and you can review or forget them on the Memory page.'; }
-    else if (/^(?:what|which) documents(?: do (?:you|i) have| have i (?:given|added|uploaded)(?: you)?)?\??$|^list (?:my )?documents\.?$/i.test(text)) say = docs.describe(db);
-    else if (docs.list(db).length && documentRequest(db, text)) say = await documentRequest(db, text)!();
-    else if (asksSandraFreeForm(text)) say = FREEFORM_REPLY;
-    else if (asksDigest(text)) say = renderDigest(await fetchDigest(db, { fresh: true }));
+    else if (!agentOn && /^(?:what|which) documents(?: do (?:you|i) have| have i (?:given|added|uploaded)(?: you)?)?\??$|^list (?:my )?documents\.?$/i.test(text)) say = docs.describe(db);
+    else if (!agentOn && docs.list(db).length && documentRequest(db, text)) say = await documentRequest(db, text)!();
+    else if (!agentOn && asksSandraFreeForm(text)) say = FREEFORM_REPLY;
+    else if (!agentOn && asksDigest(text)) say = renderDigest(await fetchDigest(db, { fresh: true }));
     else if (/^(?:what(?:'s| is| are)(?: still)? (?:open|unresolved|unanswered)|open questions|what questions are (?:still )?open|what(?:'s| is) left to find out)\??$/i.test(text)) say = openq.describe(db);
     else { const tq = text.match(/^track (?:this|that|the)(?: question)?[:,]?\s+(.{10,300})$/i); if (tq) say = openq.add(db, tq[1], { source: 'luke' }) ? 'Tracking it, sir. It will stay on your open-questions list until you mark it answered.' : 'I couldn\'t track that (it may already be on the list, or be too short).'; }
     if (say) {
@@ -141,13 +118,13 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
     }
   }
   if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // "build it" after he was told something can't be done yet; "what can you do"
-    const bl = asksCapabilities(text) ? CAPABILITIES : /^test structured (?:answers|output|replies)\.?$/i.test(text) ? await testStructured(db) : await buildLast(db, text);
+    const bl = !agentOn && asksCapabilities(text) ? CAPABILITIES : /^test structured (?:answers|output|replies)\.?$/i.test(text) ? await testStructured(db) : agentOn ? null : await buildLast(db, text);
     if (bl) {
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', bl, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
       return { text: bl, persisted: true, source: 'command', proposals: [] };
     }
   }
-  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && wantsDraftOpened(text)) {   // "open it": puts his draft in Mail or Messages for him to read and send himself
+  if (!priv && (o.channel ?? 'dashboard') !== 'sms' && !agentOn && wantsDraftOpened(text)) {   // "open it": puts his draft in Mail or Messages for him to read and send himself
     const reply = await openDraft(db);
     if (reply) {
       db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', reply, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' });
@@ -162,7 +139,7 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   }
   const calReq = (type: string, payload: unknown) => (calDirect(db) ? calApplyNow(db)(type, payload) : requestApproval(db, { actionType: type, payload, requestedBy: 'luke' }));
   let calDel: string | null = null;
-  if (!priv && (o.channel ?? 'dashboard') !== 'sms') {
+  if (!priv && !agentOn && (o.channel ?? 'dashboard') !== 'sms') {
     try { calDel = calendarDelete(db, text, calReq, Date.now(), calDirect(db)) ?? await calendarCreate(db, text, calReq, Date.now(), calDirect(db)); }
     catch (e) { console.error('[calendar chat error]', (e as Error).message); calDel = `I tried to do that on your calendar but it failed: ${(e as Error).message.slice(0, 200)}`; }
   }
@@ -207,8 +184,9 @@ export async function converse(db: DB, textIn: string, o: { private?: boolean; c
   if (webQ && !priv && place.needsPlace(db, webQ) && !webGate(db, { channel: o.channel ?? 'dashboard' })) { place.setPending(db, text); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('luke', text, now(), o.channel ?? 'dashboard'); db.prepare('INSERT INTO messages(role,content,at,channel) VALUES(?,?,?,?)').run('jarvis', place.ASK, now(), o.channel ?? 'dashboard'); publish({ type: 'chat' }); return { text: place.ASK, persisted: true, source: 'command', proposals: [] }; }
   if (webQ) return await webTurn(db, text, webQ, { private: priv, channel: o.channel, brief: o.brief, deviceId: o.deviceId });
   const modelOk = ready(db, 'chat') && (!priv || cfg.allowInPrivate);
-  const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk, channel: o.channel });
+  const cmd = handleChat(db, text, { private: priv, deferFallback: modelOk, channel: o.channel, agent: agentOn });
   if (!cmd.fallback) return { ...cmd, source: 'command' };
+  if (agentOn) return await agent.agentTurn(db, text, { channel: o.channel, deviceId: o.deviceId, brief: o.brief }) as ChatReply;
   if (!priv && (o.channel ?? 'dashboard') !== 'sms') {   // plain requests ("build me a …", "start a goal to …", "have someone look into …"): one cheap pick from a fixed menu, then ordinary code does it
     const done = await intentTurn(db, text, { channel: o.channel ?? 'dashboard' });
     if (done) {

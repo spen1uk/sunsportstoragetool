@@ -346,11 +346,26 @@ export function ActivityPage() {
 }
 
 // ---------------- Settings ----------------
+function ChatBrainCard() {
+  const { data, reload } = useLive<any>(() => api('/api/agent'), ['approvals']); const a = useAction();
+  if (!data) return null;
+  const set = (mode: string) => a.run(() => api('/api/agent', 'PUT', { mode }).then(reload));
+  const dollars = (n: number) => `$${(n / 1e6).toFixed(2)}`;
+  return (
+    <div className="glass pad"><h2>Chat brain</h2><Err m={a.err} />
+      <p className="muted small">The new way Jarvis thinks: one capable model reads the whole conversation and chooses its own tools (calendar, tasks, memory, documents, web, Sandra, opening things, research), the way Claude or ChatGPT do. Texts, emails, calls, payments and spending limits are still never done without you. The old way (many fixed rules) stays as the fallback.</p>
+      <label className="small">Mode <select value={data.mode} onChange={(e) => void set(e.target.value)}><option value="off">Off (old way)</option><option value="smart">Smart (Sonnet, best answers)</option><option value="fast">Fast (Haiku, cheaper)</option></select></label>
+      <p className="small muted">{data.ready ? 'A model is connected.' : 'No model is connected.'} Today: {dollars(data.spentTodayMicroUsd)} of {dollars(data.dailyCeilingMicroUsd)}. Smart mode costs roughly 1 to 3 cents a message; raise the daily ceiling in Approvals if it runs out.</p>
+      <details className="small"><summary>What it can do ({data.tools.length} tools)</summary><p>{data.tools.join(', ')}</p></details>
+    </div>
+  );
+}
 export function SettingsPage(p: { st: AppState; reload: () => void; quality: string; setQuality: (q: any) => void; reduced: boolean; setReduced: (b: boolean) => void; osReduced: boolean; resetLayout: () => void }) {
   const b = p.st.budget; const a = useAction(); const [cat, setCat] = useState('hosting'), [amt, setAmt] = useState('0'), [cap, setCap] = useState(''); const [msg, setMsg] = useState('');
   const { data: led, reload } = useLive<any>(() => api('/api/budget'), ['budget']);
   return (
     <section className="page"><h1>Settings</h1><Err m={a.err} />{msg && <p className="ok">{msg}</p>}
+      <ChatBrainCard />
       <div className="grid2">
         <div className="glass pad"><h2>Safety</h2>
           <p>{p.st.pause.paused ? <b className="warn">Paused since {p.st.pause.since ? ago(p.st.pause.since) : ''}.</b> : 'Running.'} Pause stops new automated work and blocks execution of approved actions. {p.st.pause.inflight} task(s) in flight cannot be recalled instantly.</p>

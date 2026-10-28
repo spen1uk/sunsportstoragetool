@@ -363,7 +363,7 @@ test('over HTTP: model page needs a session; route, provider and evaluation chan
   const t = await boot();
   try {
     assert.equal((await t.api('/api/models')).status, 401);
-    const m = await (await t.api('/api/models', { headers: t.me })).json() as any; assert.ok(m.providers.some((p: any) => p.id === 'anthropic' && p.approved) && m.providers.some((p: any) => p.id === 'openai' && !p.connected)); assert.ok(m.cases.length >= 10 && m.routes.length === 4);
+    const m = await (await t.api('/api/models', { headers: t.me })).json() as any; assert.ok(m.providers.some((p: any) => p.id === 'anthropic' && p.approved) && m.providers.some((p: any) => p.id === 'openai' && !p.connected)); assert.ok(m.cases.length >= 10 && m.routes.length === 5);
     const body = { candidates: [{ provider: 'anthropic', model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 500 }] };
     assert.equal((await t.api('/api/models/routes/chat', { method: 'PUT', headers: t.me, body })).status, 403);
     await t.api('/api/stepup', { method: 'POST', headers: t.me, body: { passphrase: 'test-pass' } });

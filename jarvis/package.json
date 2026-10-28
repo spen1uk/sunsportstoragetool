@@ -25,7 +25,8 @@
     "backup:keygen": "node server/backup-run.ts keygen",
     "backup:drill": "node server/backup-run.ts drill",
     "backup:restore": "node server/backup-run.ts restore",
-    "secret:migrate": "node server/secret-migrate.ts"
+    "secret:migrate": "node server/secret-migrate.ts",
+    "check:chat": "node server/chat-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.133.0",

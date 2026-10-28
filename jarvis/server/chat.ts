@@ -30,7 +30,7 @@ const NAV: [RegExp, string][] = [
  * Command mode: deterministic intent handling. NO language model is connected yet, and Jarvis says so rather than improvising.
  * Voice navigation is navigation only — nothing here approves a protected action.
  */
-export function handleChat(db: DB, textIn: string, o: { private?: boolean; deferFallback?: boolean; channel?: string } = {}): ChatReply {
+export function handleChat(db: DB, textIn: string, o: { private?: boolean; deferFallback?: boolean; channel?: string; agent?: boolean } = {}): ChatReply {   // agent: only navigation, pause, resume and status stay instant; everything else is the model's job
   const text = textIn.trim().slice(0, 2000);
   const priv = !!o.private;
   const persistTurn = (reply: string) => {
@@ -44,7 +44,7 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
   for (const [re, hash] of NAV) if (re.test(text)) return reply('Certainly, sir.', { action: { navigate: hash } });
 
   let m: RegExpMatchArray | null;
-  if ((m = text.match(/^(?:research|look into|investigate)\s+(.+?)\s+(?:from|using|at)\s+(https?:\/\/\S.*)$/i))) {
+  if (!o.agent && (m = text.match(/^(?:research|look into|investigate)\s+(.+?)\s+(?:from|using|at)\s+(https?:\/\/\S.*)$/i))) {
     if (priv) return reply('Private mode does not create records, sir. Leave private mode and ask again.');
     const urls = m[2].split(/[\s,]+/).filter(Boolean);
     const parsed = researchInput.safeParse({ question: m[1], urls });
@@ -52,12 +52,12 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
     const tid = createTask(db, { title: `Research: ${parsed.data.question.slice(0, 80)}`, kind: 'research', priority: 2, input: parsed.data });
     return reply(`Understood, sir. Research task queued (${tid.slice(0, 8)}). If any source domain is not yet on the allow-list I will ask for your approval before fetching.`);
   }
-  if ((m = text.match(/^(?:add task|new task|task:)\s+(.+)$/i))) {
+  if (!o.agent && (m = text.match(/^(?:add task|new task|task:)\s+(.+)$/i))) {
     if (priv) return reply('Private mode does not create records, sir.');
     createTask(db, { title: m[1], kind: 'manual' });
     return reply(`Added: "${m[1].slice(0, 100)}".`);
   }
-  if ((m = text.match(/^(?:complete|done with|finish|check off)\s+(?:task\s+)?(.+)$/i))) {
+  if (!o.agent && (m = text.match(/^(?:complete|done with|finish|check off)\s+(?:task\s+)?(.+)$/i))) {
     const hits = db.prepare("SELECT id,title FROM tasks WHERE kind='manual' AND state NOT IN ('completed','canceled') AND is_demo=0 AND lower(title) LIKE ? ESCAPE '\\'")
       .all(`%${m[1].toLowerCase().replace(/[\\%_]/g, (c) => '\\' + c)}%`) as { id: string; title: string }[];
     if (hits.length === 0) return reply(`I can't find an open task matching "${m[1]}", sir.`);
@@ -66,12 +66,12 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
     completeTask(db, hits[0].id, 'luke', 'stated complete in chat');
     return reply(`Marked "${hits[0].title}" complete.`);
   }
-  if ((m = text.match(/^remember(?: that)?\s+(.+)$/i))) {
+  if (!o.agent && (m = text.match(/^remember(?: that)?\s+(.+)$/i))) {
     if (priv) return reply('Private mode does not write memory, sir.');
     const r = memory.remember(db, m[1], { source: 'chat' });
     return reply(r.ok ? memory.describeSaved(r) : r.error);
   }
-  if ((m = text.match(/^forget\s+(.+)$/i))) {
+  if (!o.agent && (m = text.match(/^forget\s+(.+)$/i))) {
     if (priv) return reply('Private mode does not modify memory, sir.');
     const hits = memory.search(db, m[1]) as { id: string; content: string }[];
     if (hits.length === 0) return reply('Nothing matching that in memory, sir.');
@@ -79,7 +79,7 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
     memory.forget(db, hits[0].id);
     return reply(`Forgotten: "${hits[0].content.slice(0, 80)}".`);
   }
-  if ((m = text.match(/^(?:what(?:'s| is)(?: on)? (?:my )?(?:calendar|schedule|agenda)|what do i have|what(?:'s| is) next|what(?:'s| is) on (?:today|tomorrow)|my (?:calendar|schedule|agenda))(?:\s+(today|tomorrow))?[?.! ]*$/i)) || /^what do i have (today|tomorrow)[?.! ]*$/i.test(text)) {
+  if (!o.agent && (m = text.match(/^(?:what(?:'s| is)(?: on)? (?:my )?(?:calendar|schedule|agenda)|what do i have|what(?:'s| is) next|what(?:'s| is) on (?:today|tomorrow)|my (?:calendar|schedule|agenda))(?:\s+(today|tomorrow))?[?.! ]*$/i)) || /^what do i have (today|tomorrow)[?.! ]*$/i.test(text)) {
     const cs = syncState(db, 'calendar');
     if (cs.status === 'planned' || cs.status === 'disconnected') return reply('Your calendar is not connected yet, sir. Choose which calendars I may read on the Calendar page (it reads from this Mac only).');
     const tomorrow = /tomorrow/i.test(text), t0 = Date.now(), p0 = chicagoParts(t0);
@@ -90,7 +90,7 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
     const stale = cs.status === 'stale' ? ' (My copy is stale, so this may be out of date; recurring events can be missing.)' : ' (Unusual repeat patterns can be missing from my copy.)';
     return reply(ev.length ? `${/next/i.test(text) ? 'Coming up' : tomorrow ? 'Tomorrow' : 'Today'}, sir:\n${ev.map(fmt).join('\n')}${stale}` : `Nothing on the calendar ${/next/i.test(text) ? 'in the next three days' : tomorrow ? 'tomorrow' : 'for the rest of today'}, sir.${stale}`);
   }
-  if ((m = text.match(/^(?:i )?(?:did|logged|log|worked out|went to)\s+(?:my\s+)?(.+?)(?:\s+today)?[.!]*$/i))) {
+  if (!o.agent && (m = text.match(/^(?:i )?(?:did|logged|log|worked out|went to)\s+(?:my\s+)?(.+?)(?:\s+today)?[.!]*$/i))) {
     const h = findHabit(db, m[1]);
     if (h) {   // only when the sentence clearly names exactly one of Luke's habits; otherwise it falls through to normal chat
       if (priv) return reply('Private mode does not modify records, sir.');
@@ -100,11 +100,11 @@ export function handleChat(db: DB, textIn: string, o: { private?: boolean; defer
     const g = findGoal(db, m[1].replace(/^(?:a|an|one|1)\s+/i, ''));
     if (g) { if (priv) return reply('Private mode does not modify records, sir.'); logLearning(db, g.id, 1); return reply(`Logged one ${g.unit.replace(/s$/, '')} toward "${g.name}", sir: ${g.weekTotal + 1} of ${g.perWeek} this week.`); }
   }
-  if ((m = text.match(/^(?:i )?(?:talked to|spoke (?:to|with)|called|texted|contacted|caught up with)\s+(.+?)[.!]*$/i))) {
+  if (!o.agent && (m = text.match(/^(?:i )?(?:talked to|spoke (?:to|with)|called|texted|contacted|caught up with)\s+(.+?)[.!]*$/i))) {
     const pr = findPerson(db, m[1]);
     if (pr) { if (priv) return reply('Private mode does not modify records, sir.'); markContacted(db, pr.id); return reply(`Noted, sir: you were in touch with ${pr.name} today.`); }
   }
-  if ((m = text.match(/^(?:search|find)(?: my)? notes?(?: for| about)?\s+(.+)$/i))) {
+  if (!o.agent && (m = text.match(/^(?:search|find)(?: my)? notes?(?: for| about)?\s+(.+)$/i))) {
     const ns = syncState(db, 'notes');
     if (ns.status === 'planned' || ns.status === 'disconnected') return { text: 'Notes are not connected yet, sir. Choose a folder on the Notes page.', persisted: false };
     const hits = listNotes(db, m[1], 6);

@@ -16,6 +16,7 @@ import * as sandra from './sandra.ts';
 import * as autolearn from './autolearn.ts';
 import * as docs from './documents.ts';
 import * as embedMod from './embed.ts';
+import * as agentMod from './agent.ts';
 import { actionPolicy } from './actionpolicy.ts';
 import { MAX_DEPTH, MAX_CONSULTS } from './limits.ts';
 import { getPersona, setPersona, personaSchema } from './persona.ts';
@@ -334,6 +335,8 @@ route('GET', '/api/open-questions', ({ db }) => ({ items: openq.list(db, 'open')
 route('POST', '/api/open-questions', ({ db, body }) => { const b = parse(z.object({ question: z.string().min(10).max(300) }), body); const qid = openq.add(db, b.question, { source: 'luke' }); if (!qid) throw bad('That is already on the list, too short, or mentions something you asked me never to store.'); return { id: qid }; });
 route('POST', '/api/open-questions/:id/status', ({ db, params, body }) => { const b = parse(z.object({ status: z.enum(['answered', 'dropped', 'open']), note: z.string().max(300).default('') }), body); return { ok: openq.setStatus(db, params.id, b.status, b.note) }; });
 route('POST', '/api/open-questions/:id/look', ({ db, params }) => { const m = openq.lookInto(db, params.id); if (!m) throw bad('That is already proposed, or the list of proposals is full. Check the Missions page.'); return { missionId: m }; });
+route('GET', '/api/agent', ({ db }) => ({ mode: agentMod.getMode(db), ready: gw.ready(db, 'agent'), tools: agentMod.toolNames(), dailyCeilingMicroUsd: gw.getConfig(db).dailyCeilingMicroUsd, spentTodayMicroUsd: gw.spentToday(db) }));
+route('PUT', '/api/agent', ({ db, body }) => { const b = parse(z.object({ mode: z.enum(['off', 'smart', 'fast']) }), body); agentMod.setMode(db, b.mode); return { mode: agentMod.getMode(db) }; });
 route('GET', '/api/embed', async ({ db }) => embedMod.status(db));
 route('POST', '/api/embed/index', async ({ db }) => { let last = await embedMod.indexAll(db); for (let i = 0; i < 20 && last.ok && last.remaining > 0; i++) last = await embedMod.indexAll(db); return last; });
 route('PUT', '/api/embed/settings', ({ db, body }) => { const b = parse(z.object({ on: z.boolean().optional(), model: z.string().max(40).optional(), url: z.string().max(100).optional() }), body); if (!embedMod.setSettings(db, b)) throw bad('That model or address is not allowed. The address must be on this computer.'); return { ok: true }; });

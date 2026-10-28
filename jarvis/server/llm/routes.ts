@@ -7,9 +7,9 @@ import { getApproval } from './providers.ts';
 import { PRICES } from './prices.ts';
 
 /** Tasks whose prompts can contain Luke's private text. Their routes may only use providers he has allowed to see it. */
-const PRIVATE_TASKS: Task[] = ['chat', 'analysis'];
-export const ROUTABLE: Task[] = ['chat', 'analysis', 'ping', 'web'];
-const MAX_TOKENS: Record<string, number> = { chat: 2000, analysis: 6000, ping: 64, web: 2000 };
+const PRIVATE_TASKS: Task[] = ['chat', 'analysis', 'agent'];
+export const ROUTABLE: Task[] = ['chat', 'analysis', 'ping', 'web', 'agent'];
+const MAX_TOKENS: Record<string, number> = { chat: 2000, analysis: 6000, ping: 64, web: 2000, agent: 4000 };
 
 const candidate = z.object({ provider: z.string().min(2).max(30), model: z.string().min(2).max(60), effort: z.enum(['low', 'medium', 'high']), maxTokens: z.number().int().min(8).max(8000) }).strict();
 const routeSchema = z.array(candidate).min(1).max(4);

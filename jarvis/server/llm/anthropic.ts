@@ -18,6 +18,21 @@ export function anthropicProvider(opts: { baseURL?: string; apiKey?: string; max
     capabilities: { webSearch: true },
     async complete(req: CompletionRequest): Promise<Completion> {
       const c = get();
+      if (req.tools?.length) {   // tool use: ONE model step. The caller (agent.ts) runs the tools and calls again; nothing here executes anything.
+        try {
+          const r = await c.messages.create({ model: req.model, max_tokens: req.maxTokens, system: req.system, messages: (req.blocks ?? req.messages) as Anthropic.MessageParam[], tools: req.tools as Anthropic.Tool[],
+            ...(req.cache ? { cache_control: { type: 'ephemeral' as const } } : {}), ...(req.effort ? { output_config: { effort: req.effort } } : {}) });
+          if (r.stop_reason === 'refusal') throw new LlmError('refusal', `The model declined this request${r.stop_details?.category ? ` (${r.stop_details.category})` : ''}.`);
+          let text = ''; const toolCalls: { id: string; name: string; input: Record<string, unknown> }[] = [];
+          for (const b of r.content) { if (b.type === 'text') text += b.text; else if (b.type === 'tool_use') toolCalls.push({ id: b.id, name: b.name, input: (b.input && typeof b.input === 'object' ? b.input : {}) as Record<string, unknown> }); }
+          return { text, toolCalls, content: r.content, model: r.model, stopReason: r.stop_reason ?? 'unknown', usage: { inputTokens: r.usage.input_tokens, outputTokens: r.usage.output_tokens, cacheReadTokens: r.usage.cache_read_input_tokens ?? 0, cacheWriteTokens: r.usage.cache_creation_input_tokens ?? 0 } };
+        } catch (e) {
+          if (e instanceof LlmError) throw e;
+          if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw new LlmError('auth', 'Anthropic rejected the API key');
+          if (e instanceof Anthropic.BadRequestError || e instanceof Anthropic.NotFoundError) throw new LlmError('bad_request', (e as Error).message.slice(0, 200));
+          throw new LlmError('transient', (e as Error).message.slice(0, 200));
+        }
+      }
       try {
         const tools = req.webSearch ? [{ type: 'web_search_20250305' as const, name: 'web_search' as const, max_uses: req.webSearch.maxUses, ...(req.webSearch.allowedDomains?.length ? { allowed_domains: req.webSearch.allowedDomains } : req.webSearch.blockedDomains?.length ? { blocked_domains: req.webSearch.blockedDomains } : {}), ...(req.webSearch.timezone ? { user_location: { type: 'approximate' as const, timezone: req.webSearch.timezone } } : {}) }] : undefined;
         // A search turn can pause on the server side; we hand the paused turn straight back (unchanged) a few times, never more.
