@@ -118,6 +118,8 @@ def build_snapshot(cfg, engine, journal, market, now_ms=None, demo=False, health
         curve.append((t["exit_ts"], round(bal, 4)))
 
     thoughts = journal.events(60)
+    ctx0 = next((m.get("ctx") for m in market.values() if m.get("ctx")), None) or {}
+    skips = getattr(engine, "skips", None)
     return {
         "generated_at": ts_iso(int(time.time() * 1000)) + " UTC",
         "market_time": ts_iso(now_ms) + " UTC",
@@ -132,6 +134,8 @@ def build_snapshot(cfg, engine, journal, market, now_ms=None, demo=False, health
         "guards": {"halted": engine.halted, "halt_reason": engine.halt_reason,
                    "paused_until": ts_iso(engine.pause_until) if engine.pause_until > now_ms else None,
                    "daily_loss_hit": engine.daily_loss_hit()},
+        "market": {"mode": ctx0.get("market", "GREEN"), "why": ctx0.get("market_why", "")},
+        "skips": {"summary": skips.summary(), "recent": skips.recent(15)} if skips else None,
         "workers": workers,
         "daily": [{"day": d, "pnl": round(by_day[d], 4)} for d in days],
         "curve": curve,
@@ -295,7 +299,8 @@ def build_demo(cfg, seed=35):
     from .data import synthetic_candles
     from .engine import Engine
     from .journal import Journal
-    from .strategy import btc_regime, compute_indicators
+    from .regime import contexts, ctx_at
+    from .strategy import compute_indicators
     from .config import load_params
 
     from .memory import Memory
@@ -335,17 +340,17 @@ def build_demo(cfg, seed=35):
     j.event("start", "DEMO: simulated $100 paper account opened", 0)
     eng = Engine(cfg, params, v, journal=j, mode="paper", memory=memory)
     inds = {s: compute_indicators(c, params) for s, c in hist.items()}
-    btc = btc_regime(hist["BTC-USDT"], params) if "BTC-USDT" in hist else {}
+    ctxs = contexts(hist.get("BTC-USDT"), params, cfg)
     tl = ThoughtLog(j)
     n = min(len(c) for c in hist.values())
     for i in range(60, n):
         for s, cs in hist.items():
-            ctx = {"btc_up": btc.get(cs[i].ts)}
+            ctx = ctx_at(ctxs, cs[i].ts)
             eng.on_bar(s, cs, inds[s], i, ctx=ctx)
             if i > n - 30:
                 kind, text = think(s, checklist(cs, inds[s], i, params, ctx), eng.positions.get(s), eng, cs[i].ts)
                 tl.update(s, kind, text, cs[i].ts)
-    market = {s: {"candles": cs[:n], "ind": inds[s], "ctx": {"btc_up": btc.get(cs[n - 1].ts)}}
+    market = {s: {"candles": cs[:n], "ind": inds[s], "ctx": ctx_at(ctxs, cs[n - 1].ts)}
               for s, cs in hist.items()}
     t_end = hist[cfg["symbols"][0]][n - 1].ts
     health = {"started": ts_iso(hist[cfg["symbols"][0]][60].ts), "last_fetch_ok": t_end, "last_tick": t_end,

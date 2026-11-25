@@ -12,6 +12,8 @@
   python run.py telegram            # connect phone alerts (Telegram), step by step
   python run.py jarvis              # connect Jarvis (your assistant) for alerts + questions
   python run.py test-alert          # send a test alert to your phone
+  python run.py weekly              # this week's review: results, skipped setups, what could fail
+  python run.py selftest            # safety check: acts out crashes, stale data, duplicates... PASS/FAIL
   python run.py dashboard           # live dashboard at http://127.0.0.1:8050 (run next to `run`)
   python run.py dashboard --demo    # dashboard filled with SIMULATED data, to try it out
 """
@@ -26,7 +28,8 @@ sys.path.insert(0, HERE)
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["run", "once", "status", "report", "backtest", "learn",
-                                        "resume", "rollback", "demo", "dashboard", "telegram", "jarvis", "test-alert"])
+                                        "resume", "rollback", "demo", "dashboard", "telegram", "jarvis", "test-alert",
+                                        "weekly", "selftest"])
     ap.add_argument("--config", default=None)
     ap.add_argument("--bars", type=int, default=None, help="history length for backtest")
     ap.add_argument("--demo", action="store_true", help="dashboard: use simulated data")
@@ -35,7 +38,7 @@ def main():
     args = ap.parse_args()
 
     # Backtests and demos get their own data folder so they never mix with the paper account.
-    if args.command in ("backtest", "demo") and "TRADEBOT_DATA_DIR" not in os.environ:
+    if args.command in ("backtest", "demo", "selftest") and "TRADEBOT_DATA_DIR" not in os.environ:
         os.environ["TRADEBOT_DATA_DIR"] = os.path.join(HERE, "data", args.command)
     if args.command == "dashboard" and args.demo and "TRADEBOT_DATA_DIR" not in os.environ:
         os.environ["TRADEBOT_DATA_DIR"] = os.path.join(HERE, "data", "dashboard-demo")
@@ -45,6 +48,8 @@ def main():
 
     if args.command == "demo":
         return demo(cfg)
+    if args.command == "selftest":
+        return selftest(cfg)
     if args.command == "telegram":
         from tradebot.notify import telegram_setup
         telegram_setup(os.path.join(HERE, ".env"))
@@ -90,6 +95,9 @@ def main():
         from tradebot.report import write_html
         print("Wrote", write_html(cfg, bot.journal, bot.engine))
         print("Wrote", bot.journal.export_csv())
+    elif args.command == "weekly":
+        from tradebot.report import weekly_text
+        print(weekly_text(cfg, bot.engine, bot.journal, bot.memory, bot.skips))
     elif args.command == "learn":
         bot.learn()
     elif args.command == "resume":
@@ -98,6 +106,19 @@ def main():
         bot.journal.event("resume", "Kill switch cleared by user; drawdown measured from current balance")
         bot.save()
         print("Kill switch cleared. Restart the bot if it is not running.")
+
+
+def selftest(cfg):
+    from tradebot.selftest import run_all
+    print("Safety self-test (simulated prices, separate folder - your paper account is not touched)\n")
+    results = run_all(cfg)
+    for name, ok, detail in results:
+        print(f"  {'PASS' if ok else 'FAIL'}  {name}\n         {detail}")
+    bad = [r for r in results if not r[1]]
+    print(f"\n{len(results) - len(bad)}/{len(results)} passed." +
+          ("" if not bad else "  Something is wrong - send this output to Claude before running the bot."))
+    if bad:
+        sys.exit(1)
 
 
 def backtest(cfg, bars):
@@ -145,6 +166,11 @@ def _report_backtest(cfg, params, hist, title):
     print(f"{title}: {s['trades']} trades | win rate {s['win_rate']:.0f}% | avg {s['expectancy_r']:+.2f}R | "
           f"return {s['return_pct']:+.1f}% | max drawdown {s['max_dd_pct']:.1f}% | "
           f"final ${s['final_balance']:.2f}")
+    lines = res["skips"].text_lines()
+    if lines:
+        print("Setups it skipped, followed up afterwards (estimate):")
+        for line in lines:
+            print("  -", line)
     print("Report:", write_html(cfg, j, None, title=title))
     print("Trade log CSV:", j.export_csv())
 

@@ -74,4 +74,7 @@ the change wins on unseen data.
 4. 3 losses in a row: pause new entries for 24 hours.
 5. Account 20% below its peak: the bot stops opening trades until a human
    reviews it and runs `python run.py resume`.
+6. Market mode RED (BTC -6% in a day or -10% in 3 days): no new trades, stops on open
+   trades tightened (never loosened). Back to GREEN after 2 calm days.
+7. Old prices never trigger a trade: if BloFin data is stale, no entries + phone alert.
 6. Paper money only until the go-live checklist in the README is met.

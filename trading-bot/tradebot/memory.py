@@ -9,6 +9,10 @@ It remembers three things across restarts (data/memory.json):
                                 are SKIPPED (requires out-of-sample confirmation, never just hindsight)
                    fixed     -> a rule change that filters it passed testing and was adopted
                    cleared   -> later trades matching it made money, so the caution was lifted
+                   archived  -> only ever 'watching' and not seen again for ARCHIVE_DAYS: filed away
+                 A lesson only ever makes the bot more careful. And it can't block forever without
+                 evidence: every setup it SKIPS is followed afterwards (skips.py); if those skipped
+                 setups keep winning, the lesson is "too strict" and drops from avoid to caution.
   2. FIXES     - every rule change the learner tried, adopted or rejected, and why.
   3. COOLDOWN  - rejected ideas aren't retested until their cooldown ends (the market has
                  had time to change), so the learner doesn't keep repeating itself.
@@ -25,6 +29,8 @@ COOLDOWN_DAYS = {"no_gain": 14, "curve_fit": 30, "drawdown": 30}
 CAUTION = {"losers": 5, "r_sum": -3.0, "ratio": 2.0}     # evidence needed for half size
 AVOID = {"trades": 5, "r_sum": -3.0}                      # NEW live trades needed to skip
 CLEAR = {"trades": 5, "r_sum": 2.0}                       # NEW live trades that lift caution
+TOO_STRICT = {"skips": 5, "r_sum": 2.0}                   # skipped setups that would have won
+ARCHIVE_DAYS = 90
 
 
 def _now():
@@ -83,8 +89,12 @@ class Memory:
                     "key": f["key"], "text": f["text"], "cond": f["cond"], "fix": f.get("fix"),
                     "status": "watching", "first_seen": now, "times_found": 0,
                     "live": {"trades": 0, "r": 0.0, "wins": 0}, "fixes": [],
+                    "skipped": {"n": 0, "r": 0.0, "wins": 0},
                 }
                 notes.append(self._event("new", f"New mistake pattern noted: {f['text']}", now))
+            if p["status"] == "archived":
+                p["status"] = "watching"
+                notes.append(self._event("new", f"Mistake pattern is back: {f['text']}", now))
             p["cond"] = f["cond"]                       # threshold may drift as data grows
             p["text"] = f["text"]
             p["times_found"] += 1
@@ -96,6 +106,13 @@ class Memory:
                 notes.append(self._event("caution", f"Caution: {f['text']} - matching trades now use half size "
                                                     f"({f['losers']} losers vs {f['winners']} winners, "
                                                     f"{f['r_sum']:+.1f}R).", now))
+        seen = {f["key"] for f in findings}
+        for p in self.data["patterns"].values():
+            if (p["status"] == "watching" and p["key"] not in seen
+                    and now - p.get("last_seen", p["first_seen"]) > ARCHIVE_DAYS * DAY_MS):
+                p["status"] = "archived"
+                notes.append(self._event("archived", f"Filed away an old pattern (not seen for {ARCHIVE_DAYS} "
+                                                     f"days): {p['text']}", now))
         self.save()
         return notes
 
@@ -154,6 +171,27 @@ class Memory:
             self.save()
         return notes
 
+    def record_skip(self, pattern_key, r, ts=None):
+        """A setup this pattern blocked has played out. If blocked setups keep winning, the
+        lesson is too strict: drop it from 'avoid' (skip) back to 'caution' (half size)."""
+        p = self.data["patterns"].get(pattern_key)
+        if p is None:
+            return []
+        sk = p.setdefault("skipped", {"n": 0, "r": 0.0, "wins": 0})
+        sk["n"] += 1
+        sk["r"] = round(sk["r"] + r, 3)
+        sk["wins"] += 1 if r > 0 else 0
+        notes = []
+        if p["status"] == "avoid" and sk["n"] >= TOO_STRICT["skips"] and sk["r"] >= TOO_STRICT["r_sum"]:
+            p["status"] = "caution"
+            p["skipped"] = {"n": 0, "r": 0.0, "wins": 0}
+            p["live"] = {"trades": 0, "r": 0.0, "wins": 0}  # needs fresh losing evidence to skip again
+            notes.append(self._event("too_strict", f"Lesson too strict: setups skipped for '{p['text']}' would "
+                                                   f"have made {sk['r']:+.1f}R ({sk['wins']}/{sk['n']} won), so they "
+                                                   f"go back to half size instead of being skipped.", ts))
+        self.save()
+        return notes
+
     # ------------------------------------------------------------- 3. fixes & cooldown
     def cooling(self, change_key, now=None):
         t = self.data["tried"].get(change_key)
@@ -190,7 +228,7 @@ class Memory:
     # ------------------------------------------------------------- dashboard
     def summary(self, now=None):
         now = _now() if now is None else now
-        order = {"avoid": 0, "caution": 1, "watching": 2, "fixed": 3, "cleared": 4}
+        order = {"avoid": 0, "caution": 1, "watching": 2, "fixed": 3, "cleared": 4, "archived": 5}
         pats = sorted(self.data["patterns"].values(), key=lambda p: (order.get(p["status"], 9), -p.get("last_seen", 0)))
         tried = sorted(self.data["tried"].values(), key=lambda t: -t["at"])
         return {
@@ -198,6 +236,7 @@ class Memory:
                 "text": p["text"], "status": p["status"], "first_seen": ts_iso(p["first_seen"]),
                 "last_seen": ts_iso(p.get("last_seen", p["first_seen"])), "times_found": p["times_found"],
                 "evidence": p.get("evidence", {}), "live": p["live"],
+                "skipped": p.get("skipped", {"n": 0, "r": 0.0, "wins": 0}),
                 "fixes": [{"at": ts_iso(x["at"]), "desc": x["desc"], "result": x["result"], "reason": x["reason"]}
                           for x in p["fixes"]],
             } for p in pats],

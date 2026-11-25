@@ -97,6 +97,7 @@ export function renderFloor(s) {
   $("mode").textContent = (s.demo ? "DEMO · simulated prices" : `${s.mode} · ${s.timeframe} candles`) + ` · rules v${s.version}`;
   let b = "";
   if (s.demo) b += `<div class="banner demo">⚠ Demo data from simulated prices - this shows how the dashboard works, not real performance.</div>`;
+  if (s.market && s.market.mode === "RED") b += `<div class="banner halt">🔴 Market mode RED - ${esc(s.market.why)}. No new trades; stops on open trades tightened.</div>`;
   if (s.guards.halted) b += `<div class="banner halt">⛔ ${esc(s.guards.halt_reason)}</div>`;
   else if (s.guards.paused_until) b += `<div class="banner pause">⏸ Cooling off after a losing streak until ${esc(s.guards.paused_until)} UTC</div>`;
   else if (s.guards.daily_loss_hit) b += `<div class="banner pause">⏸ Daily loss limit reached - no new trades until tomorrow (UTC)</div>`;
@@ -159,6 +160,8 @@ function pipelineNodes(s) {
       detail: warm ? "ribbon, SMMA, UT Bot, Stoch RSI calculated" : "warming up - needs 60+ candles" },
     { id: "signals", name: "Signals", st: s.workers.length ? "ok" : "idle",
       detail: `${setups} setup${setups === 1 ? "" : "s"} forming across ${s.workers.length} coins` },
+    { id: "market", name: "Market mode", st: !s.market ? "idle" : s.market.mode === "RED" ? "bad" : "ok",
+      detail: !s.market ? "waiting for Bitcoin data" : s.market.mode === "RED" ? `RED - ${s.market.why} - no new trades` : `GREEN - ${s.market.why}` },
     { id: "risk", name: "Risk manager", st: s.guards.halted ? "bad" : (s.guards.paused_until || s.guards.daily_loss_hit) ? "warn" : "ok",
       detail: s.guards.halted ? "kill switch ON" : s.guards.paused_until ? "cooling off after losses" : s.guards.daily_loss_hit ? "daily loss limit hit" : "all limits normal" },
     { id: "broker", name: "Paper broker", st: "ok", detail: `${s.vault.open} open trade${s.vault.open === 1 ? "" : "s"} · ${usd(s.vault.equity)} equity` },
@@ -269,8 +272,9 @@ const MEM_STATUS = {
   watching: ["idle", "○", "Watching", "Noted - collecting more evidence before acting."],
   fixed: ["good", "✓", "Fixed", "A rule change that filters it passed testing and was adopted."],
   cleared: ["good", "●", "Cleared", "Newer matching trades made money, so the caution was lifted."],
+  archived: ["idle", "▫", "Archived", "Not seen for a long time - filed away. It comes back if it shows up again."],
 };
-const MEM_TAG = { new: "learn", caution: "pause", avoid: "halt", cleared: "exit", half: "pause", skip: "halt", fix_adopted: "learn", fix_rejected: "thought" };
+const MEM_TAG = { too_strict: "exit", archived: "thought", new: "learn", caution: "pause", avoid: "halt", cleared: "exit", half: "pause", skip: "halt", fix_adopted: "learn", fix_rejected: "thought" };
 
 function renderMemory(s) {
   const m = s.memory;
@@ -303,6 +307,13 @@ function renderMemory(s) {
     m.cooldown.slice(0, 12).map((c) => `<tr><td>${esc(c.desc)}${c.times > 1 ? ` <span class="muted">(${c.times}×)</span>` : ""}</td><td class="muted">${esc(c.reason)}</td><td>${esc(c.retry_after.slice(0, 10))}</td></tr>`).join("") +
     (m.cooldown.length > 12 ? `<tr><td colspan="3" class="muted">+ ${m.cooldown.length - 12} more ideas waiting out their cooldown</td></tr>` : "") + "</tbody>"
     : `<tbody><tr><td class="empty">Nothing on cooldown.</td></tr></tbody>`;
+  const sk = s.skips || { summary: [], recent: [] };
+  $("skip-sum").innerHTML = sk.summary.length ? `<thead><tr><th>Why it skipped</th><th>Skipped</th><th>Would have lost</th><th>Would have won</th><th>Effect</th></tr></thead><tbody>` +
+    sk.summary.map((r) => `<tr><td>${esc(r.label)}</td><td>${r.skipped}${r.open ? ` <span class="muted">(${r.open} still running)</span>` : ""}</td><td>${r.would_lose}</td><td>${r.would_win}</td>
+      <td class="${r.usd < 0 ? "up" : r.usd > 0 ? "down" : "muted"}">${r.would_win + r.would_lose ? (r.usd < 0 ? `saved ~${usd(-r.usd)}` : r.usd > 0 ? `missed ~${usd(r.usd)}` : "no difference") : "following…"}</td></tr>`).join("") + "</tbody>"
+    : `<tbody><tr><td class="empty">No skipped setups yet.</td></tr></tbody>`;
+  $("skip-recent").innerHTML = sk.recent.slice(0, 8).map((r) => `<li><span class="t">${esc(when(r.time))}</span><span class="tag ${r.status === "would_win" ? "pause" : r.status === "would_lose" ? "good" : "thought"}">${r.status === "open" ? "following" : r.status === "would_win" ? "missed win" : "good skip"}</span>
+    <span class="m">${esc(r.symbol.split("-")[0])} ${esc(r.side)} · ${esc(r.reason)}${r.r != null ? ` · ${r.r >= 0 ? "+" : "−"}${Math.abs(r.r).toFixed(2)}R by ${esc(r.how)}` : ""}</span></li>`).join("");
 }
 
 // ====================================================================== REPLAY (watch history play out in the city)
@@ -446,6 +457,7 @@ function renderCityHud(s) {
   let b = "";
   if (s.replay) b = `⏪ REPLAY · ${s.time.slice(0, 10)}`;
   else if (s.demo) b = "⚠ Demo - simulated prices";
+  else if (s.market && s.market.mode === "RED") b = "🔴 Market RED - no new trades";
   else if (s.guards.halted) b = "⛔ Kill switch on";
   else if (s.guards.paused_until) b = "⏸ Cooling off after losses";
   $("hud-banner").textContent = b; $("hud-banner").hidden = !b;

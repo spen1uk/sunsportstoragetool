@@ -89,7 +89,7 @@ h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .14em; text-transform: u
 .feed .t { color: var(--muted); } .feed .m { color: var(--ink-2); word-break: break-word; }
 .tag { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); }
 .tag.entry, .tag.learn { color: var(--accent); } .tag.exit { color: var(--ink); }
-.tag.halt { color: var(--bad-text); } .tag.pause { color: var(--warn); }
+.tag.halt { color: var(--bad-text); } .tag.pause { color: var(--warn); } .tag.good { color: var(--good-text); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 7px 6px; border-top: 1px solid var(--grid); text-align: left; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; border-top: 0; }

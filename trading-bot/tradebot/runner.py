@@ -13,8 +13,10 @@ from .journal import Journal
 from .memory import Memory
 from .learner import improve
 from .notify import notify
-from .report import summary_text, write_html
-from .strategy import btc_regime, checklist, compute_indicators
+from .regime import contexts, ctx_at
+from .report import summary_text, weekly_text, write_html
+from .skips import SkipTracker
+from .strategy import checklist, compute_indicators
 from .util import BAR_MS, now_iso
 
 STATE_FILE = os.path.join(DATA_DIR, "state.json")
@@ -35,8 +37,11 @@ class PaperBot:
         self.journal = Journal()
         params, version = load_params(cfg)
         self.memory = Memory()
-        self.engine = Engine(cfg, params, version, journal=self.journal, mode="paper", memory=self.memory)
-        self.meta = {"last_report": 0, "last_learn": 0, "started": now_iso()}
+        self.skips = SkipTracker(os.path.join(DATA_DIR, "skips.json"))
+        self.engine = Engine(cfg, params, version, journal=self.journal, mode="paper", memory=self.memory,
+                             skips=self.skips)
+        self.meta = {"last_report": 0, "last_learn": 0, "last_weekly": 0, "started": now_iso(),
+                     "market_mode": "GREEN", "stale": []}
         if os.path.exists(STATE_FILE):
             with open(STATE_FILE) as f:
                 s = json.load(f)
@@ -63,8 +68,9 @@ class PaperBot:
         now_ms = int(time.time() * 1000)
         data = {s: get_history(self.client, s, self.cfg["timeframe"], LIVE_BARS)
                 for s in dict.fromkeys(["BTC-USDT"] + list(self.cfg["symbols"]))}
-        btc = btc_regime(data["BTC-USDT"], self.engine.p) if data.get("BTC-USDT") else {}
+        ctxs = contexts(data.get("BTC-USDT"), self.engine.p, self.cfg)
         market = {}
+        stale = []
         for sym in self.cfg["symbols"]:
             candles = data[sym]
             if not candles:
@@ -76,12 +82,14 @@ class PaperBot:
                 new = new[-1:]  # first run: start from the latest closed bar, don't trade the past
             newest = len(candles) - 1
             fresh = now_ms - (candles[-1].ts + bar_ms) < 2 * bar_ms  # data isn't stale
+            if not fresh:
+                stale.append(sym.split("-")[0])
             before = len(self.engine.closed)
             for i in new:
                 # Catch-up bars (after downtime) still manage stops/targets, but only the
                 # newest bar may open a trade - the bot never "trades the past".
                 self.engine.on_bar(sym, candles, ind, i, allow_entry=(i == newest and fresh),
-                                  ctx={"btc_up": btc.get(candles[i].ts)})
+                                  ctx=ctx_at(ctxs, candles[i].ts))
             for t in self.engine.closed[before:]:
                 notify(self.cfg, f"{'💰' if t.net_pnl > 0 else '🔻'} {t.side} {t.symbol} closed ({t.exit_reason}): ${t.net_pnl:+.2f} "
                                  f"({t.r_multiple:+.2f}R). Balance ${t.balance_after:.2f}", log, "trade_closed",
@@ -98,11 +106,12 @@ class PaperBot:
                        {"coin": sym.split("-")[0], "side": "LONG" if p.side > 0 else "SHORT", "entry": p.entry_price,
                         "stop": p.stop, "target": p.target, "half_size": half})
             self.prices[sym] = candles[-1].c
-            ctx = {"btc_up": btc.get(candles[newest].ts)}
+            ctx = ctx_at(ctxs, candles[newest].ts)
             market[sym] = {"candles": candles, "ind": ind, "ctx": ctx}
             kind, text = think(sym, checklist(candles, ind, newest, self.engine.p, ctx),
                                self.engine.positions.get(sym), self.engine, candles[newest].ts)
             self.thoughts.update(sym, kind, text, now_ms)
+        self._watch_market(ctxs, data.get("BTC-USDT"), stale)
         self.health.update(last_fetch_ok=now_ms, last_tick=now_ms, ticks=self.health["ticks"] + 1,
                            last_learn=self.meta.get("last_learn") or None)
         try:
@@ -115,6 +124,29 @@ class PaperBot:
         self.save()
         self._periodic(now_ms)
 
+    def _watch_market(self, ctxs, btc_candles, stale):
+        """Phone alerts when market mode flips, and when price data goes stale / comes back."""
+        if btc_candles:
+            ctx = ctx_at(ctxs, btc_candles[-1].ts)
+            mode = ctx["market"]
+            if mode != self.meta.get("market_mode", "GREEN"):
+                self.meta["market_mode"] = mode
+                text = (f"🔴 Market mode RED: {ctx['market_why']}. No new trades; stops on open trades tightened."
+                        if mode == "RED" else "🟢 Market mode back to GREEN - normal trading resumes.")
+                self.journal.event("market", text)
+                log(text)
+                notify(self.cfg, text, log, "market_mode", {"mode": mode, "why": ctx["market_why"]})
+        if stale != self.meta.get("stale", []):
+            if stale:
+                text = (f"⚠️ Price data from BloFin is out of date for {', '.join(stale)}. The bot will not open "
+                        f"trades on old prices; it keeps checking.")
+            else:
+                text = "✅ Price data is up to date again."
+            self.meta["stale"] = stale
+            self.journal.event("data", text)
+            log(text)
+            notify(self.cfg, text, log, "error" if stale else "info", {"stale": stale})
+
     def _periodic(self, now_ms):
         rep_every = self.cfg["reports"]["every_hours"] * 3_600_000
         if now_ms - self.meta["last_report"] >= rep_every:
@@ -124,6 +156,15 @@ class PaperBot:
             notify(self.cfg, text, log, "daily_summary",
                    {"balance": round(self.engine.balance, 2), "open_trades": len(self.engine.positions)})
             self.meta["last_report"] = now_ms
+            self.save()
+        if now_ms - self.meta.get("last_weekly", 0) >= 7 * 86_400_000:
+            if self.meta.get("last_weekly"):  # first review a week after the bot starts
+                text = weekly_text(self.cfg, self.engine, self.journal, self.memory, self.skips, now_ms)
+                log(text)
+                with open(os.path.join(DATA_DIR, "weekly_reviews.md"), "a") as f:
+                    f.write(f"\n## {now_iso()}\n{text}\n")
+                notify(self.cfg, text, log, "weekly_review", {"balance": round(self.engine.balance, 2)})
+            self.meta["last_weekly"] = now_ms
             self.save()
         L = self.cfg["learning"]
         if L["enabled"] and now_ms - self.meta["last_learn"] >= L["every_hours"] * 3_600_000:

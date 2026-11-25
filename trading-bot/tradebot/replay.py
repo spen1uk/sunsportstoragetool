@@ -8,7 +8,8 @@ import time
 from .config import DATA_DIR, load_params
 from .dashboard import think
 from .engine import Engine
-from .strategy import btc_regime, checklist, compute_indicators
+from .regime import contexts, ctx_at
+from .strategy import checklist, compute_indicators
 from .util import ts_iso, utc_day
 
 BTC = "BTC-USDT"
@@ -21,7 +22,7 @@ def build_replay(cfg, hist, params):
     eng = Engine(cfg, params, mode="replay")
     symbols = [s for s in cfg["symbols"] if hist.get(s)]
     inds = {s: compute_indicators(hist[s], params) for s in hist}
-    btc = btc_regime(hist[BTC], params) if hist.get(BTC) else {}
+    ctxs = contexts(hist.get(BTC), params, cfg)
     index = {s: {c.ts: i for i, c in enumerate(hist[s])} for s in symbols}
     timeline = sorted({c.ts for s in symbols for c in hist[s]})
     first_ok = max(hist[s][min(WARMUP, len(hist[s]) - 1)].ts for s in symbols)
@@ -31,7 +32,7 @@ def build_replay(cfg, hist, params):
     trades, frames, earned, last_thought = [], [], {s: 0.0 for s in symbols}, {}
     seen = 0
     for ts in timeline:
-        ctx = {"btc_up": btc.get(ts)}
+        ctx = ctx_at(ctxs, ts)
         for s in symbols:
             i = index[s].get(ts)
             if i is not None:

@@ -18,7 +18,8 @@ import urllib.request
 from .config import DATA_DIR
 
 PRIORITY = {"trade_opened": "normal", "trade_closed": "normal", "daily_summary": "low", "learning": "low",
-            "memory": "normal", "error": "high", "halt": "high", "test": "normal", "info": "low"}
+            "memory": "normal", "error": "high", "halt": "high", "test": "normal", "info": "low",
+            "market_mode": "high", "weekly_review": "low"}
 MAX_OUTBOX = 200
 
 
@@ -109,6 +110,9 @@ def summary(snapshot):
         parts.append(f"Setups forming on {', '.join(setups)}.")
     if not open_w and not setups:
         parts.append("No trades open; it's waiting for Calvin's rules to line up.")
+    mk = snapshot.get("market") or {}
+    if mk.get("mode") == "RED":
+        parts.append(f"Market mode is RED ({mk.get('why', 'Bitcoin dumping')}), so it isn't opening new trades.")
     if g.get("halted"):
         parts.append("Warning: the kill switch is on and it has stopped trading until you review it.")
     elif g.get("paused_until"):
@@ -121,6 +125,7 @@ def summary(snapshot):
         "text": " ".join(parts),
         "data": {"equity": round(v["equity"], 2), "return_pct": round(v["return_pct"], 2),
                  "today": round(v.get("today", 0.0), 2), "closed_trades": trades,
+                 "market_mode": mk.get("mode", "GREEN"),
                  "win_rate": round(v.get("win_rate", 0.0), 1), "drawdown_pct": round(v.get("drawdown_pct", 0.0), 2),
                  "open_trades": [{"coin": w["name"], "side": w["position"]["side"],
                                   "unrealised": round(w["position"]["upnl"], 2)} for w in open_w],

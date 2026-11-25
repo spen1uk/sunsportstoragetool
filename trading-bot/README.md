@@ -62,7 +62,47 @@ The bot keeps a notebook of its mistakes in `data/memory.json`, so it remembers 
 5. **Don't repeat:** every rule change it tests is remembered. Rejected ideas wait 14-30 days
    before being tested again; the wait resets when the rules change.
 
+6. **Too strict? / archive:** every setup a lesson skips is followed afterwards. If 5+ skipped
+   setups would have made +2R or more, the lesson is "too strict" and goes back to half size.
+   Patterns that were only ever "watching" and haven't shown up for 90 days are archived.
+
 Half-size and skip only ever *reduce* risk; the risk limits themselves never change.
+
+### Market mode (the whole market, before any coin)
+
+When Bitcoin dumps, nearly every coin dumps with it. Before looking at any coin the bot checks
+Bitcoin's daily candles:
+
+- **GREEN** (normal): trades as usual.
+- **RED**: BTC fell 6%+ in one candle, or 10%+ over three. **No new trades**, and stops on open
+  trades are pulled up to 1 ATR behind price (stops only ever tighten). It goes back to GREEN
+  after 2 calm candles. You get a phone alert both ways.
+
+Settings: `config.json -> risk.market_mode`. It's a safety rule, so the learner never turns it off.
+
+### Missed-trade tracker ("did skipping help?")
+
+Whenever the bot skips a setup (market RED, a known mistake, already 2 trades open, daily loss
+limit, cooling off), it keeps watching that setup as if it had been taken and records whether
+skipping **saved money** or **missed a winner**. See it on the Memory tab, in `backtest` output
+and in the weekly review. It's an estimate (no fees, stop checked first).
+
+### Weekly review
+
+Once a week you get a review: results, best/worst trade, what the skips saved or missed,
+what the Memory Keeper learned, and **"Why this could still fail"**, a list of honest warnings
+from the numbers (too few trades, results leaning on one coin, drawdown, data errors...).
+Suggestions are only suggestions; nothing changes unless you change it.
+`python3 run.py weekly` shows it anytime. Reviews are saved in `data/weekly_reviews.md`.
+
+### Safety self-test
+
+`python3 run.py selftest` acts out what goes wrong with trading bots and checks the bot reacts
+safely: old (stale) prices, the same candle twice, a restart mid-trade, the exchange going down,
+gaps through a stop, the kill switch, the daily loss limit, market mode RED, UTC midnight,
+paper-only mode and position size. It prints PASS/FAIL in plain English, uses simulated prices
+in its own folder, and never touches your paper account or sends alerts. The server setup runs it
+too (as part of the tests) and stops if anything fails.
 
 ## Quick start (on your computer)
 
@@ -204,6 +244,10 @@ tradebot/strategy.py  the rules as code
 tradebot/engine.py    paper broker + risk manager (shared by backtest and live)
 tradebot/learner.py   review -> propose -> walk-forward test -> adopt
 tradebot/runner.py    the 24/7 loop
+tradebot/regime.py    market mode (GREEN / RED from Bitcoin)
+tradebot/skips.py     missed-trade tracker (follows every skipped setup)
+tradebot/memory.py    Memory Keeper (mistakes notebook)
+tradebot/selftest.py  safety self-test (python3 run.py selftest)
 data/                 created at runtime: journal.db, trades.csv, report.html, learning_log.md, bot.log
 ```
 

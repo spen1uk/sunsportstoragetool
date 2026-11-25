@@ -130,6 +130,7 @@
       <li><b>Avoid it:</b> only if <b>new</b> trades after the discovery keep losing are those setups <b>skipped</b>.</li>
       <li><b>Fix it or let it go:</b> a fix that passes testing becomes a rule; if newer trades make money, the caution is lifted.</li>
       <li><b>Don't repeat itself:</b> rejected ideas wait out a cooldown before they're tested again.</li>
+      <li><b>Check its own caution:</b> every setup it skips is followed afterwards. If a lesson keeps blocking winners, it's "too strict" and goes back to half size.</li>
     </ol>
   </div>
   <section class="grid2">
@@ -138,6 +139,12 @@
       <div class="panel"><h2>Memory timeline</h2><ul class="feed" id="mem-events"></ul></div>
       <div class="panel"><h2>Already tried · not repeating yet</h2><div class="tw"><table id="cooldown"></table></div></div>
     </div>
+  </section>
+  <section class="panel">
+    <h2>Setups it skipped · did skipping help?</h2>
+    <p class="muted small">Each skipped setup is followed afterwards as if it had been taken (estimate: no fees, stop checked first).</p>
+    <div class="tw"><table id="skip-sum"></table></div>
+    <ul class="feed" id="skip-recent"></ul>
   </section>
 </main></section>
 

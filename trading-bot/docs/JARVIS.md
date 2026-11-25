@@ -24,6 +24,48 @@ Running it again keeps the same keys, so you only pair Jarvis once. On the serve
 
 For every event the bot sends `POST <JARVIS_WEBHOOK_URL>` with a JSON body:
 
+```json
+{"source": "trading-bot", "version": 1, "id": "9f2c41d07a3e5b18", "type": "trade_closed",
+ "priority": "normal", "time": 1763251200000,
+ "text": "💰 LONG ETH-USDT closed (take_profit): $+2.94 (+2.90R). Balance $104.12",
+ "data": {"coin": "ETH", "side": "LONG", "pnl": 2.94, "r": 2.9, "how": "take_profit", "balance": 104.12}}
+```
+
+`text` is ready to text or say as-is; `data` has the numbers if Jarvis wants to word it itself.
+`time` is milliseconds since 1970 (UTC). `id` is unique, so Jarvis can ignore a repeat.
+
+| `type` | When | Priority |
+|---|---|---|
+| `trade_opened` | the bot opened a paper trade | normal |
+| `trade_closed` | a trade closed (profit or loss) | normal |
+| `market_mode` | market mode turned RED (Bitcoin dumping, no new trades) or back to GREEN | high |
+| `daily_summary` | once a day | low |
+| `weekly_review` | once a week: results, skipped setups, what could still fail | low |
+| `learning` | the self-improvement cycle finished | low |
+| `error` | something keeps failing (e.g. BloFin unreachable, stale prices) | high |
+| `halt` | kill switch turned on | high |
+| `test` | `python3 run.py test-alert` | normal |
+
+Suggested: text **high** right away, **normal** as a normal message, and bundle **low** into a digest.
+
+If Jarvis is down, events wait in a queue (`data/jarvis_outbox.jsonl`, newest 200) and are
+re-sent in order next time. Answer any `2xx` to say "got it".
+
+**Check the signature** (so nobody else can pretend to be your bot): header `X-Bot-Signature` is
+`sha256=` + HMAC-SHA256 of the raw request body with `JARVIS_SECRET`.
+
+Python:
+
+```python
+import hashlib, hmac
+
+def from_my_bot(raw_body: bytes, signature_header: str, secret: str) -> bool:
+    expected = "sha256=" + hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature_header or "")
+```
+
+Node:
+
 ```js
 import crypto from "node:crypto";
 
@@ -48,7 +90,7 @@ Response:
   "text": "Paper account is at $107.56, up 7.6% since the start. 32 closed trades, winning 28% of them. BTC is in a long trade, up $0.66. Setups forming on ETH, SOL.",
   "data": {"equity": 107.56, "return_pct": 7.56, "today": 0.0, "closed_trades": 32, "win_rate": 28.1,
            "drawdown_pct": 0.0, "open_trades": [{"coin": "BTC", "side": "LONG", "unrealised": 0.66}],
-           "setups_forming": ["ETH", "SOL"], "halted": false, "as_of": "2026-10-18 00:00 UTC", "mode": "paper"}
+           "setups_forming": ["ETH", "SOL"], "halted": false, "market_mode": "GREEN", "as_of": "2026-10-18 00:00 UTC", "mode": "paper"}
 }
 ```
 

@@ -9,14 +9,19 @@ Fill model (deliberately pessimistic):
 import json
 
 from .models import Position, Trade
+from .regime import settings as market_settings
+from .skips import SkipTracker
 from .strategy import exit_signal, signal_at
 from .util import BAR_MS, new_id, ts_iso, utc_day
 
 
 class Engine:
-    def __init__(self, cfg, params, params_version=0, journal=None, mode="paper", balance=None, memory=None):
+    def __init__(self, cfg, params, params_version=0, journal=None, mode="paper", balance=None, memory=None,
+                 skips=None):
         self.cfg = cfg
         self.memory = memory  # Memory Keeper: checks every new setup against known mistakes
+        self.skips = skips if skips is not None else SkipTracker()  # follows every setup it didn't take
+        self.market = market_settings(cfg)
         self.fees = cfg["fees"]
         self.risk = cfg["risk"]
         self.bar_ms = BAR_MS[cfg["timeframe"]]
@@ -76,15 +81,32 @@ class Engine:
         ctx: market context for the filters, e.g. {"btc_up": True}."""
         bar = candles[i]
         self._roll_day(bar.ts)
+        self._follow_skips(symbol, bar, ind, i)
         exited = False
         pos = self.positions.get(symbol)
         if pos and bar.ts > pos.entry_ts:
-            exited = self._manage(pos, bar, ind["atr"][i], exit_signal(ind, i, self.p, pos.side))
+            red = (ctx or {}).get("market") == "RED"
+            exited = self._manage(pos, bar, ind["atr"][i], exit_signal(ind, i, self.p, pos.side), red=red)
         if allow_entry and not exited and symbol not in self.positions:
             self._maybe_enter(symbol, candles, ind, i, ctx)
         self.last_ts[symbol] = bar.ts
 
-    def _manage(self, pos, bar, atr_now, exit_now=False):
+    def _follow_skips(self, symbol, bar, ind, i):
+        """Move the follow-up of skipped setups for this coin forward one candle."""
+        side = next((s["side"] for s in self.skips.items if s["symbol"] == symbol and s["status"] == "open"), 0)
+        if not side:
+            return
+        done = self.skips.update(symbol, bar, exit_now=exit_signal(ind, i, self.p, side),
+                                 max_bars=self.p["max_bars_in_trade"])
+        for s in done:
+            verdict = "would have WON" if s["r"] > 0 else "would have lost"
+            self._event(bar.ts, "missed", f"Skipped {symbol.split('-')[0]} setup ({s['reason'].replace('_', ' ')}) "
+                                          f"{verdict}: {s['r']:+.2f}R by {s['how']} (estimate)")
+            if self.memory is not None and s.get("pattern"):
+                for note in self.memory.record_skip(s["pattern"], s["r"], bar.ts):
+                    self._event(bar.ts, "memory", note)
+
+    def _manage(self, pos, bar, atr_now, exit_now=False, red=False):
         d, p = pos.side, self.p
         if d > 0:
             pos.best_price = max(pos.best_price, bar.h)
@@ -144,6 +166,11 @@ class Engine:
             new_stop = bar.c - d * p["trail_atr_mult"] * atr_now
             if (new_stop - pos.stop) * d > 0:
                 pos.stop = new_stop
+        if red and atr_now and self.market.get("red_trail_atr", 0) > 0:
+            # Market mode RED: pull the stop up close behind price. Stops only ever tighten.
+            new_stop = bar.c - d * self.market["red_trail_atr"] * atr_now
+            if (new_stop - pos.stop) * d > 0:
+                pos.stop = new_stop
         if exit_now:  # the strategy's own exit signal (e.g. UT Bot SELL), at the candle close
             self._close(pos, bar.ts, bar.c * (1 - d * self.slip), "signal_exit")
             return True
@@ -154,12 +181,18 @@ class Engine:
 
     def _maybe_enter(self, symbol, candles, ind, i, ctx=None):
         bar = candles[i]
-        if self.halted or bar.ts < self.pause_until:
-            return
-        if len(self.positions) >= self.risk["max_open_positions"] or self.daily_loss_hit():
-            return
         sig = signal_at(candles, ind, i, self.p, ctx)
         if not sig:
+            return
+        risk_usd = self.balance * self.risk["risk_per_trade_pct"] / 100.0
+        block = ("halted" if self.halted else "pause" if bar.ts < self.pause_until else
+                 "max_positions" if len(self.positions) >= self.risk["max_open_positions"] else
+                 "daily_loss" if self.daily_loss_hit() else
+                 "market_red" if (ctx or {}).get("market") == "RED" else None)
+        if block:
+            if self.skips.add(symbol, sig, bar.ts, block, risk_usd) and block == "market_red":
+                self._event(bar.ts, "market", f"{symbol.split('-')[0]} setup skipped - market mode RED "
+                                              f"({(ctx or {}).get('market_why', 'Bitcoin dumping')})")
             return
         reasons = list(sig.reasons)
         size_mult = 1.0
@@ -169,6 +202,7 @@ class Engine:
                 msg = self.memory.note_action(action, pat, symbol, bar.ts)
                 self._event(bar.ts, "memory", msg)
                 if action == "skip":
+                    self.skips.add(symbol, sig, bar.ts, "memory", risk_usd, pattern=pat["key"])
                     return
                 size_mult = 0.5
                 reasons.append(f"memory: half size - looks like a past mistake ({pat['text']})")
@@ -183,6 +217,7 @@ class Engine:
         max_notional = self.balance * self.risk["max_leverage"] / self.risk["max_open_positions"]
         qty = min(qty, max_notional / fill) * size_mult  # memory caution halves the final position
         if qty * fill < self.risk["min_notional"]:
+            self.skips.add(symbol, sig, bar.ts, "too_small", risk_usd)
             self._event(bar.ts, "skip", f"{symbol} signal skipped: size ${qty * fill:.2f} below exchange minimum")
             return
         fee = qty * fill * self.taker

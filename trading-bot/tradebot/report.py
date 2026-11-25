@@ -31,6 +31,93 @@ def summary_text(cfg, engine, journal, prices=None):
     return "\n".join(lines)
 
 
+WEEK_MS = 7 * 86_400_000
+
+
+def risks(cfg, engine, trades, skip_rows, health_errors=0):
+    """'Why this could still fail' - honest, data-driven warnings (never hype)."""
+    st = stats(trades, cfg["starting_balance"])
+    out = []
+    if st["trades"] < 30:
+        out.append(f"Only {st['trades']} closed paper trades so far - too few to trust the results yet "
+                   f"(aim for 30+ before thinking about real money).")
+    if st["trades"] >= 5 and st["win_rate"] < 35:
+        out.append(f"Win rate is {st['win_rate']:.0f}%: profits depend on a few big winners. A run of "
+                   f"losses is normal for this system - the risk limits are what keep it survivable.")
+    if st["trades"] >= 10 and st["expectancy_r"] <= 0:
+        out.append(f"Average trade is {st['expectancy_r']:+.2f}R - the system is not making money on paper.")
+    dd = (1 - engine.balance / engine.peak) * 100 if engine.peak else 0
+    lim = cfg["risk"]["max_drawdown_pct"]
+    if dd >= lim / 2:
+        out.append(f"Account is {dd:.1f}% below its peak (kill switch at {lim:.0f}%).")
+    syms = {}
+    for t in trades:
+        syms[t["symbol"]] = syms.get(t["symbol"], 0.0) + t["net_pnl"]
+    if len(trades) >= 10 and syms:
+        top, val = max(syms.items(), key=lambda kv: kv[1])
+        total = sum(v for v in syms.values() if v > 0)
+        if total > 0 and val / total > 0.7:
+            out.append(f"{top.split('-')[0]} made {val / total * 100:.0f}% of the profit - results lean on one coin.")
+    for r in skip_rows:
+        done = r["would_win"] + r["would_lose"]
+        if done >= 5 and r["usd"] > 0 and r["reason"] in ("market_red", "memory"):
+            out.append(f"'{r['label']}' skipped setups that would have made about ${r['usd']:.2f} - "
+                       f"this rule may be too careful (see suggestions).")
+    if health_errors:
+        out.append(f"{health_errors} data/connection errors recently - check the DATA tab.")
+    out.append("Paper fills are an estimate: real fills, fees and slippage can be worse, especially in fast markets.")
+    return out
+
+
+def weekly_text(cfg, engine, journal, memory=None, skips=None, now_ms=None):
+    """The weekly review for your phone: what happened, what was skipped, what could go wrong.
+    Suggestions are only suggestions - the bot never changes a safety rule by itself."""
+    import time as _t
+    now_ms = now_ms or int(_t.time() * 1000)
+    since = now_ms - WEEK_MS
+    all_trades = journal.trades(mode="paper")
+    week = [t for t in all_trades if t["exit_ts"] >= since]
+    pnl = sum(t["net_pnl"] for t in week)
+    wins = sum(1 for t in week if t["net_pnl"] > 0)
+    lines = [f"📅 Weekly review ({ts_iso(since)[:10]} to {ts_iso(now_ms)[:10]})",
+             f"Balance ${engine.balance:.2f} (started ${cfg['starting_balance']:.2f}) | this week ${pnl:+.2f}",
+             f"Trades closed this week: {len(week)}" + (f" - {wins} won, {len(week) - wins} lost" if week else "")]
+    if week:
+        best = max(week, key=lambda t: t["net_pnl"])
+        worst = min(week, key=lambda t: t["net_pnl"])
+        lines.append(f"Best: {best['symbol'].split('-')[0]} ${best['net_pnl']:+.2f} ({best['r_multiple']:+.2f}R) | "
+                     f"Worst: {worst['symbol'].split('-')[0]} ${worst['net_pnl']:+.2f} ({worst['r_multiple']:+.2f}R)")
+    rows = skips.summary(since) if skips else []
+    if rows:
+        lines.append("")
+        lines.append("Setups the bot skipped (followed up afterwards):")
+        lines += ["- " + x for x in skips.text_lines(since)]
+    if memory is not None:
+        ms = memory.summary(now_ms)
+        recent = [e for e in memory.data["events"] if e["ts"] >= since]
+        lines.append("")
+        lines.append(f"Memory Keeper: {ms['stats']['patterns']} mistake patterns, {ms['stats']['active']} active"
+                     + (f", {len(recent)} new notes this week" if recent else ""))
+        for e in recent[:3]:
+            lines.append("- " + e["message"])
+    lines.append("")
+    lines.append("Why this could still fail:")
+    lines += ["- " + x for x in risks(cfg, engine, all_trades, skips.summary() if skips else [])]
+    sugg = []
+    for r in (skips.summary() if skips else []):
+        done = r["would_win"] + r["would_lose"]
+        if done >= 5 and r["usd"] > 0 and r["reason"] == "market_red":
+            sugg.append("Market mode RED blocked winners - consider a deeper trigger (risk.market_mode.red_1d_pct).")
+        if done >= 5 and r["usd"] > 0 and r["reason"] == "max_positions":
+            sugg.append("Good setups were missed because 2 trades were already open. Raising the limit "
+                        "means more risk at once - only if you are comfortable.")
+    if sugg:
+        lines.append("")
+        lines.append("Suggestions (nothing changes unless you change it):")
+        lines += ["- " + x for x in sugg]
+    return "\n".join(lines)
+
+
 def _svg_curve(points, w=900, h=220):
     if len(points) < 2:
         return "<p class=muted>Equity curve appears after the first trades.</p>"

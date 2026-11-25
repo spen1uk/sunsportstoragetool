@@ -583,6 +583,171 @@ class Learner(unittest.TestCase):
             self.assertGreaterEqual(c["holdout_r"][1], c["holdout_r"][0])
 
 
+class MarketMode(unittest.TestCase):
+    def _btc(self, closes):
+        return [Candle(i * 86_400_000, c, c * 1.01, c * 0.99, c) for i, c in enumerate(closes)]
+
+    def test_crash_turns_red_then_green_after_calm(self):
+        from tradebot.regime import market_modes
+        closes = [100.0] * 10 + [92.0] + [92.0] * 4          # -8% candle at index 10
+        modes = [m["mode"] for m in market_modes(self._btc(closes), CFG).values()]
+        self.assertEqual(modes[9], "GREEN")
+        self.assertEqual(modes[10:13], ["RED", "RED", "RED"])  # trigger + 2 calm candles
+        self.assertEqual(modes[13], "GREEN")
+
+    def test_slow_three_day_slide_also_counts(self):
+        from tradebot.regime import market_modes
+        closes = [100.0] * 5 + [96.5, 93.0, 89.5]           # -3.5% a day, -10.5% over 3
+        modes = [m["mode"] for m in market_modes(self._btc(closes), CFG).values()]
+        self.assertEqual(modes[6], "GREEN")
+        self.assertEqual(modes[7], "RED")
+
+    def test_can_be_switched_off(self):
+        from tradebot.regime import market_modes
+        cfg = copy.deepcopy(CFG)
+        cfg["risk"]["market_mode"]["enabled"] = False
+        closes = [100.0] * 5 + [80.0]
+        self.assertEqual({m["mode"] for m in market_modes(self._btc(closes), cfg).values()}, {"GREEN"})
+
+    def test_backtest_and_replay_see_the_same_market(self):
+        from tradebot.regime import contexts
+        cs = synthetic_candles(900, seed=4, bar="1D")
+        ctxs = contexts(cs, CFG["strategy"], CFG)
+        self.assertEqual(len(ctxs), len(cs))
+        self.assertTrue(all(c["market"] in ("GREEN", "RED") for c in ctxs.values()))
+
+
+class SkippedSetups(unittest.TestCase):
+    def _signal_bar(self):
+        from tradebot.regime import contexts, ctx_at
+        for seed in range(1, 60):
+            cs = synthetic_candles(900, seed=seed, bar="1D")
+            ind = compute_indicators(cs, CFG["strategy"])
+            ctxs = contexts(cs, CFG["strategy"], CFG)
+            for i in range(300, len(cs) - 60):
+                if ctx_at(ctxs, cs[i].ts)["market"] == "GREEN" and signal_at(cs, ind, i, CFG["strategy"]):
+                    return cs, ind, i
+        self.fail("no signal")
+
+    def test_red_market_skips_and_follows_up(self):
+        cs, ind, i = self._signal_bar()
+        eng = _engine()
+        red = {"btc_up": True, "market": "RED", "market_why": "test"}
+        eng.on_bar("ETH-USDT", cs, ind, i, ctx=red)
+        self.assertNotIn("ETH-USDT", eng.positions)
+        self.assertEqual(eng.skips.items[-1]["reason"], "market_red")
+        for j in range(i + 1, len(cs)):
+            eng.on_bar("ETH-USDT", cs, ind, j, allow_entry=False)
+            if eng.skips.items[-1]["status"] != "open":
+                break
+        s = eng.skips.items[-1]
+        self.assertIn(s["status"], ("would_win", "would_lose"))
+        self.assertEqual(s["status"] == "would_win", s["r"] > 0)
+        row = eng.skips.summary()[0]
+        self.assertEqual(row["skipped"], 1)
+        self.assertTrue(eng.skips.text_lines())
+
+    def test_one_follow_up_per_coin(self):
+        cs, ind, i = self._signal_bar()
+        eng = _engine()
+        red = {"btc_up": True, "market": "RED", "market_why": "test"}
+        eng.on_bar("ETH-USDT", cs, ind, i, ctx=red)
+        eng.on_bar("ETH-USDT", cs, ind, i, ctx=red)
+        self.assertEqual(len(eng.skips.items), 1)
+
+    def test_skip_follow_up_is_pessimistic(self):
+        from tradebot.models import Signal
+        from tradebot.skips import SkipTracker
+        t = SkipTracker()
+        t.add("X", Signal(1, 100.0, 95.0, 115.0, 2.0), 0, "market_red", 1.0)
+        done = t.update("X", Candle(86_400_000, 100, 120, 90, 110))  # stop and target both touched
+        self.assertEqual(done[0]["how"], "stop")
+        self.assertAlmostEqual(done[0]["r"], -1.0)
+
+    def test_tracker_survives_restart(self):
+        from tradebot.models import Signal
+        from tradebot.skips import SkipTracker
+        path = os.path.join(TMP, "skips-test.json")
+        SkipTracker(path).add("X", Signal(1, 100.0, 95.0, 115.0, 2.0), 0, "memory", 1.0, pattern="p1")
+        self.assertEqual(SkipTracker(path).items[0]["pattern"], "p1")
+
+
+class LessonsGrowUp(unittest.TestCase):
+    def _mem(self, status="avoid"):
+        from tradebot.memory import Memory
+        m = Memory(os.path.join(TMP, f"mem-{status}-{id(self)}.json"))
+        m.data["patterns"]["p"] = {"key": "p", "text": "price stretched", "status": status,
+                                   "cond": {"feature": "extension_atr", "op": ">", "threshold": 3},
+                                   "first_seen": 0, "last_seen": 0, "times_found": 3,
+                                   "live": {"trades": 6, "r": -4.0, "wins": 1}, "fixes": []}
+        return m
+
+    def test_lesson_too_strict_goes_back_to_half_size(self):
+        m = self._mem()
+        notes = []
+        for _ in range(5):
+            notes += m.record_skip("p", 1.5, 1)
+        self.assertEqual(m.data["patterns"]["p"]["status"], "caution")
+        self.assertTrue(any("too strict" in n for n in notes))
+
+    def test_losing_skips_keep_the_lesson(self):
+        m = self._mem()
+        for _ in range(6):
+            m.record_skip("p", -1.0, 1)
+        self.assertEqual(m.data["patterns"]["p"]["status"], "avoid")
+
+    def test_old_watching_patterns_are_archived_and_can_return(self):
+        from tradebot.memory import ARCHIVE_DAYS, DAY_MS
+        m = self._mem("watching")
+        m.data["patterns"]["p"]["times_found"] = 1
+        m.update_patterns([], now=(ARCHIVE_DAYS + 1) * DAY_MS)
+        self.assertEqual(m.data["patterns"]["p"]["status"], "archived")
+        f = {"key": "p", "text": "price stretched", "cond": m.data["patterns"]["p"]["cond"],
+             "losers": 1, "winners": 1, "r_sum": -0.5, "trades": 2}
+        m.update_patterns([f], now=(ARCHIVE_DAYS + 2) * DAY_MS)
+        self.assertEqual(m.data["patterns"]["p"]["status"], "watching")
+
+
+class WeeklyReview(unittest.TestCase):
+    def test_weekly_text_is_honest(self):
+        from tradebot.journal import Journal
+        from tradebot.report import weekly_text
+        cfg = copy.deepcopy(CFG)
+        j = Journal(os.path.join(TMP, "weekly.db"))
+        res = run_backtest(cfg, cfg["strategy"], {"BTC-USDT": synthetic_candles(900, seed=3, bar="1D")}, journal=j)
+        for t in res["trades"]:
+            t.mode = "paper"
+            j.record_trade(t)
+        eng = _engine()
+        now = res["trades"][-1].exit_ts if res["trades"] else 0
+        text = weekly_text(cfg, eng, j, None, res["skips"], now)
+        self.assertIn("Weekly review", text)
+        self.assertIn("Why this could still fail", text)
+        self.assertNotIn("guaranteed", text.lower())
+
+
+class SafetySelfTest(unittest.TestCase):
+    def test_all_safety_checks_pass(self):
+        import subprocess
+        env = dict(os.environ, TRADEBOT_DATA_DIR=os.path.join(TMP, "selftest"))
+        here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        out = subprocess.run([sys.executable, "run.py", "selftest"], cwd=here, env=env,
+                             capture_output=True, text=True, timeout=300)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("11/11 passed", out.stdout)
+
+    def test_refuses_to_reset_the_real_account_folder(self):
+        import tradebot.selftest as st
+        from tradebot.config import ROOT
+        real = st.DATA_DIR
+        st.DATA_DIR = os.path.join(ROOT, "data")
+        try:
+            with self.assertRaises(SystemExit):
+                st._wipe()
+        finally:
+            st.DATA_DIR = real
+
+
 class LiveLoop(unittest.TestCase):
     def test_tick_with_fake_exchange(self):
         from tradebot.runner import PaperBot
